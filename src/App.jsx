@@ -615,10 +615,55 @@ const DonutChart=({segments,title,centerLabel})=>{
   )
 }
 
+/* Commission payment form — standalone so keyboard stays open */
+const CommPayForm=({docName,balance,onSave,onCancel})=>{
+  const [date,setDate]=useState(todayStr())
+  const [amount,setAmount]=useState(String(Math.round(balance)))
+  const [pay,setPay]=useState('cash')
+  const [busy,setBusy]=useState(false)
+  const go=async()=>{
+    const amt=parseFloat(amount)
+    if(!amt||amt<=0){alert('Enter amount');return}
+    setBusy(true)
+    await onSave(amt,date,pay)
+    setBusy(false)
+  }
+  return(
+    <div style={{background:'#f9fafb',borderRadius:10,padding:'12px 14px',border:'1px solid #e5e7eb',marginTop:10}}>
+      <div style={{fontSize:12,fontWeight:700,color:'#111',marginBottom:10}}>Pay Dr. {docName}</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+        <div>
+          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Date</label>
+          <input style={{width:'100%',padding:'9px 12px',border:'1px solid #e5e7eb',borderRadius:10,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        </div>
+        <div>
+          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Amount (₹)</label>
+          <input style={{width:'100%',padding:'9px 12px',border:'1px solid #e5e7eb',borderRadius:10,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'}} type="number" inputMode="numeric" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)}/>
+        </div>
+      </div>
+      <div style={{marginBottom:10}}>
+        <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:6,fontWeight:700}}>Payment mode</label>
+        <div style={{display:'flex',gap:8}}>
+          {['cash','upi','card'].map(m=>(
+            <button key={m} onClick={()=>setPay(m)} style={{flex:1,padding:'9px 4px',border:pay===m?'2px solid #111':'1px solid #e5e7eb',borderRadius:8,background:pay===m?'#111':'#fff',color:pay===m?'#fff':'#555',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+              {m[0].toUpperCase()+m.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={onCancel} style={{flex:1,padding:'10px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Cancel</button>
+        <button onClick={go} disabled={busy} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',opacity:busy?0.6:1}}>
+          {busy?'Saving…':'✓ Save payment'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /* REPORTS */
 const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const [payDoc,setPayDoc]=useState(null)
-  const [payForm,setPayForm]=useState({date:todayStr(),amount:'',pay:'cash'})
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
 
@@ -710,43 +755,15 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
             {balance>0&&(
               <div style={{marginTop:10}}>
                 {!isOpen
-                  ?<button onClick={()=>{setPayDoc(doc.name);setPayForm({date:todayStr(),amount:String(Math.round(balance)),pay:'cash'})}} style={{width:'100%',padding:'9px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                  ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
                     + Record commission payment
                   </button>
-                  :<div style={{background:'#f9fafb',borderRadius:10,padding:'12px 14px',border:'1px solid #e5e7eb'}}>
-                    <div style={{fontSize:12,fontWeight:700,color:'#111',marginBottom:10}}>Pay Dr. {doc.name}</div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-                      <div>
-                        <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Date</label>
-                        <input style={{...S.inp}} type="date" value={payForm.date} onChange={e=>setPayForm({...payForm,date:e.target.value})}/>
-                      </div>
-                      <div>
-                        <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Amount (₹)</label>
-                        <input style={{...S.inp}} type="number" inputMode="numeric" value={payForm.amount} onChange={e=>setPayForm({...payForm,amount:e.target.value})}/>
-                      </div>
-                    </div>
-                    <div style={{marginBottom:10}}>
-                      <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Payment mode</label>
-                      <div style={{display:'flex',gap:8}}>
-                        {['cash','upi','card'].map(m=>(
-                          <button key={m} onClick={()=>setPayForm({...payForm,pay:m})} style={{flex:1,padding:'8px 4px',border:payForm.pay===m?'2px solid #111':'1px solid #e5e7eb',borderRadius:8,background:payForm.pay===m?'#111':'#fff',color:payForm.pay===m?'#fff':'#555',fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                            {m[0].toUpperCase()+m.slice(1)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{display:'flex',gap:8}}>
-                      <button onClick={()=>setPayDoc(null)} style={{flex:1,padding:'9px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Cancel</button>
-                      <button onClick={async()=>{
-                        const amt=parseFloat(payForm.amount)
-                        if(!amt||amt<=0){alert('Enter amount');return}
-                        await actions.payCommission(doc.name,amt,payForm.date,payForm.pay)
-                        setPayDoc(null)
-                      }} style={{flex:2,padding:'9px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
-                        ✓ Save payment
-                      </button>
-                    </div>
-                  </div>
+                  :<CommPayForm
+                    docName={doc.name}
+                    balance={balance}
+                    onCancel={()=>setPayDoc(null)}
+                    onSave={async(amt,date,pay)=>{await actions.payCommission(doc.name,amt,date,pay);setPayDoc(null)}}
+                  />
                 }
               </div>
             )}
