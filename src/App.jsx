@@ -664,6 +664,8 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
 /* REPORTS */
 const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const [payDoc,setPayDoc]=useState(null)
+  const [refPer,setRefPer]=useState('month')
+  const [labPer,setLabPer]=useState('month')
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
 
@@ -774,7 +776,7 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
     </>)
   }
 
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'},{k:'lab',l:'Lab Report'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'},{k:'lab',l:'Lab'},{k:'realincome',l:'Real Income'}]
   return(
     <div>
       <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
@@ -830,20 +832,19 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           <SecL>Doctor referral report</SecL><RefRep income={yI}/>
         </>)
       })()}
-      {rv==='referrals'&&(()=>{
-        const [rp,setRp]=useState('month')
-        const fi=rp==='month'?db.income.filter(e=>e.date?.startsWith(rm)):db.income.filter(e=>e.date?.startsWith(ry))
-        return(<>
+      {rv==='referrals'&&(
+        <>
           <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
             <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
-            {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(<button key={v.k} onClick={()=>setRp(v.k)} style={{padding:'7px 14px',borderRadius:20,border:rp===v.k?'none':'1px solid #e5e7eb',background:rp===v.k?'#111':'none',color:rp===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+            {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(<button key={v.k} onClick={()=>setRefPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:refPer===v.k?'none':'1px solid #e5e7eb',background:refPer===v.k?'#111':'none',color:refPer===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
           </div>
-          {rp==='month'&&<input style={S.inp} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
-          {rp==='year'&&<select style={S.sel} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-          <RefRep income={fi}/>
-        </>)
-      })()}
-      {rv==='patients'&&(()=>{
+          {refPer==='month'&&<input style={S.inp} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
+          {refPer==='year'&&<select style={S.sel} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+          <RefRep income={refPer==='month'?db.income.filter(e=>e.date?.startsWith(rm)):db.income.filter(e=>e.date?.startsWith(ry))}/>
+        </>
+      )}
+      {rv==='patients'&&(
+        <>
         const pats=db.ip_patients
         if(!pats.length)return<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No patients yet</div>
         const IP_TYPES=['ip','ip_r','ip_l']
@@ -942,11 +943,10 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
               )
             })()}
           </div>
-        </>)
-      })()}
+        </>
+      )}
       {rv==='lab'&&(()=>{
         // Lab income report
-        const [labPer,setLabPer]=useState('month')
         const labInc=labPer==='month'
           ?db.income.filter(e=>e.date?.startsWith(rm)&&(e.type==='op_l'||e.type==='ip_l'))
           :db.income.filter(e=>e.date?.startsWith(ry)&&(e.type==='op_l'||e.type==='ip_l'))
@@ -1013,6 +1013,74 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           )}
         </>)
       })()}
+      {rv==='realincome'&&(
+        <>
+          <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>
+            All income sources — total billed minus referral commission equals real income
+          </div>
+          {/* Per category breakdown */}
+          <Card>
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
+              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
+              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Income</div>
+              <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Comm</div>
+              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
+            </div>
+            {ITYPES.map(t=>{
+              const ents=db.income.filter(e=>e.type===t.key)
+              const inc=ents.reduce((a,e)=>a+e.amount,0)
+              const comm=ents.reduce((a,e)=>a+getComm(e),0)
+              const real=inc-comm
+              if(!inc)return null
+              const [,tx]=TC[t.key]
+              return(
+                <div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
+                  <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span>
+                  <span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
+                  <span style={{fontSize:13,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
+                  <span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
+                </div>
+              )
+            })}
+            {(()=>{
+              const allInc=db.income.reduce((a,e)=>a+e.amount,0)
+              const allComm=db.income.reduce((a,e)=>a+getComm(e),0)
+              const allReal=allInc-allComm
+              return(
+                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}>
+                  <span style={{fontSize:14,fontWeight:800}}>Grand total</span>
+                  <span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span>
+                  <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#d97706',minWidth:64}}>{allComm>0?'-'+fmt(allComm):'—'}</span>
+                  <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span>
+                </div>
+              )
+            })()}
+          </Card>
+          {/* Summary cards */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:4}}>
+            <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}>
+              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total billed</div>
+              <div style={{fontSize:20,fontWeight:700}}>{fmt(db.income.reduce((a,e)=>a+e.amount,0))}</div>
+            </div>
+            <div style={{background:'#fff7ed',borderRadius:12,padding:'12px 14px'}}>
+              <div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total commission</div>
+              <div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(db.income.reduce((a,e)=>a+getComm(e),0))}</div>
+            </div>
+            <div style={{background:'#f0fdf4',borderRadius:12,padding:'12px 14px',gridColumn:'1/-1'}}>
+              <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income (all time)</div>
+              <div style={{fontSize:26,fontWeight:800,color:'#15803d'}}>{fmt(db.income.reduce((a,e)=>a+e.amount,0)-db.income.reduce((a,e)=>a+getComm(e),0))}</div>
+              <div style={{fontSize:11,color:'#aaa',marginTop:4}}>Total billed minus all referral commissions</div>
+            </div>
+          </div>
+          {/* Chart */}
+          <HBarChart title="Real income by source" data={ITYPES.map(t=>{
+            const ents=db.income.filter(e=>e.type===t.key)
+            const real=ents.reduce((a,e)=>a+e.amount,0)-ents.reduce((a,e)=>a+getComm(e),0)
+            const [,tx]=TC[t.key]
+            return{label:t.label,value:real,color:tx,fmt:fmt(real)}
+          }).filter(d=>d.value>0)}/>
+        </>
+      )}
     </div>
   )
 }
