@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Om Hospital - Setup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui; background: #f7f7f7; padding: 20px; }
+    .box { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 16px; border: 1px solid #e5e7eb; max-width: 480px; margin: 20px auto; }
+    h2 { font-size: 18px; margin-bottom: 16px; color: #111; }
+    label { display: block; font-size: 11px; color: #888; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; margin-top: 12px; }
+    input { width: 100%; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 16px; margin-bottom: 4px; }
+    button { width: 100%; padding: 12px; background: #111; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 12px; }
+    .msg { padding: 10px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; }
+    .ok  { background: #f0fdf4; color: #15803d; }
+    .err { background: #fef2f2; color: #dc2626; }
+    .info{ background: #eff6ff; color: #1d4ed8; }
+    h1 { text-align: center; font-size: 22px; margin: 20px auto 24px; max-width: 480px; }
+  </style>
+</head>
+<body>
+  <h1>🏥 Om Hospital — Account Setup</h1>
+
+  <div class="box">
+    <h2>Step 1 — Test Connection</h2>
+    <button onclick="testConn()">Test Supabase Connection</button>
+    <div id="connMsg"></div>
+  </div>
+
+  <div class="box">
+    <h2>Step 2 — Login Test</h2>
+    <label>Email (type exactly)</label>
+    <input type="email" id="temail" placeholder="admin@omhospital.app" value="admin@omhospital.app"/>
+    <label>Password</label>
+    <input type="text" id="tpass" placeholder="Admin1234" value="Admin1234"/>
+    <button onclick="testLogin()">Test Login</button>
+    <div id="loginMsg"></div>
+  </div>
+
+  <div class="box">
+    <h2>Step 3 — Create / Reset Admin Account</h2>
+    <label>New password for admin</label>
+    <input type="text" id="newpass" placeholder="Choose a password e.g. OmAdmin2026"/>
+    <button onclick="createAdmin()">Create / Reset Admin Account</button>
+    <div id="adminMsg"></div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+
+    const SUPABASE_URL = 'https://wlgbhrmycequuiabpwqf.supabase.co'
+    const SUPABASE_KEY = 'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+    window._sb = sb
+
+    window.testConn = async () => {
+      const el = document.getElementById('connMsg')
+      el.innerHTML = '<div class="msg info">Testing...</div>'
+      try {
+        const { data, error } = await sb.from('profiles').select('count').limit(1)
+        if (error) {
+          el.innerHTML = `<div class="msg err">❌ Connection error: ${error.message}</div>`
+        } else {
+          el.innerHTML = `<div class="msg ok">✅ Connected to Supabase successfully!</div>`
+        }
+      } catch(e) {
+        el.innerHTML = `<div class="msg err">❌ Error: ${e.message}</div>`
+      }
+    }
+
+    window.testLogin = async () => {
+      const el = document.getElementById('loginMsg')
+      const email = document.getElementById('temail').value
+      const pass  = document.getElementById('tpass').value
+      el.innerHTML = '<div class="msg info">Trying login...</div>'
+      const { data, error } = await sb.auth.signInWithPassword({ email, password: pass })
+      if (error) {
+        el.innerHTML = `<div class="msg err">❌ Login failed: ${error.message}<br/><small>Error code: ${error.status||'unknown'}</small></div>`
+      } else {
+        el.innerHTML = `<div class="msg ok">✅ Login works! User: ${data.user.email}<br/>You can now go back to the main app and login with:<br/><strong>Username: admin &nbsp; Password: ${pass}</strong></div>`
+        // update profile
+        await sb.from('profiles').upsert({ id: data.user.id, name: 'Admin', username: 'admin', role: 'admin' })
+      }
+    }
+
+    window.createAdmin = async () => {
+      const el = document.getElementById('adminMsg')
+      const pass = document.getElementById('newpass').value
+      if (!pass || pass.length < 6) { el.innerHTML = '<div class="msg err">Password must be at least 6 characters</div>'; return }
+      el.innerHTML = '<div class="msg info">Creating account...</div>'
+
+      // Try signup first
+      const { data: signupData, error: signupErr } = await sb.auth.signUp({
+        email: 'admin@omhospital.app',
+        password: pass,
+      })
+
+      if (signupErr && !signupErr.message.includes('already')) {
+        el.innerHTML = `<div class="msg err">❌ Error: ${signupErr.message}</div>`
+        return
+      }
+
+      // Try login with new password
+      const { data: loginData, error: loginErr } = await sb.auth.signInWithPassword({
+        email: 'admin@omhospital.app',
+        password: pass,
+      })
+
+      if (loginErr) {
+        el.innerHTML = `<div class="msg err">❌ Could not login after creating: ${loginErr.message}<br/><br/>Please go to Supabase → Authentication → Users → click on admin@omhospital.app → update password to: <strong>${pass}</strong></div>`
+        return
+      }
+
+      // Create profile
+      await sb.from('profiles').upsert({ id: loginData.user.id, name: 'Admin', username: 'admin', role: 'admin' })
+
+      el.innerHTML = `<div class="msg ok">
+        ✅ Admin account ready!<br/><br/>
+        Go to the main app and login with:<br/>
+        👤 <strong>Username: admin</strong><br/>
+        🔑 <strong>Password: ${pass}</strong>
+      </div>`
+    }
+  </script>
+</body>
+</html>
