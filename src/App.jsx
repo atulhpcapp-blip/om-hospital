@@ -179,9 +179,10 @@ const CreditTab=({db})=>{
   const byPatient={}
   allCredit.forEach(e=>{
     const key=e.patient_name||'Walk-in / OP'
-    if(!byPatient[key])byPatient[key]={name:key,total:0,entries:[]}
+    if(!byPatient[key])byPatient[key]={name:key,total:0,byType:{}}
     byPatient[key].total+=e.amount
-    byPatient[key].entries.push(e)
+    if(!byPatient[key].byType[e.type])byPatient[key].byType[e.type]=0
+    byPatient[key].byType[e.type]+=e.amount
   })
   const pts=Object.values(byPatient).sort((a,b)=>b.total-a.total)
   return(
@@ -189,51 +190,42 @@ const CreditTab=({db})=>{
       <div style={{background:'linear-gradient(135deg,#c2410c 0%,#9a3412 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
         <div style={{fontSize:12,color:'#fed7aa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>Total credit outstanding</div>
         <div style={{fontSize:36,fontWeight:800}}>{fmt(totalCred)}</div>
-        <div style={{fontSize:13,color:'#fed7aa',marginTop:6}}>{allCredit.length} credit entr{allCredit.length!==1?'ies':'y'} · {pts.length} patient{pts.length!==1?'s':''}</div>
+        <div style={{fontSize:13,color:'#fed7aa',marginTop:6}}>{pts.length} patient{pts.length!==1?'s':''} · {allCredit.length} entr{allCredit.length!==1?'ies':'y'}</div>
       </div>
-
       {totalCred===0&&(
         <div style={{textAlign:'center',padding:'48px 20px',color:'#aaa'}}>
           <div style={{fontSize:40,marginBottom:12}}>🎉</div>
           <div style={{fontSize:16,fontWeight:600,color:'#555'}}>No outstanding credit!</div>
-          <div style={{fontSize:13,marginTop:6}}>All amounts have been collected.</div>
+          <div style={{fontSize:13,marginTop:6}}>All amounts collected.</div>
         </div>
       )}
-
-      {/* Credit by income type */}
       {totalCred>0&&(
         <>
-          <SecL>Credit by type</SecL>
+          <SecL>Category-wise total</SecL>
           <Card>
-            {ITYPES.map(t=>{
-              const tl=allCredit.filter(e=>e.type===t.key)
-              const ta=tl.reduce((a,e)=>a+e.amount,0)
-              if(!ta)return null
-              return(
-                <Row key={t.key}
-                  left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={t.key}/>{t.full}</span>}
-                  sub={`${tl.length} entr${tl.length>1?'ies':'y'}`}
-                  right={<span style={{color:'#c2410c',fontWeight:700,fontSize:13}}>{fmt(ta)}</span>}
-                />
-              )
-            })}
+            {ITYPES.map(t=>{const ta=allCredit.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0);if(!ta)return null;return(
+              <Row key={t.key} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={t.key}/>{t.full}</span>} right={<span style={{color:'#c2410c',fontWeight:700,fontSize:14}}>{fmt(ta)}</span>}/>
+            )})}
+            <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total</span><span>{fmt(totalCred)}</span></div>
           </Card>
-
-          {/* Credit by patient */}
-          <SecL>Credit by patient</SecL>
+          <SecL>Patient-wise breakdown</SecL>
           {pts.map(pt=>(
-            <Card key={pt.name} style={{border:'1px solid #fed7aa'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                <div style={{fontSize:15,fontWeight:700}}>{pt.name}</div>
-                <div style={{fontSize:20,fontWeight:800,color:'#c2410c'}}>{fmt(pt.total)}</div>
+            <Card key={pt.name} style={{border:'1px solid #fed7aa',marginBottom:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #fed7aa'}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#111'}}>{pt.name}</div>
+                <div style={{fontSize:22,fontWeight:800,color:'#c2410c'}}>{fmt(pt.total)}</div>
               </div>
-              {pt.entries.map(e=>(
-                <Row key={e.id}
-                  left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={e.type}/>{fmtD(e.date)}</span>}
-                  sub={e.notes||ITYPES.find(t=>t.key===e.type)?.full||''}
-                  right={<span style={{color:'#c2410c',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>}
-                />
-              ))}
+              {Object.entries(pt.byType).map(([tk,amt])=>{const it=ITYPES.find(t=>t.key===tk);return(
+                <div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
+                  <span style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}><TypeTag t={tk}/>{it?.full||tk}</span>
+                  <span style={{color:'#c2410c',fontWeight:600,fontSize:14}}>{fmt(amt)}</span>
+                </div>
+              )})}
+              {Object.keys(pt.byType).length>1&&(
+                <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:2,fontSize:13,fontWeight:700,color:'#92400e'}}>
+                  <span>Total due</span><span>{fmt(pt.total)}</span>
+                </div>
+              )}
             </Card>
           ))}
         </>
@@ -242,7 +234,6 @@ const CreditTab=({db})=>{
   )
 }
 
-/* DAILY ENTRY */
 const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   const di=db.income.filter(e=>e.date===eDate)
   const tots={};ITYPES.forEach(t=>{tots[t.key]=di.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)})
