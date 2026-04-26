@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'}]
-const ECATS=[{key:'ip_ref',label:'IP Referral commission'},{key:'op_ref',label:'OP Referral commission'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'misc',label:'Miscellaneous'}]
+const ECATS=[{key:'ip_ref',label:'IP Referral commission'},{key:'op_ref',label:'OP Referral commission'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'misc',label:'Miscellaneous'}]
 const PMODES=['cash','upi','card','credit','other']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -540,7 +540,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const ExpT=({exp})=>{if(exp.total===0)return<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No expenses</div>;return<Card>{ECATS.filter(c=>exp[c.key]>0).map(c=><Row key={c.key} left={c.label} right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(exp[c.key])}</span>}/>)}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total expenses</span><span>{fmt(exp.total)}</span></div></Card>}
   const RefRep=({income})=>{const docs=buildRef(income,db.ip_patients);const tc=docs.reduce((a,r)=>a+r.total_commission,0);if(!docs.length)return<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No referral data</div>;return(<><div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'14px 16px',marginBottom:12}}><div style={{fontSize:11,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total commission payable</div><div style={{fontSize:28,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div></div>{docs.map(doc=>(<Card key={doc.name}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.total_income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission due</div><div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div></div><div style={{borderTop:'1px solid #f5f5f5',paddingTop:8}}>{Object.entries(doc.by_type).map(([tk,v])=>(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${fmt(v.income)} × ${CLBL[tk]}`} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(v.commission)}</span>}/>))}</div></Card>))}</>)}
 
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'},{k:'lab',l:'Lab Report'}]
   return(
     <div>
       <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
@@ -697,6 +697,70 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
               )
             })()}
           </div>
+        </>)
+      })()}
+      {rv==='lab'&&(()=>{
+        // Lab income report
+        const [labPer,setLabPer]=useState('month')
+        const labInc=labPer==='month'
+          ?db.income.filter(e=>e.date?.startsWith(rm)&&(e.type==='op_l'||e.type==='ip_l'))
+          :db.income.filter(e=>e.date?.startsWith(ry)&&(e.type==='op_l'||e.type==='ip_l'))
+        const labExp=labPer==='month'
+          ?db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category==='lab_to_lab')
+          :db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category==='lab_to_lab')
+        const opLabInc=labInc.filter(e=>e.type==='op_l').reduce((a,e)=>a+e.amount,0)
+        const ipLabInc=labInc.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
+        const totalLabInc=opLabInc+ipLabInc
+        const totalLabComm=labInc.reduce((a,e)=>a+getComm(e),0)
+        const totalLabExp=labExp.reduce((a,e)=>a+e.amount,0)
+        const realLabInc=totalLabInc-totalLabComm-totalLabExp
+        return(<>
+          <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center',flexWrap:'wrap'}}>
+            <span style={{fontSize:13,color:'#888',fontWeight:600}}>Period:</span>
+            {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(
+              <button key={v.k} onClick={()=>setLabPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:labPer===v.k?'none':'1px solid #e5e7eb',background:labPer===v.k?'#111':'none',color:labPer===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>
+            ))}
+          </div>
+          {labPer==='month'&&<input style={{...S.inp,marginBottom:14}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
+          {labPer==='year'&&<select style={{...S.sel,marginBottom:14}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+
+          {/* Lab income summary card */}
+          <div style={{background:'linear-gradient(135deg,#9d174d 0%,#6b21a8 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
+            <div style={{fontSize:12,color:'#f9a8d4',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Real lab income</div>
+            <div style={{fontSize:36,fontWeight:800,color:realLabInc>=0?'#fff':'#fca5a5'}}>{fmt(realLabInc)}</div>
+            <div style={{fontSize:12,color:'#f9a8d4',marginTop:6}}>After commission and lab-to-lab expenses</div>
+          </div>
+
+          {/* Breakdown table */}
+          <Card>
+            <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:12}}>Lab income breakdown</div>
+            <Row left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t="op_l"/>OP Lab income</span>} right={<span style={{color:'#16a34a',fontWeight:600}}>{fmt(opLabInc)}</span>}/>
+            <Row left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t="ip_l"/>IP Lab income</span>} right={<span style={{color:'#16a34a',fontWeight:600}}>{fmt(ipLabInc)}</span>}/>
+            <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid #f0f0f0',borderBottom:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}>
+              <span>Total lab income</span><span style={{color:'#16a34a'}}>{fmt(totalLabInc)}</span>
+            </div>
+            <Row left="Less: Referral commission (50%)" right={<span style={{color:'#d97706',fontWeight:600}}>{totalLabComm>0?'- '+fmt(totalLabComm):'—'}</span>}/>
+            <Row left="Less: Lab to lab expenses" right={<span style={{color:'#ef4444',fontWeight:600}}>{totalLabExp>0?'- '+fmt(totalLabExp):'—'}</span>}/>
+            <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4,borderTop:'2px solid #f0f0f0',fontSize:15,fontWeight:800}}>
+              <span>Real lab income</span>
+              <span style={{color:realLabInc>=0?'#16a34a':'#ef4444'}}>{fmt(realLabInc)}</span>
+            </div>
+          </Card>
+
+          {/* Lab to lab expense entries */}
+          {labExp.length>0&&(<>
+            <SecL>Lab to lab expense entries</SecL>
+            <Card>{labExp.map(e=>(
+              <Row key={e.id}
+                left={e.description||'Lab to lab'}
+                sub={fmtD(e.date)+' · '+e.payment}
+                right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(e.amount)}</span>}
+              />
+            ))}</Card>
+          </>)}
+          {labExp.length===0&&totalLabInc===0&&(
+            <div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No lab income for this period</div>
+          )}
         </>)
       })()}
     </div>
