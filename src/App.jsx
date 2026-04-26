@@ -422,6 +422,12 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           )})}</Card></div>
         )})}
         {p.payments?.length>0&&(<><SecL>Cash payments received</SecL><Card>{p.payments.map(py=><Row key={py.id} left={fmtD(py.date)} sub={py.payment} right={<span style={{color:'#16a34a',fontWeight:600,fontSize:13}}>{fmt(py.amount)}</span>}/>)}</Card></>)}
+        <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}>
+          <button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}}
+            onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records? This cannot be undone.')){actions.deletePatient(p.id);setIpv('list');}}}>
+            🗑️ Delete this patient and all records
+          </button>
+        </div>
       </div>
     )
   }
@@ -534,7 +540,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const ExpT=({exp})=>{if(exp.total===0)return<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No expenses</div>;return<Card>{ECATS.filter(c=>exp[c.key]>0).map(c=><Row key={c.key} left={c.label} right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(exp[c.key])}</span>}/>)}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total expenses</span><span>{fmt(exp.total)}</span></div></Card>}
   const RefRep=({income})=>{const docs=buildRef(income,db.ip_patients);const tc=docs.reduce((a,r)=>a+r.total_commission,0);if(!docs.length)return<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No referral data</div>;return(<><div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'14px 16px',marginBottom:12}}><div style={{fontSize:11,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total commission payable</div><div style={{fontSize:28,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div></div>{docs.map(doc=>(<Card key={doc.name}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.total_income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission due</div><div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div></div><div style={{borderTop:'1px solid #f5f5f5',paddingTop:8}}>{Object.entries(doc.by_type).map(([tk,v])=>(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${fmt(v.income)} × ${CLBL[tk]}`} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(v.commission)}</span>}/>))}</div></Card>))}</>)}
 
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'referrals',l:'Referrals'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'}]
   return(
     <div>
       <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
@@ -598,6 +604,101 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           <RefRep income={fi}/>
         </>)
       })()}
+      {rv==='patients'&&(()=>{
+        const pats=db.ip_patients
+        if(!pats.length)return<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No patients yet</div>
+        const IP_TYPES=['ip','ip_r','ip_l']
+        return(<>
+          <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>All IP patients — income vs commission vs real income</div>
+          {pats.map(p=>{
+            const ents=db.income.filter(e=>e.patient_id===p.id)
+            if(!ents.length)return null
+            const grandTotal=ents.reduce((a,e)=>a+e.amount,0)
+            const grandComm=ents.reduce((a,e)=>a+getComm(e),0)
+            const grandReal=grandTotal-grandComm
+            const paid=(p.payments||[]).reduce((a,e)=>a+e.amount,0)
+            return(
+              <Card key={p.id} style={{marginBottom:14}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #f0f0f0'}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:700}}>{p.name}</div>
+                    <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{marginLeft:4,fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>Active</span>}</div>
+                    {p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:11,color:'#aaa'}}>Balance due</div>
+                    <div style={{fontSize:14,fontWeight:700,color:grandTotal-paid>0?'#ef4444':'#16a34a'}}>{fmt(grandTotal-paid)}</div>
+                  </div>
+                </div>
+                {/* Header row */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+                  <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
+                  <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Income</div>
+                  <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Comm</div>
+                  <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Real</div>
+                </div>
+                {/* Per category rows */}
+                {IP_TYPES.map(tk=>{
+                  const te=ents.filter(e=>e.type===tk)
+                  if(!te.length)return null
+                  const inc=te.reduce((a,e)=>a+e.amount,0)
+                  const comm=te.reduce((a,e)=>a+getComm(e),0)
+                  const real=inc-comm
+                  const it=ITYPES.find(t=>t.key===tk)
+                  return(
+                    <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
+                      <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.label}</span>
+                      <span style={{fontSize:12,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
+                      <span style={{fontSize:12,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
+                      <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
+                    </div>
+                  )
+                })}
+                {/* Grand total row */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #f0f0f0'}}>
+                  <span style={{fontSize:13,fontWeight:700}}>Total</span>
+                  <span style={{fontSize:13,fontWeight:700,textAlign:'right',minWidth:64}}>{fmt(grandTotal)}</span>
+                  <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#d97706',minWidth:64}}>{grandComm>0?'-'+fmt(grandComm):'—'}</span>
+                  <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(grandReal)}</span>
+                </div>
+              </Card>
+            )
+          })}
+          {/* Grand summary across all patients */}
+          <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:14,padding:'16px',marginTop:8,color:'#fff'}}>
+            <div style={{fontSize:11,color:'#9ca3af',fontWeight:700,textTransform:'uppercase',marginBottom:12}}>All patients summary</div>
+            {IP_TYPES.map(tk=>{
+              const all=db.income.filter(e=>e.type===tk&&db.ip_patients.some(p=>p.id===e.patient_id))
+              if(!all.length)return null
+              const inc=all.reduce((a,e)=>a+e.amount,0)
+              const comm=all.reduce((a,e)=>a+getComm(e),0)
+              const real=inc-comm
+              const it=ITYPES.find(t=>t.key===tk)
+              return(
+                <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #374151'}}>
+                  <span style={{fontSize:12,color:'#d1d5db'}}>{it?.full}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#d1d5db',minWidth:64}}>{fmt(inc)}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#fbbf24',minWidth:64}}>-{fmt(comm)}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#4ade80',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
+                </div>
+              )
+            })}
+            {(()=>{
+              const all=db.income.filter(e=>db.ip_patients.some(p=>p.id===e.patient_id))
+              const inc=all.reduce((a,e)=>a+e.amount,0)
+              const comm=all.reduce((a,e)=>a+getComm(e),0)
+              return(
+                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,paddingTop:10,marginTop:4,borderTop:'1px solid #6b7280'}}>
+                  <span style={{fontSize:14,fontWeight:700,color:'#fff'}}>Grand total</span>
+                  <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fff',minWidth:64}}>{fmt(inc)}</span>
+                  <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fbbf24',minWidth:64}}>-{fmt(comm)}</span>
+                  <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#4ade80',minWidth:64}}>{fmt(inc-comm)}</span>
+                </div>
+              )
+            })()}
+          </div>
+        </>)
+      })()}
     </div>
   )
 }
@@ -651,6 +752,11 @@ export default function App(){
     admitPatient:async row=>{const {data}=await supabase.from('ip_patients').insert([row]).select();if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
     dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
+    deletePatient:async id=>{
+      await supabase.from('income').delete().eq('patient_id',id)
+      await supabase.from('ip_patients').delete().eq('id',id)
+      setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))
+    },
   }
   const gotoIP=useCallback((pid)=>{setIpid(pid);setIpv('detail');setTab('ip')},[])
   const isAdmin=profile?.role==='admin'
