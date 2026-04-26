@@ -659,6 +659,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           {ipd.length>0&&(<><SecL>IP activity</SecL><Card>{ipd.map(p=>{const pe=dI.filter(e=>e.patient_id===p.id);const t=pe.reduce((a,e)=>a+e.amount,0);const cr=credTotal(pe);const tot=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);return<Row key={p.id} left={p.name} sub={`Today: ${fmt(t)}${cr>0?' (credit: '+fmt(cr)+')':''}`} right={tot-pd>0?<span style={{color:'#ef4444',fontSize:11,fontWeight:600}}>due {fmt(tot-pd)}</span>:<span style={{color:'#16a34a',fontSize:11}}>settled</span>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={dI}/>
           <SecL>Expenses</SecL><ExpT exp={exp}/>
+          <SecL>Doctor referral report — {fmtD(rd)}</SecL><RefRep income={dI}/>
         </>)
       })()}
       {rv==='monthly'&&(()=>{
