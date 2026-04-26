@@ -121,8 +121,24 @@ const LoginPage = () => {
   const go = async () => {
     if(!username.trim()||!pass){setErr('Enter username and password');return}
     setBusy(true);setErr('')
-    const {error}=await supabase.auth.signInWithPassword({email:toEmail(username),password:pass})
-    if(error)setErr('Wrong username or password. Please try again.')
+    // Try as username first (username@omhospital.app), then try as raw email
+    const isEmail = username.includes('@')
+    let error
+    if(isEmail){
+      // user typed a real email — try directly
+      const res = await supabase.auth.signInWithPassword({email:username,password:pass})
+      error = res.error
+    } else {
+      // try as username → fake email
+      const res = await supabase.auth.signInWithPassword({email:toEmail(username),password:pass})
+      error = res.error
+      // if that fails, try the username as-is (in case someone used it as email)
+      if(error){
+        const res2 = await supabase.auth.signInWithPassword({email:username,password:pass})
+        if(!res2.error) error = null
+      }
+    }
+    if(error) setErr('Wrong username or password. Please try again.')
     setBusy(false)
   }
 
