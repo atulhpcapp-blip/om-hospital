@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Om Hospital Setup</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;background:#f7f7f7;padding:20px;color:#111}
+    .wrap{max-width:460px;margin:0 auto}
+    h1{text-align:center;font-size:22px;margin:16px 0 24px}
+    .box{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;border:1px solid #e5e7eb}
+    .box h2{font-size:15px;font-weight:700;margin-bottom:14px;color:#111}
+    label{display:block;font-size:11px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;margin-top:12px}
+    input{width:100%;padding:11px 14px;border:1px solid #e5e7eb;border-radius:10px;font-size:16px;font-family:inherit;outline:none}
+    button{width:100%;padding:13px;background:#111;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:14px}
+    button:disabled{opacity:.5}
+    .msg{padding:12px 14px;border-radius:10px;font-size:13px;margin-top:12px;line-height:1.6}
+    .ok {background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+    .err{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+    .inf{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+    .hi{font-size:16px;font-weight:700;background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;padding:14px 16px;border-radius:12px;margin-top:10px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏥 Om Hospital — Setup</h1>
+
+  <!-- Step 1: Connection Test -->
+  <div class="box">
+    <h2>Step 1 — Test Connection</h2>
+    <button id="btn1" onclick="testConn()">Test Supabase Connection</button>
+    <div id="msg1"></div>
+  </div>
+
+  <!-- Step 2: Create/Reset Admin -->
+  <div class="box">
+    <h2>Step 2 — Create Admin Account</h2>
+    <label>Choose a password for admin login</label>
+    <input type="text" id="newpass" placeholder="e.g. OmAdmin2026" value="OmAdmin2026"/>
+    <button id="btn2" onclick="makeAdmin()">Create / Reset Admin Account</button>
+    <div id="msg2"></div>
+  </div>
+</div>
+
+<script>
+// Initialize Supabase with auth broadcasting disabled to prevent browser errors
+const { createClient } = supabase
+const SUPABASE_URL = 'https://wlgbhrmycequuiabpwqf.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+    storageKey: 'omhosp-setup'
+  }
+})
+
+function show(id, type, html) {
+  document.getElementById(id).innerHTML = `<div class="msg ${type}">${html}</div>`
+}
+
+async function testConn() {
+  document.getElementById('btn1').disabled = true
+  show('msg1','inf','Testing connection…')
+  try {
+    const { data, error } = await sb.from('profiles').select('id').limit(1)
+    if (error) {
+      show('msg1','err',`❌ Connection failed:<br/><strong>${error.message}</strong>`)
+    } else {
+      show('msg1','ok','✅ Connected to Supabase successfully! Proceed to Step 2.')
+    }
+  } catch(e) {
+    show('msg1','err',`❌ Error: ${e.message}`)
+  }
+  document.getElementById('btn1').disabled = false
+}
+
+async function makeAdmin() {
+  const pass = document.getElementById('newpass').value.trim()
+  if (!pass || pass.length < 6) {
+    show('msg2','err','Password must be at least 6 characters')
+    return
+  }
+  document.getElementById('btn2').disabled = true
+  show('msg2','inf','Setting up admin account…')
+
+  // Step A: try signup
+  const { data: sd, error: se } = await sb.auth.signUp({
+    email: 'admin@omhospital.app',
+    password: pass
+  })
+
+  // Step B: try login (works whether new or existing)
+  const { data: ld, error: le } = await sb.auth.signInWithPassword({
+    email: 'admin@omhospital.app',
+    password: pass
+  })
+
+  if (le) {
+    // Login failed - password might be different from what was set before
+    show('msg2','err',`
+      ❌ Could not login: ${le.message}<br/><br/>
+      Please do this in Supabase:<br/>
+      1. Go to <strong>Authentication → Users</strong><br/>
+      2. Click on <strong>admin@omhospital.app</strong><br/>
+      3. In the password field type: <strong>${pass}</strong><br/>
+      4. Click <strong>Update user</strong><br/>
+      5. Come back and try again
+    `)
+    document.getElementById('btn2').disabled = false
+    return
+  }
+
+  // Step C: save profile
+  await sb.from('profiles').upsert({
+    id: ld.user.id,
+    name: 'Admin',
+    username: 'admin',
+    role: 'admin'
+  }, { onConflict: 'id' })
+
+  show('msg2','ok',`
+    ✅ <strong>Admin account is ready!</strong><br/><br/>
+    Now go to the main app and login with:<br/><br/>
+    <div class="hi">
+      👤 Username: <strong>admin</strong><br/>
+      🔑 Password: <strong>${pass}</strong>
+    </div><br/>
+    Main app link:<br/>
+    <strong>om-hospital-git-main-atulhpcapp-6198s-projects.vercel.app</strong>
+  `)
+  document.getElementById('btn2').disabled = false
+}
+</script>
+</body>
+</html>
