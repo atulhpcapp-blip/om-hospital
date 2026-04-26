@@ -514,6 +514,107 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   )
 }
 
+
+/* ── CHART COMPONENTS ── */
+const HBarChart=({data,title})=>{
+  if(!data||!data.length)return null
+  const max=Math.max(...data.map(d=>d.value),1)
+  const rowH=34,labelW=72,W=300
+  const h=data.length*rowH+16
+  return(
+    <div style={{marginTop:12,marginBottom:4}}>
+      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
+      <svg viewBox={`0 0 ${W} ${h}`} style={{width:'100%',display:'block'}}>
+        {data.map((d,i)=>{
+          const bw=Math.max(d.value>0?(d.value/max)*(W-labelW-52):0,0)
+          const y=i*rowH+8
+          return(
+            <g key={i}>
+              <text x={labelW-6} y={y+13} textAnchor="end" fontSize={10} fill="#888" fontFamily="system-ui">{d.label}</text>
+              {bw>0&&<rect x={labelW} y={y} width={bw} height={20} fill={d.color||'#111'} rx={4} opacity={0.85}/>}
+              {bw===0&&<rect x={labelW} y={y+8} width={3} height={4} fill="#e5e7eb" rx={1}/>}
+              <text x={labelW+bw+5} y={y+14} fontSize={10} fill={d.color||'#555'} fontFamily="system-ui" fontWeight="600">{d.fmt||d.value}</text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+const VBarChart=({data,title})=>{
+  if(!data||!data.length)return null
+  const max=Math.max(...data.map(d=>Math.max(d.v1||0,d.v2||0)),1)
+  const W=300,H=110,PB=20,PT=6,bw=Math.max(Math.floor((W-16)/data.length)-2,3),cH=H-PB-PT
+  return(
+    <div style={{marginTop:12,marginBottom:4}}>
+      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',display:'block'}}>
+        <line x1={8} y1={PT} x2={8} y2={H-PB} stroke="#f0f0f0" strokeWidth={1}/>
+        <line x1={8} y1={H-PB} x2={W} y2={H-PB} stroke="#f0f0f0" strokeWidth={1}/>
+        {data.map((d,i)=>{
+          const x=10+i*(bw+2)
+          const half=d.v2!==undefined?Math.floor(bw/2)-1:bw
+          const h1=Math.max(d.v1>0?(d.v1/max)*cH:0,0)
+          const h2=d.v2!==undefined?Math.max(d.v2>0?(d.v2/max)*cH:0,0):0
+          return(
+            <g key={i}>
+              {d.v2!==undefined&&h2>0&&<rect x={x} y={PT+cH-h2} width={half} height={h2} fill="#ef4444" rx={2} opacity={0.75}/>}
+              {h1>0&&<rect x={d.v2!==undefined?x+half+1:x} y={PT+cH-h1} width={half} height={h1} fill={d.color||'#16a34a'} rx={2} opacity={0.85}/>}
+              {data.length<=14&&<text x={x+bw/2} y={H-5} textAnchor="middle" fontSize={7} fill="#bbb" fontFamily="system-ui">{d.label}</text>}
+            </g>
+          )
+        })}
+      </svg>
+      {data[0]?.v2!==undefined&&<div style={{display:'flex',gap:12,marginTop:4}}>
+        <span style={{fontSize:10,color:'#ef4444',display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#ef4444',display:'inline-block'}}/> Expenses</span>
+        <span style={{fontSize:10,color:'#16a34a',display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#16a34a',display:'inline-block'}}/> Revenue</span>
+      </div>}
+    </div>
+  )
+}
+
+const DonutChart=({segments,title,centerLabel})=>{
+  if(!segments||!segments.length)return null
+  const total=segments.reduce((a,s)=>a+s.value,0)
+  if(!total)return null
+  const CX=65,CY=65,R=52,ri=30
+  let angle=-Math.PI/2
+  const paths=segments.map(s=>{
+    const sweep=(s.value/total)*2*Math.PI
+    const x1=CX+R*Math.cos(angle),y1=CY+R*Math.sin(angle)
+    angle+=sweep
+    const x2=CX+R*Math.cos(angle),y2=CY+R*Math.sin(angle)
+    const xi1=CX+ri*Math.cos(angle),yi1=CY+ri*Math.sin(angle)
+    const xi2=CX+ri*Math.cos(angle-sweep),yi2=CY+ri*Math.sin(angle-sweep)
+    const lg=sweep>Math.PI?1:0
+    return{d:`M${x1} ${y1}A${R} ${R} 0 ${lg} 1 ${x2} ${y2}L${xi1} ${yi1}A${ri} ${ri} 0 ${lg} 0 ${xi2} ${yi2}Z`,color:s.color,label:s.label,value:s.value,pct:Math.round(s.value/total*100)}
+  })
+  return(
+    <div style={{marginTop:12}}>
+      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
+      <div style={{display:'flex',alignItems:'center',gap:16}}>
+        <svg viewBox="0 0 130 130" style={{width:120,flexShrink:0}}>
+          {paths.map((p,i)=><path key={i} d={p.d} fill={p.color} opacity={0.9}/>)}
+          <text x={CX} y={CY-4} textAnchor="middle" fontSize={10} fill="#555" fontFamily="system-ui" fontWeight="700">{centerLabel||'Total'}</text>
+          <text x={CX} y={CY+10} textAnchor="middle" fontSize={9} fill="#aaa" fontFamily="system-ui">income</text>
+        </svg>
+        <div style={{flex:1}}>
+          {segments.map((s,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+              <div style={{width:10,height:10,borderRadius:3,background:s.color,flexShrink:0}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,color:'#888'}}>{s.label}</div>
+                <div style={{fontSize:13,fontWeight:700,color:s.color}}>{s.fmt}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* REPORTS */
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
@@ -553,6 +654,8 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
         return(<>
           <div style={{display:'flex',gap:8,marginBottom:14}}><input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/><GBtn onClick={()=>setRd(todayStr())}>Today</GBtn></div>
           <PLCards incList={dI} exp={exp} refComm={rc}/>
+          <HBarChart title="Income by source" data={ITYPES.map(t=>{const v=dI.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0);const [,tx]=TC[t.key];return{label:t.label,value:v,color:tx,fmt:'₹'+(Math.round(v)||0).toLocaleString('en-IN')}}).filter(d=>d.value>0)}/>
+          {cashTotal(dI)>0&&credTotal(dI)>0&&<HBarChart title="Cash vs credit" data={[{label:'Cash',value:cashTotal(dI),color:'#16a34a',fmt:'₹'+(Math.round(cashTotal(dI))||0).toLocaleString('en-IN')},{label:'Credit',value:credTotal(dI),color:'#c2410c',fmt:'₹'+(Math.round(credTotal(dI))||0).toLocaleString('en-IN')}]}/>}
           {ipd.length>0&&(<><SecL>IP activity</SecL><Card>{ipd.map(p=>{const pe=dI.filter(e=>e.patient_id===p.id);const t=pe.reduce((a,e)=>a+e.amount,0);const cr=credTotal(pe);const tot=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);return<Row key={p.id} left={p.name} sub={`Today: ${fmt(t)}${cr>0?' (credit: '+fmt(cr)+')':''}`} right={tot-pd>0?<span style={{color:'#ef4444',fontSize:11,fontWeight:600}}>due {fmt(tot-pd)}</span>:<span style={{color:'#16a34a',fontSize:11}}>settled</span>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={dI}/>
           <SecL>Expenses</SecL><ExpT exp={exp}/>
@@ -564,6 +667,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           <input style={S.inp} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>
           <div style={{fontSize:14,fontWeight:600,color:'#555',margin:'8px 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div>
           <PLCards incList={mI} exp={exp} refComm={rc}/>
+          {days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI2=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI2),color:'#16a34a'}})}/>}
           {days.length>0&&(<><SecL>Day-wise</SecL><Card>{days.map(d=>{const dI=db.income.filter(e=>e.date===d);const dc=cashTotal(dI);const cr=credTotal(dI);const de=db.expenses.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0);const dref=totalRef(dI,db.ip_patients);const net=dc-de-dref;return<Row key={d} left={fmtD(d)} right={<div style={{textAlign:'right'}}><span style={{color:'#16a34a',fontWeight:600}}>{fmt(dc)}</span>{cr>0&&<span style={{fontSize:10,color:'#c2410c',marginLeft:6}}>{fmt(cr)} cr</span>}<br/><span style={{fontSize:11,color:net>=0?'#16a34a':'#ef4444'}}>net {fmt(net)}</span></div>} onClick={()=>{setRv('daily');setRd(d)}}/>})}</Card></>)}
           {mps.length>0&&(<><SecL>IP patients this month</SecL><Card>{mps.map(p=>{const en=db.income.filter(e=>e.patient_id===p.id);const t=en.reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const cr=credTotal(en);return<Row key={p.id} left={<span>{p.name}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={`${fmtD(p.admission_date)}${p.discharge_date?' → '+fmtD(p.discharge_date):' (active)'}${cr>0?' · Credit: '+fmt(cr):''}`} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(t)}</div>{t-pd>0&&<div style={{fontSize:11,color:'#ef4444'}}>due {fmt(t-pd)}</div>}</div>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={mI}/>
@@ -576,6 +680,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
         return(<>
           <select style={S.sel} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>
           <PLCards incList={yI} exp={exp} refComm={rc}/>
+          {mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}
           {mons.length>0&&(<><SecL>Month-wise</SecL><Card>
             <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr 1fr',marginBottom:4}}>{['Month','Cash','Credit','Net'].map(h=><div key={h} style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',padding:'4px 4px 8px 0',borderBottom:'1px solid #f0f0f0'}}>{h}</div>)}</div>
             {mons.map(ym=>{const mI2=db.income.filter(e=>e.date?.startsWith(ym));const mc=cashTotal(mI2);const mcr=credTotal(mI2);const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const mref=totalRef(mI2,db.ip_patients);const mn=mc-me-mref;const[,m]=ym.split('-');return(
@@ -664,6 +769,12 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
               </Card>
             )
           })}
+          <HBarChart title="Patient comparison — real income" data={pts.map(p=>{
+            const en=db.income.filter(e=>e.patient_id===p.id)
+            const inc=en.reduce((a,e)=>a+e.amount,0)
+            const comm=en.reduce((a,e)=>a+getComm(e),0)
+            return{label:p.name?.split(' ')[0]||'?',value:inc-comm,color:'#16a34a',fmt:fmt(inc-comm)}
+          })}/>
           {/* Grand summary across all patients */}
           <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:14,padding:'16px',marginTop:8,color:'#fff'}}>
             <div style={{fontSize:11,color:'#9ca3af',fontWeight:700,textTransform:'uppercase',marginBottom:12}}>All patients summary</div>
@@ -747,6 +858,11 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
             </div>
           </Card>
 
+          <DonutChart title="Lab income breakdown" centerLabel={fmt(totalLabInc)} segments={[
+            {label:'Real lab income',value:Math.max(realLabInc,0),color:'#9d174d',fmt:fmt(Math.max(realLabInc,0))},
+            {label:'Commission (50%)',value:totalLabComm,color:'#d97706',fmt:fmt(totalLabComm)},
+            {label:'Lab-to-lab exp',value:totalLabExp,color:'#ef4444',fmt:fmt(totalLabExp)},
+          ].filter(s=>s.value>0)}/>
           {/* Lab to lab expense entries */}
           {labExp.length>0&&(<>
             <SecL>Lab to lab expense entries</SecL>
