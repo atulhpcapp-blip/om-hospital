@@ -1000,6 +1000,230 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
 }
 
 /* ── EXPENSES ── */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OP PATIENTS TAB
+   ═══════════════════════════════════════════════════════════════════════════ */
+const OPTab=({db,actions})=>{
+  const [selPat,setSelPat]=useState(null)
+  const [payDoc,setPayDoc]=useState(null)
+
+  // Build OP patient list — group non-IP income entries by patient name
+  const opIncome=db.income.filter(e=>
+    !['ip','ip_r','ip_l'].includes(e.type)&&
+    e.patient_name&&
+    !db.ip_patients.some(p=>p.id===e.patient_id)
+  )
+  const byPat={}
+  opIncome.forEach(e=>{
+    const k=e.patient_name
+    if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',entries:[],total:0,totalComm:0,totalCredit:0}
+    byPat[k].entries.push(e)
+    byPat[k].total+=e.amount
+    byPat[k].totalComm+=getComm(e)
+    byPat[k].totalCredit+=isCredit(e)?e.amount:0
+  })
+  const patients=Object.values(byPat).sort((a,b)=>b.total-a.total)
+
+  const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
+
+  if(selPat){
+    const pat=byPat[selPat]
+    if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>← Back</button>
+    const ents=pat.entries
+    const totalInc=ents.reduce((a,e)=>a+e.amount,0)
+    const totalComm=ents.reduce((a,e)=>a+getComm(e),0)
+    const totalCredit=credTotal(ents)
+    const totalCash=cashTotal(ents)
+    const realInc=totalInc-totalComm
+
+    // Group by type
+    const byType={}
+    ents.forEach(e=>{
+      if(!byType[e.type])byType[e.type]={inc:0,comm:0,entries:[]}
+      byType[e.type].inc+=e.amount
+      byType[e.type].comm+=getComm(e)
+      byType[e.type].entries.push(e)
+    })
+
+    // Referral doctors for this patient
+    const refDocs={}
+    ents.forEach(e=>{
+      const doc=e.ref_doctor
+      if(!doc)return
+      if(!refDocs[doc])refDocs[doc]={name:doc,income:0,commission:0}
+      refDocs[doc].income+=e.amount
+      refDocs[doc].commission+=getComm(e)
+    })
+    const refs=Object.values(refDocs)
+
+    return(
+      <div>
+        <button onClick={()=>{setSelPat(null);setPayDoc(null)}} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>← All OP patients</button>
+
+        {/* Patient header */}
+        <Card>
+          <div style={{fontSize:17,fontWeight:700}}>{pat.name}</div>
+          {pat.phone&&<div style={{fontSize:12,color:'#aaa',marginTop:2}}>📞 {pat.phone}</div>}
+          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{ents.length} visit{ents.length!==1?'s':''} · {[...new Set(ents.map(e=>e.date))].sort()[0]&&fmtD([...new Set(ents.map(e=>e.date))].sort()[0])}</div>
+        </Card>
+
+        {/* Summary metrics */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+          {[
+            {label:'Total billed',value:fmt(totalInc),color:'#111'},
+            {label:'Cash collected',value:fmt(totalCash),color:'#16a34a'},
+            {label:'Credit (due)',value:fmt(totalCredit),color:totalCredit>0?'#c2410c':'#aaa'},
+            {label:'Real income',value:fmt(realInc),color:'#16a34a'},
+          ].map((m,i)=>(
+            <div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}>
+              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.label}</div>
+              <div style={{fontSize:18,fontWeight:700,color:m.color}}>{m.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Charges breakdown by type */}
+        <SecL>Charges breakdown</SecL>
+        <Card>
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:6,borderBottom:'1px solid #f0f0f0'}}>
+            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
+            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Billed</div>
+            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Commission</div>
+            <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Real</div>
+          </div>
+          {Object.entries(byType).map(([tk,v])=>{
+            const it=ITYPES.find(t=>t.key===tk)
+            return(
+              <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
+                <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span>
+                <span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(v.inc)}</span>
+                <span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{v.comm>0?'-'+fmt(v.comm):'—'}</span>
+                <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(v.inc-v.comm)}</span>
+              </div>
+            )
+          })}
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #111'}}>
+            <span style={{fontSize:13,fontWeight:800}}>Total</span>
+            <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(totalInc)}</span>
+            <span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totalComm>0?'-'+fmt(totalComm):'—'}</span>
+            <span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(realInc)}</span>
+          </div>
+        </Card>
+
+        {/* Referral commission breakdown + pay button */}
+        {refs.length>0&&(<>
+          <SecL>Referral commission</SecL>
+          {refs.map(doc=>{
+            const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0)
+            const balance=doc.commission-paid
+            const isOpen=payDoc===doc.name
+            return(
+              <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div>
+                    <div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income generated: {fmt(doc.income)}</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div>
+                    <div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div>
+                  </div>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
+                  <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div>
+                  <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
+                  <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div>
+                </div>
+                {paid>0&&(
+                  <div style={{marginBottom:8}}>
+                    <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Payments made</div>
+                    {allPaid.filter(e=>e.description===doc.name).map(e=>(
+                      <div key={e.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+                        <span style={{color:'#555'}}>{fmtD(e.date)} · {e.payment}</span>
+                        <span style={{color:'#16a34a',fontWeight:600}}>{fmt(e.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {balance>0&&(
+                  !isOpen
+                    ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>
+                    :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{
+                      const profData=await supabase.from('profiles').select('hospital_id').eq('id',(await supabase.auth.getUser()).data.user?.id).single()
+                      const row={id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false,hospital_id:profData.data?.hospital_id}
+                      const {data}=await supabase.from('expenses').insert([row]).select()
+                      if(data)window.location.reload()
+                    }}/>
+                )}
+                {balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>✓ Fully paid</div>}
+              </Card>
+            )
+          })}
+        </>)}
+
+        {/* All visit entries */}
+        <SecL>All visits</SecL>
+        <Card>
+          {ents.slice().sort((a,b)=>b.date?.localeCompare(a.date)).map(e=>{
+            const cr=isCredit(e);const comm=getComm(e)
+            return(
+              <div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                  <div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                      <TypeTag t={e.type}/>
+                      <span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>
+                      {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
+                    </div>
+                    {e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' · Commission: '+fmt(comm):''}</div>}
+                    {e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{e.notes}</div>}
+                  </div>
+                  <span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a',marginLeft:8}}>{fmt(e.amount)}</span>
+                </div>
+              </div>
+            )
+          })}
+        </Card>
+      </div>
+    )
+  }
+
+  // Patient list view
+  return(
+    <div>
+      <div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:16,padding:'16px',marginBottom:16,color:'#fff'}}>
+        <div style={{fontSize:12,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP patients</div>
+        <div style={{fontSize:32,fontWeight:800}}>{patients.length}</div>
+        <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>
+          Total billed: {fmt(patients.reduce((a,p)=>a+p.total,0))} · Commission: {fmt(patients.reduce((a,p)=>a+p.totalComm,0))}
+        </div>
+      </div>
+
+      {patients.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No OP patients yet.<br/>Enter patient name when adding OP income.</div>}
+
+      {patients.map(pat=>(
+        <Card key={pat.name} style={{cursor:'pointer',marginBottom:10}} >
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat(pat.name)}>
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>
+              {pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>📞 {pat.phone}</div>}
+              <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''}</div>
+              {pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(pat.totalComm)}</div>}
+              {pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div>
+              <div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div>
+              <span style={{fontSize:16,color:'#aaa'}}>›</span>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const exp=db.expenses.filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
   const go=async()=>{
@@ -1901,7 +2125,7 @@ export default function App(){
   }
   const gotoIP=useCallback((pid)=>{setIpid(pid);setIpv('detail');setTab('ip')},[])
   const isAdmin=profile?.role==='admin'
-  const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'exp',l:'Expenses'},{k:'rep',l:'Reports'},{k:'credit',l:'💳 Credit'},...(isAdmin?[{k:'admin',l:'👥 Users'}]:[])]
+  const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'rep',l:'Reports'},{k:'credit',l:'💳 Credit'},...(isAdmin?[{k:'admin',l:'👥 Users'}]:[])]
 
   if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading…</div>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
@@ -1941,6 +2165,7 @@ export default function App(){
       <div style={{padding:'16px 16px 80px'}}>
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP}/></div>
+        <div style={{display:tab==='op'?'block':'none'}}><OPTab db={db} actions={actions}/></div>
         <div style={{display:tab==='exp'?'block':'none'}}><ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/></div>
         <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP}/></div>
         <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db}/></div>
