@@ -17,7 +17,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'—';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||pats.find(p=>p.id===e.patient_id)?.ref_doctor||null
-const getComm=e=>isCredit(e)?0:e.amount*(COMM[e.type]||0)
+const getComm=e=>e.payment==='credit'?0:e.amount*(COMM[e.type]||0)
 const isCredit=e=>e.payment==='credit'
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
@@ -35,7 +35,6 @@ const S={
   gbtn:{padding:'9px 14px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:14,color:'#555',cursor:'pointer'},
   dbtn:{padding:'4px 10px',background:'none',border:'1px solid #fca5a5',borderRadius:6,fontSize:12,color:'#ef4444',cursor:'pointer'},
 }
-
 const Card=({children,style={}})=><div style={{...S.card,...style}}>{children}</div>
 const SecL=({children})=><div style={S.sec}>{children}</div>
 const PBtn=({children,onClick,disabled,style={}})=><button style={{...S.pbtn,opacity:disabled?.5:1,...style}} onClick={onClick} disabled={disabled}>{children}</button>
@@ -43,18 +42,6 @@ const GBtn=({children,onClick,style={}})=><button style={{...S.gbtn,...style}} o
 const DBtn=({children,onClick})=><button style={S.dbtn} onClick={onClick}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
-const FInp=({label,value,onChange,...rest})=>(
-  <div style={{marginBottom:10}}>
-    {label&&<label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>{label}</label>}
-    <input style={S.inp} value={value} onChange={onChange} {...rest}/>
-  </div>
-)
-const FSel=({label,value,onChange,children})=>(
-  <div style={{marginBottom:10}}>
-    {label&&<label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>{label}</label>}
-    <select style={S.sel} value={value} onChange={onChange}>{children}</select>
-  </div>
-)
 const Row=({left,sub,right,onClick})=>(
   <div onClick={onClick} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5',cursor:onClick?'pointer':'default'}}>
     <div style={{flex:1,minWidth:0,paddingRight:8}}>
@@ -75,8 +62,161 @@ const MetGrid=({items})=>(
     ))}
   </div>
 )
+const FInp=({label,value,onChange,...rest})=>(
+  <div style={{marginBottom:10}}>
+    {label&&<label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>{label}</label>}
+    <input style={S.inp} value={value} onChange={onChange} {...rest}/>
+  </div>
+)
+const FSel=({label,value,onChange,children})=>(
+  <div style={{marginBottom:10}}>
+    {label&&<label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>{label}</label>}
+    <select style={S.sel} value={value} onChange={onChange}>{children}</select>
+  </div>
+)
 
-/* LOGIN */
+/* ── CHART COMPONENTS ── */
+const HBarChart=({data,title})=>{
+  if(!data||!data.length)return null
+  const max=Math.max(...data.map(d=>d.value),1)
+  const rowH=34,labelW=72,W=300
+  const h=data.length*rowH+16
+  return(
+    <div style={{marginTop:12,marginBottom:4}}>
+      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
+      <svg viewBox={`0 0 ${W} ${h}`} style={{width:'100%',display:'block'}}>
+        {data.map((d,i)=>{
+          const bw=Math.max(d.value>0?(d.value/max)*(W-labelW-52):0,0)
+          const y=i*rowH+8
+          return(
+            <g key={i}>
+              <text x={labelW-6} y={y+13} textAnchor="end" fontSize={10} fill="#888" fontFamily="system-ui">{d.label}</text>
+              {bw>0&&<rect x={labelW} y={y} width={bw} height={20} fill={d.color||'#111'} rx={4} opacity={0.85}/>}
+              {bw===0&&<rect x={labelW} y={y+8} width={3} height={4} fill="#e5e7eb" rx={1}/>}
+              <text x={labelW+bw+5} y={y+14} fontSize={10} fill={d.color||'#555'} fontFamily="system-ui" fontWeight="600">{d.fmt||fmt(d.value)}</text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+const VBarChart=({data,title})=>{
+  if(!data||!data.length)return null
+  const max=Math.max(...data.map(d=>Math.max(d.v1||0,d.v2||0)),1)
+  const W=300,H=110,PB=20,PT=6,bw=Math.max(Math.floor((W-16)/data.length)-2,3),cH=H-PB-PT
+  return(
+    <div style={{marginTop:12,marginBottom:4}}>
+      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',display:'block'}}>
+        <line x1={8} y1={PT} x2={8} y2={H-PB} stroke="#f0f0f0" strokeWidth={1}/>
+        <line x1={8} y1={H-PB} x2={W} y2={H-PB} stroke="#f0f0f0" strokeWidth={1}/>
+        {data.map((d,i)=>{
+          const x=10+i*(bw+2)
+          const half=d.v2!==undefined?Math.floor(bw/2)-1:bw
+          const h1=Math.max(d.v1>0?(d.v1/max)*cH:0,0)
+          const h2=d.v2!==undefined?Math.max(d.v2>0?(d.v2/max)*cH:0,0):0
+          return(
+            <g key={i}>
+              {d.v2!==undefined&&h2>0&&<rect x={x} y={PT+cH-h2} width={half} height={h2} fill="#ef4444" rx={2} opacity={0.75}/>}
+              {h1>0&&<rect x={d.v2!==undefined?x+half+1:x} y={PT+cH-h1} width={half} height={h1} fill={d.color||'#16a34a'} rx={2} opacity={0.85}/>}
+              {data.length<=14&&<text x={x+bw/2} y={H-5} textAnchor="middle" fontSize={7} fill="#bbb" fontFamily="system-ui">{d.label}</text>}
+            </g>
+          )
+        })}
+      </svg>
+      {data[0]?.v2!==undefined&&<div style={{display:'flex',gap:12,marginTop:4}}>
+        <span style={{fontSize:10,color:'#ef4444',display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#ef4444',display:'inline-block'}}/> Expenses</span>
+        <span style={{fontSize:10,color:'#16a34a',display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#16a34a',display:'inline-block'}}/> Revenue</span>
+      </div>}
+    </div>
+  )
+}
+const DonutChart=({segments,title,centerLabel})=>{
+  if(!segments||!segments.length)return null
+  const total=segments.reduce((a,s)=>a+s.value,0)
+  if(!total)return null
+  const CX=65,CY=65,R=52,ri=30
+  let angle=-Math.PI/2
+  const paths=segments.map(s=>{
+    const sweep=(s.value/total)*2*Math.PI
+    const x1=CX+R*Math.cos(angle),y1=CY+R*Math.sin(angle)
+    angle+=sweep
+    const x2=CX+R*Math.cos(angle),y2=CY+R*Math.sin(angle)
+    const xi1=CX+ri*Math.cos(angle),yi1=CY+ri*Math.sin(angle)
+    const xi2=CX+ri*Math.cos(angle-sweep),yi2=CY+ri*Math.sin(angle-sweep)
+    const lg=sweep>Math.PI?1:0
+    return{d:`M${x1} ${y1}A${R} ${R} 0 ${lg} 1 ${x2} ${y2}L${xi1} ${yi1}A${ri} ${ri} 0 ${lg} 0 ${xi2} ${yi2}Z`,color:s.color,label:s.label,value:s.value}
+  })
+  return(
+    <div style={{marginTop:12}}>
+      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
+      <div style={{display:'flex',alignItems:'center',gap:16}}>
+        <svg viewBox="0 0 130 130" style={{width:120,flexShrink:0}}>
+          {paths.map((p,i)=><path key={i} d={p.d} fill={p.color} opacity={0.9}/>)}
+          <text x={CX} y={CY-4} textAnchor="middle" fontSize={10} fill="#555" fontFamily="system-ui" fontWeight="700">{centerLabel||'Total'}</text>
+          <text x={CX} y={CY+10} textAnchor="middle" fontSize={9} fill="#aaa" fontFamily="system-ui">income</text>
+        </svg>
+        <div style={{flex:1}}>
+          {segments.map((s,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+              <div style={{width:10,height:10,borderRadius:3,background:s.color,flexShrink:0}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:10,color:'#888'}}>{s.label}</div>
+                <div style={{fontSize:13,fontWeight:700,color:s.color}}>{s.fmt||fmt(s.value)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── COMMISSION PAYMENT FORM ── standalone to prevent keyboard close */
+const CommPayForm=({docName,balance,onSave,onCancel})=>{
+  const [date,setDate]=useState(todayStr())
+  const [amount,setAmount]=useState(String(Math.round(balance)))
+  const [pay,setPay]=useState('cash')
+  const [busy,setBusy]=useState(false)
+  const go=async()=>{
+    const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter amount');return}
+    setBusy(true);await onSave(amt,date,pay);setBusy(false)
+  }
+  return(
+    <div style={{background:'#f9fafb',borderRadius:10,padding:'12px 14px',border:'1px solid #e5e7eb',marginTop:10}}>
+      <div style={{fontSize:12,fontWeight:700,color:'#111',marginBottom:10}}>Pay Dr. {docName}</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+        <div>
+          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Date</label>
+          <input style={S.inp} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        </div>
+        <div>
+          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Amount (₹)</label>
+          <input style={S.inp} type="number" inputMode="numeric" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)}/>
+        </div>
+      </div>
+      <div style={{marginBottom:10}}>
+        <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:6,fontWeight:700}}>Payment mode</label>
+        <div style={{display:'flex',gap:8}}>
+          {['cash','upi','card'].map(m=>(
+            <button key={m} onClick={()=>setPay(m)} style={{flex:1,padding:'9px 4px',border:pay===m?'2px solid #111':'1px solid #e5e7eb',borderRadius:8,background:pay===m?'#111':'#fff',color:pay===m?'#fff':'#555',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+              {m[0].toUpperCase()+m.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:8}}>
+        <button onClick={onCancel} style={{flex:1,padding:'10px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Cancel</button>
+        <button onClick={go} disabled={busy} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',opacity:busy?.6:1}}>
+          {busy?'Saving…':'✓ Save payment'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ── LOGIN ── */
 const LoginPage=()=>{
   const [username,setUsername]=useState('')
   const [pass,setPass]=useState('')
@@ -119,7 +259,7 @@ const LoginPage=()=>{
   )
 }
 
-/* ADMIN TAB */
+/* ── ADMIN ── */
 const AdminTab=({currentUser})=>{
   const [users,setUsers]=useState([])
   const [loading,setLoading]=useState(true)
@@ -146,7 +286,7 @@ const AdminTab=({currentUser})=>{
   return(
     <div>
       <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
-        <div style={{fontSize:12,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Logged in as</div>
+        <div style={{fontSize:12,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>Logged in as</div>
         <div style={{fontSize:18,fontWeight:700}}>{currentUser.name||'Admin'}</div>
         <div style={{fontSize:12,color:'#9ca3af',marginTop:2}}>Administrator</div>
       </div>
@@ -172,7 +312,7 @@ const AdminTab=({currentUser})=>{
   )
 }
 
-/* CREDIT TAB — standalone main tab */
+/* ── CREDIT TAB ── */
 const CreditTab=({db})=>{
   const allCredit=db.income.filter(e=>isCredit(e))
   const totalCred=allCredit.reduce((a,e)=>a+e.amount,0)
@@ -192,48 +332,37 @@ const CreditTab=({db})=>{
         <div style={{fontSize:36,fontWeight:800}}>{fmt(totalCred)}</div>
         <div style={{fontSize:13,color:'#fed7aa',marginTop:6}}>{pts.length} patient{pts.length!==1?'s':''} · {allCredit.length} entr{allCredit.length!==1?'ies':'y'}</div>
       </div>
-      {totalCred===0&&(
-        <div style={{textAlign:'center',padding:'48px 20px',color:'#aaa'}}>
-          <div style={{fontSize:40,marginBottom:12}}>🎉</div>
-          <div style={{fontSize:16,fontWeight:600,color:'#555'}}>No outstanding credit!</div>
-          <div style={{fontSize:13,marginTop:6}}>All amounts collected.</div>
-        </div>
-      )}
-      {totalCred>0&&(
-        <>
-          <SecL>Category-wise total</SecL>
-          <Card>
-            {ITYPES.map(t=>{const ta=allCredit.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0);if(!ta)return null;return(
-              <Row key={t.key} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={t.key}/>{t.full}</span>} right={<span style={{color:'#c2410c',fontWeight:700,fontSize:14}}>{fmt(ta)}</span>}/>
-            )})}
-            <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total</span><span>{fmt(totalCred)}</span></div>
-          </Card>
-          <SecL>Patient-wise breakdown</SecL>
-          {pts.map(pt=>(
-            <Card key={pt.name} style={{border:'1px solid #fed7aa',marginBottom:12}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #fed7aa'}}>
-                <div style={{fontSize:15,fontWeight:700,color:'#111'}}>{pt.name}</div>
-                <div style={{fontSize:22,fontWeight:800,color:'#c2410c'}}>{fmt(pt.total)}</div>
+      {totalCred===0&&<div style={{textAlign:'center',padding:'48px 20px',color:'#aaa'}}><div style={{fontSize:40,marginBottom:12}}>🎉</div><div style={{fontSize:16,fontWeight:600,color:'#555'}}>No outstanding credit!</div></div>}
+      {totalCred>0&&(<>
+        <SecL>Category-wise total</SecL>
+        <Card>
+          {ITYPES.map(t=>{const ta=allCredit.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0);if(!ta)return null;return(
+            <Row key={t.key} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={t.key}/>{t.full}</span>} right={<span style={{color:'#c2410c',fontWeight:700,fontSize:14}}>{fmt(ta)}</span>}/>
+          )})}
+          <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total</span><span>{fmt(totalCred)}</span></div>
+        </Card>
+        <SecL>Patient-wise breakdown</SecL>
+        {pts.map(pt=>(
+          <Card key={pt.name} style={{border:'1px solid #fed7aa',marginBottom:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #fed7aa'}}>
+              <div style={{fontSize:15,fontWeight:700,color:'#111'}}>{pt.name}</div>
+              <div style={{fontSize:22,fontWeight:800,color:'#c2410c'}}>{fmt(pt.total)}</div>
+            </div>
+            {Object.entries(pt.byType).map(([tk,amt])=>{const it=ITYPES.find(t=>t.key===tk);return(
+              <div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
+                <span style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}><TypeTag t={tk}/>{it?.full||tk}</span>
+                <span style={{color:'#c2410c',fontWeight:600,fontSize:14}}>{fmt(amt)}</span>
               </div>
-              {Object.entries(pt.byType).map(([tk,amt])=>{const it=ITYPES.find(t=>t.key===tk);return(
-                <div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
-                  <span style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}><TypeTag t={tk}/>{it?.full||tk}</span>
-                  <span style={{color:'#c2410c',fontWeight:600,fontSize:14}}>{fmt(amt)}</span>
-                </div>
-              )})}
-              {Object.keys(pt.byType).length>1&&(
-                <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:2,fontSize:13,fontWeight:700,color:'#92400e'}}>
-                  <span>Total due</span><span>{fmt(pt.total)}</span>
-                </div>
-              )}
-            </Card>
-          ))}
-        </>
-      )}
+            )})}
+            {Object.keys(pt.byType).length>1&&<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:2,fontSize:13,fontWeight:700,color:'#92400e'}}><span>Total due</span><span>{fmt(pt.total)}</span></div>}
+          </Card>
+        ))}
+      </>)}
     </div>
   )
 }
 
+/* ── DAILY ENTRY ── */
 const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   const di=db.income.filter(e=>e.date===eDate)
   const tots={};ITYPES.forEach(t=>{tots[t.key]=di.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)})
@@ -241,8 +370,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   const isIP=['ip','ip_r','ip_l'].includes(itype)
   const aps=db.ip_patients.filter(p=>!p.discharge_date)
   const prev=iF.amount&&COMM[itype]?parseFloat(iF.amount)*COMM[itype]:0
-  const todayCash=cashTotal(di)
-  const todayCredit=credTotal(di)
+  const todayCash=cashTotal(di);const todayCredit=credTotal(di)
   const go=async()=>{
     const amt=parseFloat(iF.amount);if(!amt||amt<=0){alert('Enter a valid amount');return}
     let pid=null,pname=''
@@ -276,17 +404,17 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
           <FSel label="Payment" value={iF.pay} onChange={e=>setIF({...iF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
           <FInp label="Notes" type="text" placeholder="Optional" value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})}/>
         </div>
-        {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>This amount will be recorded as credit — not yet collected</div>}
+        {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit — not yet collected</div>}
         <PBtn onClick={go}>Save income entry</PBtn>
       </Card>
       {di.length>0&&(
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:4}}>
           <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px'}}>
-            <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Cash collected</div>
+            <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Cash collected</div>
             <div style={{fontSize:18,fontWeight:700,color:'#15803d'}}>{fmt(todayCash)}</div>
           </div>
           <div style={{background:todayCredit>0?'#fff7ed':'#f9f9f9',borderRadius:12,padding:'10px 14px'}}>
-            <div style={{fontSize:10,color:todayCredit>0?'#92400e':'#aaa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Credit given</div>
+            <div style={{fontSize:10,color:todayCredit>0?'#92400e':'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit given</div>
             <div style={{fontSize:18,fontWeight:700,color:todayCredit>0?'#c2410c':'#ccc'}}>{fmt(todayCredit)}</div>
           </div>
         </div>
@@ -318,7 +446,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   )
 }
 
-/* IP PATIENTS */
+/* ── IP PATIENTS ── */
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP})=>{
   const getBill=pid=>{
     const en=db.income.filter(e=>e.patient_id===pid)
@@ -331,8 +459,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   if(ipv==='detail'&&ipid){
     const p=db.ip_patients.find(p=>p.id===ipid)
     if(!p)return<button onClick={()=>setIpv('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>← Back</button>
-    const b=getBill(p.id)
-    const ents=db.income.filter(e=>e.patient_id===p.id)
+    const b=getBill(p.id);const ents=db.income.filter(e=>e.patient_id===p.id)
     return(
       <div>
         <button onClick={()=>setIpv('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>← All patients</button>
@@ -354,28 +481,26 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {label:'Credit given',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},
           {label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#111'},
         ]}/>
-        {b.credit>0&&(
-          <>
-            <SecL>Credit by type</SecL>
-            <Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>
-              {['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(
-                <Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${te.length} credit entr${te.length>1?'ies':'y'}`} right={<span style={{color:'#c2410c',fontWeight:700}}>{fmt(ta)}</span>}/>
-              )})}
-              <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total credit</span><span>{fmt(b.credit)}</span></div>
-            </Card>
-          </>
-        )}
-        {p.ref_doctor&&ents.length>0&&(
-          <><SecL>Commission breakdown</SecL>
+        {b.credit>0&&(<>
+          <SecL>Credit by type</SecL>
+          <Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>
+            {['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(
+              <Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${te.length} credit entr${te.length>1?'ies':'y'}`} right={<span style={{color:'#c2410c',fontWeight:700}}>{fmt(ta)}</span>}/>
+            )})}
+            <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total credit</span><span>{fmt(b.credit)}</span></div>
+          </Card>
+        </>)}
+        {p.ref_doctor&&ents.length>0&&(<>
+          <SecL>Commission breakdown</SecL>
           <Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>
             {['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(
               <Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${fmt(inc)} × ${CLBL[tk]}`} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>
             )})}
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
-          </Card></>
-        )}
-        {!p.discharge_date&&(
-          <><SecL>Add charge</SecL>
+          </Card>
+        </>)}
+        {!p.discharge_date&&(<>
+          <SecL>Add charge</SecL>
           <Card>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <FInp label="Date" type="date" value={cF.date} onChange={e=>setCF({...cF,date:e.target.value})}/>
@@ -402,8 +527,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             </div>
             <FSel label="Payment mode" value={pyF.pay} onChange={e=>setPyF({...pyF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
             <PBtn onClick={async()=>{const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay});setPyF({...pyF,amt:''})}}>Record payment</PBtn>
-          </Card></>
-        )}
+          </Card>
+        </>)}
         {['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const it=ITYPES.find(t=>t.key===tk);return(
           <div key={tk}><SecL>{it.full} — {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL>
           <Card>{te.map(e=>{const cr=isCredit(e);return(
@@ -424,7 +549,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         {p.payments?.length>0&&(<><SecL>Cash payments received</SecL><Card>{p.payments.map(py=><Row key={py.id} left={fmtD(py.date)} sub={py.payment} right={<span style={{color:'#16a34a',fontWeight:600,fontSize:13}}>{fmt(py.amount)}</span>}/>)}</Card></>)}
         <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}>
           <button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}}
-            onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records? This cannot be undone.')){actions.deletePatient(p.id);setIpv('list');}}}>
+            onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records? This cannot be undone.')){actions.deletePatient(p.id);setIpv('list')}}}>
             🗑️ Delete this patient and all records
           </button>
         </div>
@@ -453,8 +578,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       </Card>
     </div>
   )
-  const active=db.ip_patients.filter(p=>!p.discharge_date)
-  const disc=db.ip_patients.filter(p=>p.discharge_date)
+  const active=db.ip_patients.filter(p=>!p.discharge_date);const disc=db.ip_patients.filter(p=>p.discharge_date)
   const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const pd=(db.ip_patients.find(p=>p.id===pid)?.payments||[]).reduce((a,e)=>a+e.amount,0);const cr=credTotal(en);return{total:t,balance:t-pd,credit:cr}}
   return(
     <div>
@@ -476,10 +600,9 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   )
 }
 
-/* EXPENSES */
+/* ── EXPENSES ── */
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
-  const exp=db.expenses.filter(e=>e.date===exD)
-  const etot=exp.reduce((a,e)=>a+e.amount,0)
+  const exp=db.expenses.filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
   const go=async()=>{
     const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return}
     await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon})
@@ -514,160 +637,298 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   )
 }
 
+/* ── REPORT SUB-COMPONENTS (all defined outside RepTab to avoid hook violations) ── */
 
-/* ── CHART COMPONENTS ── */
-const HBarChart=({data,title})=>{
-  if(!data||!data.length)return null
-  const max=Math.max(...data.map(d=>d.value),1)
-  const rowH=34,labelW=72,W=300
-  const h=data.length*rowH+16
+const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs})=>{
+  const [refPer,setRefPer]=useState('month')
+  const fi=refPer==='month'?income.filter(e=>e.date?.startsWith(rm)):income.filter(e=>e.date?.startsWith(ry))
+  const [payDoc,setPayDoc]=useState(null)
+  const docs=buildRef(fi,db.ip_patients)
+  const tc=docs.reduce((a,r)=>a+r.total_commission,0)
+  const totalPaid=allPaid.reduce((a,e)=>a+e.amount,0)
   return(
-    <div style={{marginTop:12,marginBottom:4}}>
-      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
-      <svg viewBox={`0 0 ${W} ${h}`} style={{width:'100%',display:'block'}}>
-        {data.map((d,i)=>{
-          const bw=Math.max(d.value>0?(d.value/max)*(W-labelW-52):0,0)
-          const y=i*rowH+8
+    <>
+      <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
+        <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
+        {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(
+          <button key={v.k} onClick={()=>setRefPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:refPer===v.k?'none':'1px solid #e5e7eb',background:refPer===v.k?'#111':'none',color:refPer===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>
+        ))}
+      </div>
+      {refPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
+      {refPer==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+      {!docs.length&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No referral data for this period</div>}
+      {docs.length>0&&(<>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+          <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px'}}>
+            <div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Commission earned</div>
+            <div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div>
+          </div>
+          <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}>
+            <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total paid out</div>
+            <div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalPaid)}</div>
+          </div>
+        </div>
+        {docs.map(doc=>{
+          const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0)
+          const balance=doc.total_commission-paid
+          const isOpen=payDoc===doc.name
           return(
-            <g key={i}>
-              <text x={labelW-6} y={y+13} textAnchor="end" fontSize={10} fill="#888" fontFamily="system-ui">{d.label}</text>
-              {bw>0&&<rect x={labelW} y={y} width={bw} height={20} fill={d.color||'#111'} rx={4} opacity={0.85}/>}
-              {bw===0&&<rect x={labelW} y={y+8} width={3} height={4} fill="#e5e7eb" rx={1}/>}
-              <text x={labelW+bw+5} y={y+14} fontSize={10} fill={d.color||'#555'} fontFamily="system-ui" fontWeight="600">{d.fmt||d.value}</text>
-            </g>
+            <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                <div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income generated: {fmt(doc.total_income)}</div></div>
+                <div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission earned</div><div style={{fontSize:18,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
+                <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div>
+                <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
+                <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div>
+              </div>
+              {Object.entries(doc.by_type).map(([tk,v])=>(
+                <Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${fmt(v.income)} × ${CLBL[tk]}`} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(v.commission)}</span>}/>
+              ))}
+              {paid>0&&(
+                <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
+                  <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Payments made</div>
+                  {allPaid.filter(e=>e.description===doc.name).map(e=>(
+                    <div key={e.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
+                      <span style={{color:'#555'}}>{fmtD(e.date)} · {e.payment}</span>
+                      <span style={{color:'#16a34a',fontWeight:600}}>{fmt(e.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {balance>0&&(
+                <div style={{marginTop:10}}>
+                  {!isOpen
+                    ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>
+                    :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{
+                      const row={id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false}
+                      const {data}=await supabase.from('expenses').insert([row]).select()
+                      // force page reload to refresh data
+                      if(data)window.location.reload()
+                    }}/>
+                  }
+                </div>
+              )}
+              {balance<=0&&<div style={{marginTop:8,textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>✓ Fully paid</div>}
+            </Card>
           )
         })}
-      </svg>
-    </div>
+      </>)}
+    </>
   )
 }
 
-const VBarChart=({data,title})=>{
-  if(!data||!data.length)return null
-  const max=Math.max(...data.map(d=>Math.max(d.v1||0,d.v2||0)),1)
-  const W=300,H=110,PB=20,PT=6,bw=Math.max(Math.floor((W-16)/data.length)-2,3),cH=H-PB-PT
+const PatientsReport=({db,gotoIP})=>{
+  const pats=db.ip_patients
+  const IP_TYPES=['ip','ip_r','ip_l']
+  if(!pats.length)return<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No patients yet</div>
+  const grandInc=db.income.filter(e=>db.ip_patients.some(p=>p.id===e.patient_id)).reduce((a,e)=>a+e.amount,0)
+  const grandComm=db.income.filter(e=>db.ip_patients.some(p=>p.id===e.patient_id)).reduce((a,e)=>a+getComm(e),0)
   return(
-    <div style={{marginTop:12,marginBottom:4}}>
-      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
-      <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',display:'block'}}>
-        <line x1={8} y1={PT} x2={8} y2={H-PB} stroke="#f0f0f0" strokeWidth={1}/>
-        <line x1={8} y1={H-PB} x2={W} y2={H-PB} stroke="#f0f0f0" strokeWidth={1}/>
-        {data.map((d,i)=>{
-          const x=10+i*(bw+2)
-          const half=d.v2!==undefined?Math.floor(bw/2)-1:bw
-          const h1=Math.max(d.v1>0?(d.v1/max)*cH:0,0)
-          const h2=d.v2!==undefined?Math.max(d.v2>0?(d.v2/max)*cH:0,0):0
-          return(
-            <g key={i}>
-              {d.v2!==undefined&&h2>0&&<rect x={x} y={PT+cH-h2} width={half} height={h2} fill="#ef4444" rx={2} opacity={0.75}/>}
-              {h1>0&&<rect x={d.v2!==undefined?x+half+1:x} y={PT+cH-h1} width={half} height={h1} fill={d.color||'#16a34a'} rx={2} opacity={0.85}/>}
-              {data.length<=14&&<text x={x+bw/2} y={H-5} textAnchor="middle" fontSize={7} fill="#bbb" fontFamily="system-ui">{d.label}</text>}
-            </g>
-          )
-        })}
-      </svg>
-      {data[0]?.v2!==undefined&&<div style={{display:'flex',gap:12,marginTop:4}}>
-        <span style={{fontSize:10,color:'#ef4444',display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#ef4444',display:'inline-block'}}/> Expenses</span>
-        <span style={{fontSize:10,color:'#16a34a',display:'flex',alignItems:'center',gap:4}}><span style={{width:8,height:8,borderRadius:2,background:'#16a34a',display:'inline-block'}}/> Revenue</span>
-      </div>}
-    </div>
-  )
-}
-
-const DonutChart=({segments,title,centerLabel})=>{
-  if(!segments||!segments.length)return null
-  const total=segments.reduce((a,s)=>a+s.value,0)
-  if(!total)return null
-  const CX=65,CY=65,R=52,ri=30
-  let angle=-Math.PI/2
-  const paths=segments.map(s=>{
-    const sweep=(s.value/total)*2*Math.PI
-    const x1=CX+R*Math.cos(angle),y1=CY+R*Math.sin(angle)
-    angle+=sweep
-    const x2=CX+R*Math.cos(angle),y2=CY+R*Math.sin(angle)
-    const xi1=CX+ri*Math.cos(angle),yi1=CY+ri*Math.sin(angle)
-    const xi2=CX+ri*Math.cos(angle-sweep),yi2=CY+ri*Math.sin(angle-sweep)
-    const lg=sweep>Math.PI?1:0
-    return{d:`M${x1} ${y1}A${R} ${R} 0 ${lg} 1 ${x2} ${y2}L${xi1} ${yi1}A${ri} ${ri} 0 ${lg} 0 ${xi2} ${yi2}Z`,color:s.color,label:s.label,value:s.value,pct:Math.round(s.value/total*100)}
-  })
-  return(
-    <div style={{marginTop:12}}>
-      {title&&<div style={{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>{title}</div>}
-      <div style={{display:'flex',alignItems:'center',gap:16}}>
-        <svg viewBox="0 0 130 130" style={{width:120,flexShrink:0}}>
-          {paths.map((p,i)=><path key={i} d={p.d} fill={p.color} opacity={0.9}/>)}
-          <text x={CX} y={CY-4} textAnchor="middle" fontSize={10} fill="#555" fontFamily="system-ui" fontWeight="700">{centerLabel||'Total'}</text>
-          <text x={CX} y={CY+10} textAnchor="middle" fontSize={9} fill="#aaa" fontFamily="system-ui">income</text>
-        </svg>
-        <div style={{flex:1}}>
-          {segments.map((s,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
-              <div style={{width:10,height:10,borderRadius:3,background:s.color,flexShrink:0}}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:10,color:'#888'}}>{s.label}</div>
-                <div style={{fontSize:13,fontWeight:700,color:s.color}}>{s.fmt}</div>
+    <>
+      <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>All IP patients — income vs commission vs real income</div>
+      <HBarChart title="Real income per patient" data={pats.map(p=>{
+        const en=db.income.filter(e=>e.patient_id===p.id)
+        const real=en.reduce((a,e)=>a+e.amount,0)-en.reduce((a,e)=>a+getComm(e),0)
+        return{label:p.name?.split(' ')[0]||'?',value:real,color:'#16a34a',fmt:fmt(real)}
+      }).filter(d=>d.value>0)}/>
+      {pats.map(p=>{
+        const ents=db.income.filter(e=>e.patient_id===p.id)
+        if(!ents.length)return null
+        const grandTotal=ents.reduce((a,e)=>a+e.amount,0)
+        const grandCommP=ents.reduce((a,e)=>a+getComm(e),0)
+        const grandReal=grandTotal-grandCommP
+        const paid=(p.payments||[]).reduce((a,e)=>a+e.amount,0)
+        return(
+          <Card key={p.id} style={{marginBottom:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #f0f0f0'}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:700,cursor:'pointer',color:'#1d4ed8'}} onClick={()=>gotoIP(p.id)}>{p.name}</div>
+                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>
+                {p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:11,color:'#aaa'}}>Balance due</div>
+                <div style={{fontSize:14,fontWeight:700,color:grandTotal-paid>0?'#ef4444':'#16a34a'}}>{fmt(grandTotal-paid)}</div>
               </div>
             </div>
-          ))}
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
+              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Income</div>
+              <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Comm</div>
+              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
+            </div>
+            {IP_TYPES.map(tk=>{
+              const te=ents.filter(e=>e.type===tk);if(!te.length)return null
+              const inc=te.reduce((a,e)=>a+e.amount,0);const comm=te.reduce((a,e)=>a+getComm(e),0)
+              const it=ITYPES.find(t=>t.key===tk)
+              return(
+                <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
+                  <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.label}</span>
+                  <span style={{fontSize:12,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(inc-comm)}</span>
+                </div>
+              )
+            })}
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #f0f0f0'}}>
+              <span style={{fontSize:13,fontWeight:700}}>Total</span>
+              <span style={{fontSize:13,fontWeight:700,textAlign:'right',minWidth:64}}>{fmt(grandTotal)}</span>
+              <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#d97706',minWidth:64}}>{grandCommP>0?'-'+fmt(grandCommP):'—'}</span>
+              <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(grandReal)}</span>
+            </div>
+          </Card>
+        )
+      })}
+      <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:14,padding:'16px',marginTop:8,color:'#fff'}}>
+        <div style={{fontSize:11,color:'#9ca3af',fontWeight:700,textTransform:'uppercase',marginBottom:12}}>All patients — grand total</div>
+        {IP_TYPES.map(tk=>{
+          const all=db.income.filter(e=>e.type===tk&&db.ip_patients.some(p=>p.id===e.patient_id))
+          if(!all.length)return null
+          const inc=all.reduce((a,e)=>a+e.amount,0);const comm=all.reduce((a,e)=>a+getComm(e),0)
+          return(
+            <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #374151'}}>
+              <span style={{fontSize:12,color:'#d1d5db'}}>{ITYPES.find(t=>t.key===tk)?.full}</span>
+              <span style={{fontSize:12,textAlign:'right',color:'#d1d5db',minWidth:60}}>{fmt(inc)}</span>
+              <span style={{fontSize:12,textAlign:'right',color:'#fbbf24',minWidth:60}}>-{fmt(comm)}</span>
+              <span style={{fontSize:12,textAlign:'right',color:'#4ade80',fontWeight:600,minWidth:60}}>{fmt(inc-comm)}</span>
+            </div>
+          )
+        })}
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,paddingTop:10,marginTop:4,borderTop:'1px solid #6b7280'}}>
+          <span style={{fontSize:14,fontWeight:700,color:'#fff'}}>Grand total</span>
+          <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fff',minWidth:60}}>{fmt(grandInc)}</span>
+          <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fbbf24',minWidth:60}}>-{fmt(grandComm)}</span>
+          <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#4ade80',minWidth:60}}>{fmt(grandInc-grandComm)}</span>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
-/* Commission payment form — standalone so keyboard stays open */
-const CommPayForm=({docName,balance,onSave,onCancel})=>{
-  const [date,setDate]=useState(todayStr())
-  const [amount,setAmount]=useState(String(Math.round(balance)))
-  const [pay,setPay]=useState('cash')
-  const [busy,setBusy]=useState(false)
-  const go=async()=>{
-    const amt=parseFloat(amount)
-    if(!amt||amt<=0){alert('Enter amount');return}
-    setBusy(true)
-    await onSave(amt,date,pay)
-    setBusy(false)
-  }
-  return(
-    <div style={{background:'#f9fafb',borderRadius:10,padding:'12px 14px',border:'1px solid #e5e7eb',marginTop:10}}>
-      <div style={{fontSize:12,fontWeight:700,color:'#111',marginBottom:10}}>Pay Dr. {docName}</div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-        <div>
-          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Date</label>
-          <input style={{width:'100%',padding:'9px 12px',border:'1px solid #e5e7eb',borderRadius:10,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'}} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
-        </div>
-        <div>
-          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Amount (₹)</label>
-          <input style={{width:'100%',padding:'9px 12px',border:'1px solid #e5e7eb',borderRadius:10,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'}} type="number" inputMode="numeric" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)}/>
-        </div>
-      </div>
-      <div style={{marginBottom:10}}>
-        <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:6,fontWeight:700}}>Payment mode</label>
-        <div style={{display:'flex',gap:8}}>
-          {['cash','upi','card'].map(m=>(
-            <button key={m} onClick={()=>setPay(m)} style={{flex:1,padding:'9px 4px',border:pay===m?'2px solid #111':'1px solid #e5e7eb',borderRadius:8,background:pay===m?'#111':'#fff',color:pay===m?'#fff':'#555',fontSize:13,fontWeight:600,cursor:'pointer'}}>
-              {m[0].toUpperCase()+m.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{display:'flex',gap:8}}>
-        <button onClick={onCancel} style={{flex:1,padding:'10px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Cancel</button>
-        <button onClick={go} disabled={busy} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',opacity:busy?0.6:1}}>
-          {busy?'Saving…':'✓ Save payment'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/* REPORTS */
-const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
-  const [payDoc,setPayDoc]=useState(null)
-  const [refPer,setRefPer]=useState('month')
+const LabReport=({db,rm,setRm,ry,setRy,yrs})=>{
   const [labPer,setLabPer]=useState('month')
+  const labInc=labPer==='month'
+    ?db.income.filter(e=>e.date?.startsWith(rm)&&(e.type==='op_l'||e.type==='ip_l'))
+    :db.income.filter(e=>e.date?.startsWith(ry)&&(e.type==='op_l'||e.type==='ip_l'))
+  const labExp=labPer==='month'
+    ?db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category==='lab_to_lab')
+    :db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category==='lab_to_lab')
+  const opLabInc=labInc.filter(e=>e.type==='op_l').reduce((a,e)=>a+e.amount,0)
+  const ipLabInc=labInc.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
+  const totalLabInc=opLabInc+ipLabInc
+  const totalLabComm=labInc.reduce((a,e)=>a+getComm(e),0)
+  const totalLabExp=labExp.reduce((a,e)=>a+e.amount,0)
+  const realLabInc=totalLabInc-totalLabComm-totalLabExp
+  return(
+    <>
+      <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center',flexWrap:'wrap'}}>
+        <span style={{fontSize:13,color:'#888',fontWeight:600}}>Period:</span>
+        {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(
+          <button key={v.k} onClick={()=>setLabPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:labPer===v.k?'none':'1px solid #e5e7eb',background:labPer===v.k?'#111':'none',color:labPer===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>
+        ))}
+      </div>
+      {labPer==='month'&&<input style={{...S.inp,marginBottom:14}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
+      {labPer==='year'&&<select style={{...S.sel,marginBottom:14}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+      <div style={{background:'linear-gradient(135deg,#9d174d 0%,#6b21a8 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
+        <div style={{fontSize:12,color:'#f9a8d4',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real lab income</div>
+        <div style={{fontSize:36,fontWeight:800,color:realLabInc>=0?'#fff':'#fca5a5'}}>{fmt(realLabInc)}</div>
+        <div style={{fontSize:12,color:'#f9a8d4',marginTop:6}}>After commission and lab-to-lab expenses</div>
+      </div>
+      <Card>
+        <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:12}}>Lab income breakdown</div>
+        <Row left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t="op_l"/>OP Lab income</span>} right={<span style={{color:'#16a34a',fontWeight:600}}>{fmt(opLabInc)}</span>}/>
+        <Row left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t="ip_l"/>IP Lab income</span>} right={<span style={{color:'#16a34a',fontWeight:600}}>{fmt(ipLabInc)}</span>}/>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid #f0f0f0',borderBottom:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total lab income</span><span style={{color:'#16a34a'}}>{fmt(totalLabInc)}</span></div>
+        <Row left="Less: Referral commission (50%)" right={<span style={{color:'#d97706',fontWeight:600}}>{totalLabComm>0?'- '+fmt(totalLabComm):'—'}</span>}/>
+        <Row left="Less: Lab to lab expenses" right={<span style={{color:'#ef4444',fontWeight:600}}>{totalLabExp>0?'- '+fmt(totalLabExp):'—'}</span>}/>
+        <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4,borderTop:'2px solid #f0f0f0',fontSize:15,fontWeight:800}}><span>Real lab income</span><span style={{color:realLabInc>=0?'#16a34a':'#ef4444'}}>{fmt(realLabInc)}</span></div>
+      </Card>
+      <DonutChart title="Lab income breakdown" centerLabel={fmt(totalLabInc)} segments={[
+        {label:'Real lab income',value:Math.max(realLabInc,0),color:'#9d174d',fmt:fmt(Math.max(realLabInc,0))},
+        {label:'Commission (50%)',value:totalLabComm,color:'#d97706',fmt:fmt(totalLabComm)},
+        {label:'Lab-to-lab exp',value:totalLabExp,color:'#ef4444',fmt:fmt(totalLabExp)},
+      ].filter(s=>s.value>0)}/>
+      {labExp.length>0&&(<><SecL>Lab to lab expense entries</SecL>
+        <Card>{labExp.map(e=>(<Row key={e.id} left={e.description||'Lab to lab'} sub={fmtD(e.date)+' · '+e.payment} right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(e.amount)}</span>}/>))}</Card>
+      </>)}
+      {labExp.length===0&&totalLabInc===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No lab income for this period</div>}
+    </>
+  )
+}
+
+const RealIncomeReport=({db})=>{
+  const allInc=db.income.reduce((a,e)=>a+e.amount,0)
+  const allComm=db.income.reduce((a,e)=>a+getComm(e),0)
+  const allReal=allInc-allComm
+  return(
+    <>
+      <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>All income sources — total billed minus referral commission = real income</div>
+      <Card>
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Income</div>
+          <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Comm</div>
+          <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
+        </div>
+        {ITYPES.map(t=>{
+          const ents=db.income.filter(e=>e.type===t.key)
+          const inc=ents.reduce((a,e)=>a+e.amount,0)
+          const comm=ents.reduce((a,e)=>a+getComm(e),0)
+          if(!inc)return null
+          return(
+            <div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
+              <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span>
+              <span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
+              <span style={{fontSize:13,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
+              <span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(inc-comm)}</span>
+            </div>
+          )
+        })}
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}>
+          <span style={{fontSize:14,fontWeight:800}}>Grand total</span>
+          <span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span>
+          <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#d97706',minWidth:64}}>{allComm>0?'-'+fmt(allComm):'—'}</span>
+          <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span>
+        </div>
+      </Card>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:4}}>
+        <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total billed</div>
+          <div style={{fontSize:20,fontWeight:700}}>{fmt(allInc)}</div>
+        </div>
+        <div style={{background:'#fff7ed',borderRadius:12,padding:'12px 14px'}}>
+          <div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total commission</div>
+          <div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(allComm)}</div>
+        </div>
+        <div style={{background:'#f0fdf4',borderRadius:12,padding:'14px 16px',gridColumn:'1/-1'}}>
+          <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income (all time)</div>
+          <div style={{fontSize:28,fontWeight:800,color:'#15803d'}}>{fmt(allReal)}</div>
+          <div style={{fontSize:11,color:'#aaa',marginTop:4}}>Total billed minus all referral commissions</div>
+        </div>
+      </div>
+      <HBarChart title="Real income by source" data={ITYPES.map(t=>{
+        const ents=db.income.filter(e=>e.type===t.key)
+        const real=ents.reduce((a,e)=>a+e.amount,0)-ents.reduce((a,e)=>a+getComm(e),0)
+        const [,tx]=TC[t.key]
+        return{label:t.label,value:real,color:tx,fmt:fmt(real)}
+      }).filter(d=>d.value>0)}/>
+    </>
+  )
+}
+
+/* ── REPORTS ── */
+const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
+  const allPaidComm=db.expenses.filter(e=>e.category==='ref_paid')
+
+  const RVTABS=[
+    {k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},
+    {k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'},
+    {k:'lab',l:'Lab'},{k:'realincome',l:'Real Income'},
+  ]
 
   const PLCards=({incList,exp,refComm})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const total=cash+credit;const net=cash-exp.total-refComm
@@ -688,95 +949,7 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   }
   const IncT=({incList})=>{const inc=sumInc(incList);return(<Card>{ITYPES.filter(t=>inc[t.key]>0).map(t=>{const cash=cashTotal(incList.filter(e=>e.type===t.key));const cred=credTotal(incList.filter(e=>e.type===t.key));return<Row key={t.key} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={t.key}/>{t.full}</span>} sub={`Cash: ${fmt(cash)}${cred>0?' · Credit: '+fmt(cred):''}`} right={<span style={{color:'#16a34a',fontWeight:600}}>{fmt(inc[t.key])}</span>}/>})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total billed</span><span>{fmt(inc.total)}</span></div></Card>)}
   const ExpT=({exp})=>{if(exp.total===0)return<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No expenses</div>;return<Card>{ECATS.filter(c=>exp[c.key]>0).map(c=><Row key={c.key} left={c.label} right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(exp[c.key])}</span>}/>)}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total expenses</span><span>{fmt(exp.total)}</span></div></Card>}
-  const RefRep=({income})=>{
-    const docs=buildRef(income,db.ip_patients)
-    const tc=docs.reduce((a,r)=>a+r.total_commission,0)
-    // all commission payments ever made (not period-filtered — total paid all time)
-    const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
-    const totalPaid=allPaid.reduce((a,e)=>a+e.amount,0)
-    if(!docs.length)return<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No referral data for this period</div>
-    return(<>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-        <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px'}}>
-          <div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Commission earned</div>
-          <div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div>
-        </div>
-        <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}>
-          <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total paid out</div>
-          <div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalPaid)}</div>
-        </div>
-      </div>
-      {docs.map(doc=>{
-        const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0)
-        const balance=doc.total_commission-paid
-        const isOpen=payDoc===doc.name
-        return(
-          <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-              <div>
-                <div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income generated: {fmt(doc.total_income)}</div>
-              </div>
-              <div style={{textAlign:'right'}}>
-                <div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission earned</div>
-                <div style={{fontSize:18,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div>
-              </div>
-            </div>
-            {/* Earned vs paid vs balance */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div>
-                <div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div>
-              </div>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div>
-                <div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div>
-              </div>
-              <div style={{textAlign:'center'}}>
-                <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div>
-                <div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div>
-              </div>
-            </div>
-            {/* Income breakdown by type */}
-            {Object.entries(doc.by_type).map(([tk,v])=>(
-              <Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${fmt(v.income)} × ${CLBL[tk]}`} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(v.commission)}</span>}/>
-            ))}
-            {/* Payment history */}
-            {paid>0&&(
-              <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
-                <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Payments made</div>
-                {allPaid.filter(e=>e.description===doc.name).map(e=>(
-                  <div key={e.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}}>
-                    <span style={{color:'#555'}}>{fmtD(e.date)} · {e.payment}</span>
-                    <span style={{color:'#16a34a',fontWeight:600}}>{fmt(e.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Record payment button */}
-            {balance>0&&(
-              <div style={{marginTop:10}}>
-                {!isOpen
-                  ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                    + Record commission payment
-                  </button>
-                  :<CommPayForm
-                    docName={doc.name}
-                    balance={balance}
-                    onCancel={()=>setPayDoc(null)}
-                    onSave={async(amt,date,pay)=>{await actions.payCommission(doc.name,amt,date,pay);setPayDoc(null)}}
-                  />
-                }
-              </div>
-            )}
-            {balance<=0&&<div style={{marginTop:8,textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>✓ Fully paid</div>}
-          </Card>
-        )
-      })}
-    </>)
-  }
 
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'},{k:'lab',l:'Lab'},{k:'realincome',l:'Real Income'}]
   return(
     <div>
       <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
@@ -784,19 +957,21 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           <button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1px solid #e5e7eb',background:rv===v.k?'#111':'none',color:rv===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>
         ))}
       </div>
+
       {rv==='daily'&&(()=>{
         const dI=db.income.filter(e=>e.date===rd);const exp=sumExp(db.expenses.filter(e=>e.date===rd));const rc=totalRef(dI,db.ip_patients);const ipd=db.ip_patients.filter(p=>dI.some(e=>e.patient_id===p.id))
         return(<>
           <div style={{display:'flex',gap:8,marginBottom:14}}><input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/><GBtn onClick={()=>setRd(todayStr())}>Today</GBtn></div>
           <PLCards incList={dI} exp={exp} refComm={rc}/>
-          <HBarChart title="Income by source" data={ITYPES.map(t=>{const v=dI.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0);const [,tx]=TC[t.key];return{label:t.label,value:v,color:tx,fmt:'₹'+(Math.round(v)||0).toLocaleString('en-IN')}}).filter(d=>d.value>0)}/>
-          {cashTotal(dI)>0&&credTotal(dI)>0&&<HBarChart title="Cash vs credit" data={[{label:'Cash',value:cashTotal(dI),color:'#16a34a',fmt:'₹'+(Math.round(cashTotal(dI))||0).toLocaleString('en-IN')},{label:'Credit',value:credTotal(dI),color:'#c2410c',fmt:'₹'+(Math.round(credTotal(dI))||0).toLocaleString('en-IN')}]}/>}
+          <HBarChart title="Income by source" data={ITYPES.map(t=>{const v=dI.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0);const[,tx]=TC[t.key];return{label:t.label,value:v,color:tx,fmt:fmt(v)}}).filter(d=>d.value>0)}/>
           {ipd.length>0&&(<><SecL>IP activity</SecL><Card>{ipd.map(p=>{const pe=dI.filter(e=>e.patient_id===p.id);const t=pe.reduce((a,e)=>a+e.amount,0);const cr=credTotal(pe);const tot=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);return<Row key={p.id} left={p.name} sub={`Today: ${fmt(t)}${cr>0?' (credit: '+fmt(cr)+')':''}`} right={tot-pd>0?<span style={{color:'#ef4444',fontSize:11,fontWeight:600}}>due {fmt(tot-pd)}</span>:<span style={{color:'#16a34a',fontSize:11}}>settled</span>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={dI}/>
           <SecL>Expenses</SecL><ExpT exp={exp}/>
-          <SecL>Doctor referral report — {fmtD(rd)}</SecL><RefRep income={dI}/>
+          <SecL>Doctor referral report — {fmtD(rd)}</SecL>
+          <ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>
         </>)
       })()}
+
       {rv==='monthly'&&(()=>{
         const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm));const exp=sumExp(mE);const rc=totalRef(mI,db.ip_patients);const days=[...new Set(mI.map(e=>e.date))].sort();const [yr,mo]=rm.split('-');const mps=db.ip_patients.filter(p=>(p.admission_date||'')<=rm+'-31'&&(p.discharge_date||'9999-12-31')>=rm+'-01')
         return(<>
@@ -808,9 +983,11 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           {mps.length>0&&(<><SecL>IP patients this month</SecL><Card>{mps.map(p=>{const en=db.income.filter(e=>e.patient_id===p.id);const t=en.reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const cr=credTotal(en);return<Row key={p.id} left={<span>{p.name}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={`${fmtD(p.admission_date)}${p.discharge_date?' → '+fmtD(p.discharge_date):' (active)'}${cr>0?' · Credit: '+fmt(cr):''}`} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(t)}</div>{t-pd>0&&<div style={{fontSize:11,color:'#ef4444'}}>due {fmt(t-pd)}</div>}</div>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={mI}/>
           <SecL>Expenses</SecL><ExpT exp={exp}/>
-          <SecL>Doctor referral report</SecL><RefRep income={mI}/>
+          <SecL>Doctor referral report — {MOFULL[parseInt(mo)-1]}</SecL>
+          <ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>
         </>)
       })()}
+
       {rv==='yearly'&&(()=>{
         const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry));const exp=sumExp(yE);const rc=totalRef(yI,db.ip_patients);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort()
         return(<>
@@ -829,263 +1006,20 @@ const RepTab=({db,actions,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
             )})}
           </Card></>)}
           <SecL>Income by source</SecL><IncT incList={yI}/>
-          <SecL>Doctor referral report</SecL><RefRep income={yI}/>
+          <SecL>Doctor referral report — {ry}</SecL>
+          <ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>
         </>)
       })()}
-      {rv==='referrals'&&(
-        <>
-          <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
-            <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
-            {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(<button key={v.k} onClick={()=>setRefPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:refPer===v.k?'none':'1px solid #e5e7eb',background:refPer===v.k?'#111':'none',color:refPer===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
-          </div>
-          {refPer==='month'&&<input style={S.inp} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
-          {refPer==='year'&&<select style={S.sel} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-          <RefRep income={refPer==='month'?db.income.filter(e=>e.date?.startsWith(rm)):db.income.filter(e=>e.date?.startsWith(ry))}/>
-        </>
-      )}
-      {rv==='patients'&&(
-        <>
-        const pats=db.ip_patients
-        if(!pats.length)return<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No patients yet</div>
-        const IP_TYPES=['ip','ip_r','ip_l']
-        return(<>
-          <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>All IP patients — income vs commission vs real income</div>
-          {pats.map(p=>{
-            const ents=db.income.filter(e=>e.patient_id===p.id)
-            if(!ents.length)return null
-            const grandTotal=ents.reduce((a,e)=>a+e.amount,0)
-            const grandComm=ents.reduce((a,e)=>a+getComm(e),0)
-            const grandReal=grandTotal-grandComm
-            const paid=(p.payments||[]).reduce((a,e)=>a+e.amount,0)
-            return(
-              <Card key={p.id} style={{marginBottom:14}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12,paddingBottom:10,borderBottom:'1px solid #f0f0f0'}}>
-                  <div>
-                    <div style={{fontSize:15,fontWeight:700}}>{p.name}</div>
-                    <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{marginLeft:4,fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>Active</span>}</div>
-                    {p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}
-                  </div>
-                  <div style={{textAlign:'right'}}>
-                    <div style={{fontSize:11,color:'#aaa'}}>Balance due</div>
-                    <div style={{fontSize:14,fontWeight:700,color:grandTotal-paid>0?'#ef4444':'#16a34a'}}>{fmt(grandTotal-paid)}</div>
-                  </div>
-                </div>
-                {/* Header row */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
-                  <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
-                  <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Income</div>
-                  <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Comm</div>
-                  <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Real</div>
-                </div>
-                {/* Per category rows */}
-                {IP_TYPES.map(tk=>{
-                  const te=ents.filter(e=>e.type===tk)
-                  if(!te.length)return null
-                  const inc=te.reduce((a,e)=>a+e.amount,0)
-                  const comm=te.reduce((a,e)=>a+getComm(e),0)
-                  const real=inc-comm
-                  const it=ITYPES.find(t=>t.key===tk)
-                  return(
-                    <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
-                      <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.label}</span>
-                      <span style={{fontSize:12,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
-                      <span style={{fontSize:12,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
-                      <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
-                    </div>
-                  )
-                })}
-                {/* Grand total row */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #f0f0f0'}}>
-                  <span style={{fontSize:13,fontWeight:700}}>Total</span>
-                  <span style={{fontSize:13,fontWeight:700,textAlign:'right',minWidth:64}}>{fmt(grandTotal)}</span>
-                  <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#d97706',minWidth:64}}>{grandComm>0?'-'+fmt(grandComm):'—'}</span>
-                  <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(grandReal)}</span>
-                </div>
-              </Card>
-            )
-          })}
-          <HBarChart title="Patient comparison — real income" data={pts.map(p=>{
-            const en=db.income.filter(e=>e.patient_id===p.id)
-            const inc=en.reduce((a,e)=>a+e.amount,0)
-            const comm=en.reduce((a,e)=>a+getComm(e),0)
-            return{label:p.name?.split(' ')[0]||'?',value:inc-comm,color:'#16a34a',fmt:fmt(inc-comm)}
-          })}/>
-          {/* Grand summary across all patients */}
-          <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:14,padding:'16px',marginTop:8,color:'#fff'}}>
-            <div style={{fontSize:11,color:'#9ca3af',fontWeight:700,textTransform:'uppercase',marginBottom:12}}>All patients summary</div>
-            {IP_TYPES.map(tk=>{
-              const all=db.income.filter(e=>e.type===tk&&db.ip_patients.some(p=>p.id===e.patient_id))
-              if(!all.length)return null
-              const inc=all.reduce((a,e)=>a+e.amount,0)
-              const comm=all.reduce((a,e)=>a+getComm(e),0)
-              const real=inc-comm
-              const it=ITYPES.find(t=>t.key===tk)
-              return(
-                <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #374151'}}>
-                  <span style={{fontSize:12,color:'#d1d5db'}}>{it?.full}</span>
-                  <span style={{fontSize:12,textAlign:'right',color:'#d1d5db',minWidth:64}}>{fmt(inc)}</span>
-                  <span style={{fontSize:12,textAlign:'right',color:'#fbbf24',minWidth:64}}>-{fmt(comm)}</span>
-                  <span style={{fontSize:12,textAlign:'right',color:'#4ade80',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
-                </div>
-              )
-            })}
-            {(()=>{
-              const all=db.income.filter(e=>db.ip_patients.some(p=>p.id===e.patient_id))
-              const inc=all.reduce((a,e)=>a+e.amount,0)
-              const comm=all.reduce((a,e)=>a+getComm(e),0)
-              return(
-                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,paddingTop:10,marginTop:4,borderTop:'1px solid #6b7280'}}>
-                  <span style={{fontSize:14,fontWeight:700,color:'#fff'}}>Grand total</span>
-                  <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fff',minWidth:64}}>{fmt(inc)}</span>
-                  <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fbbf24',minWidth:64}}>-{fmt(comm)}</span>
-                  <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#4ade80',minWidth:64}}>{fmt(inc-comm)}</span>
-                </div>
-              )
-            })()}
-          </div>
-        </>
-      )}
-      {rv==='lab'&&(()=>{
-        // Lab income report
-        const labInc=labPer==='month'
-          ?db.income.filter(e=>e.date?.startsWith(rm)&&(e.type==='op_l'||e.type==='ip_l'))
-          :db.income.filter(e=>e.date?.startsWith(ry)&&(e.type==='op_l'||e.type==='ip_l'))
-        const labExp=labPer==='month'
-          ?db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category==='lab_to_lab')
-          :db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category==='lab_to_lab')
-        const opLabInc=labInc.filter(e=>e.type==='op_l').reduce((a,e)=>a+e.amount,0)
-        const ipLabInc=labInc.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
-        const totalLabInc=opLabInc+ipLabInc
-        const totalLabComm=labInc.reduce((a,e)=>a+getComm(e),0)
-        const totalLabExp=labExp.reduce((a,e)=>a+e.amount,0)
-        const realLabInc=totalLabInc-totalLabComm-totalLabExp
-        return(<>
-          <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center',flexWrap:'wrap'}}>
-            <span style={{fontSize:13,color:'#888',fontWeight:600}}>Period:</span>
-            {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(
-              <button key={v.k} onClick={()=>setLabPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:labPer===v.k?'none':'1px solid #e5e7eb',background:labPer===v.k?'#111':'none',color:labPer===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>
-            ))}
-          </div>
-          {labPer==='month'&&<input style={{...S.inp,marginBottom:14}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
-          {labPer==='year'&&<select style={{...S.sel,marginBottom:14}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
 
-          {/* Lab income summary card */}
-          <div style={{background:'linear-gradient(135deg,#9d174d 0%,#6b21a8 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
-            <div style={{fontSize:12,color:'#f9a8d4',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:4}}>Real lab income</div>
-            <div style={{fontSize:36,fontWeight:800,color:realLabInc>=0?'#fff':'#fca5a5'}}>{fmt(realLabInc)}</div>
-            <div style={{fontSize:12,color:'#f9a8d4',marginTop:6}}>After commission and lab-to-lab expenses</div>
-          </div>
-
-          {/* Breakdown table */}
-          <Card>
-            <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:12}}>Lab income breakdown</div>
-            <Row left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t="op_l"/>OP Lab income</span>} right={<span style={{color:'#16a34a',fontWeight:600}}>{fmt(opLabInc)}</span>}/>
-            <Row left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t="ip_l"/>IP Lab income</span>} right={<span style={{color:'#16a34a',fontWeight:600}}>{fmt(ipLabInc)}</span>}/>
-            <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderTop:'1px solid #f0f0f0',borderBottom:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}>
-              <span>Total lab income</span><span style={{color:'#16a34a'}}>{fmt(totalLabInc)}</span>
-            </div>
-            <Row left="Less: Referral commission (50%)" right={<span style={{color:'#d97706',fontWeight:600}}>{totalLabComm>0?'- '+fmt(totalLabComm):'—'}</span>}/>
-            <Row left="Less: Lab to lab expenses" right={<span style={{color:'#ef4444',fontWeight:600}}>{totalLabExp>0?'- '+fmt(totalLabExp):'—'}</span>}/>
-            <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4,borderTop:'2px solid #f0f0f0',fontSize:15,fontWeight:800}}>
-              <span>Real lab income</span>
-              <span style={{color:realLabInc>=0?'#16a34a':'#ef4444'}}>{fmt(realLabInc)}</span>
-            </div>
-          </Card>
-
-          <DonutChart title="Lab income breakdown" centerLabel={fmt(totalLabInc)} segments={[
-            {label:'Real lab income',value:Math.max(realLabInc,0),color:'#9d174d',fmt:fmt(Math.max(realLabInc,0))},
-            {label:'Commission (50%)',value:totalLabComm,color:'#d97706',fmt:fmt(totalLabComm)},
-            {label:'Lab-to-lab exp',value:totalLabExp,color:'#ef4444',fmt:fmt(totalLabExp)},
-          ].filter(s=>s.value>0)}/>
-          {/* Lab to lab expense entries */}
-          {labExp.length>0&&(<>
-            <SecL>Lab to lab expense entries</SecL>
-            <Card>{labExp.map(e=>(
-              <Row key={e.id}
-                left={e.description||'Lab to lab'}
-                sub={fmtD(e.date)+' · '+e.payment}
-                right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(e.amount)}</span>}
-              />
-            ))}</Card>
-          </>)}
-          {labExp.length===0&&totalLabInc===0&&(
-            <div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No lab income for this period</div>
-          )}
-        </>)
-      })()}
-      {rv==='realincome'&&(
-        <>
-          <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>
-            All income sources — total billed minus referral commission equals real income
-          </div>
-          {/* Per category breakdown */}
-          <Card>
-            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
-              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
-              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Income</div>
-              <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Comm</div>
-              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
-            </div>
-            {ITYPES.map(t=>{
-              const ents=db.income.filter(e=>e.type===t.key)
-              const inc=ents.reduce((a,e)=>a+e.amount,0)
-              const comm=ents.reduce((a,e)=>a+getComm(e),0)
-              const real=inc-comm
-              if(!inc)return null
-              const [,tx]=TC[t.key]
-              return(
-                <div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
-                  <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span>
-                  <span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
-                  <span style={{fontSize:13,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
-                  <span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
-                </div>
-              )
-            })}
-            {(()=>{
-              const allInc=db.income.reduce((a,e)=>a+e.amount,0)
-              const allComm=db.income.reduce((a,e)=>a+getComm(e),0)
-              const allReal=allInc-allComm
-              return(
-                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}>
-                  <span style={{fontSize:14,fontWeight:800}}>Grand total</span>
-                  <span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span>
-                  <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#d97706',minWidth:64}}>{allComm>0?'-'+fmt(allComm):'—'}</span>
-                  <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span>
-                </div>
-              )
-            })()}
-          </Card>
-          {/* Summary cards */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:4}}>
-            <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}>
-              <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total billed</div>
-              <div style={{fontSize:20,fontWeight:700}}>{fmt(db.income.reduce((a,e)=>a+e.amount,0))}</div>
-            </div>
-            <div style={{background:'#fff7ed',borderRadius:12,padding:'12px 14px'}}>
-              <div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total commission</div>
-              <div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(db.income.reduce((a,e)=>a+getComm(e),0))}</div>
-            </div>
-            <div style={{background:'#f0fdf4',borderRadius:12,padding:'12px 14px',gridColumn:'1/-1'}}>
-              <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income (all time)</div>
-              <div style={{fontSize:26,fontWeight:800,color:'#15803d'}}>{fmt(db.income.reduce((a,e)=>a+e.amount,0)-db.income.reduce((a,e)=>a+getComm(e),0))}</div>
-              <div style={{fontSize:11,color:'#aaa',marginTop:4}}>Total billed minus all referral commissions</div>
-            </div>
-          </div>
-          {/* Chart */}
-          <HBarChart title="Real income by source" data={ITYPES.map(t=>{
-            const ents=db.income.filter(e=>e.type===t.key)
-            const real=ents.reduce((a,e)=>a+e.amount,0)-ents.reduce((a,e)=>a+getComm(e),0)
-            const [,tx]=TC[t.key]
-            return{label:t.label,value:real,color:tx,fmt:fmt(real)}
-          }).filter(d=>d.value>0)}/>
-        </>
-      )}
+      {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
+      {rv==='patients'&&<PatientsReport db={db} gotoIP={gotoIP}/>}
+      {rv==='lab'&&<LabReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
+      {rv==='realincome'&&<RealIncomeReport db={db}/>}
     </div>
   )
 }
 
-/* MAIN APP */
+/* ── MAIN APP ── */
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -1134,28 +1068,11 @@ export default function App(){
     admitPatient:async row=>{const {data}=await supabase.from('ip_patients').insert([row]).select();if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
     dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
-    payCommission:async(docName,amount,date,pay)=>{
-      const row={id:uid(),date,category:'ref_paid',amount,description:docName,payment:pay,is_monthly:false}
-      const {data}=await supabase.from('expenses').insert([row]).select()
-      if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}))
-    },
-    deletePatient:async id=>{
-      await supabase.from('income').delete().eq('patient_id',id)
-      await supabase.from('ip_patients').delete().eq('id',id)
-      setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))
-    },
+    deletePatient:async id=>{await supabase.from('income').delete().eq('patient_id',id);await supabase.from('ip_patients').delete().eq('id',id);setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))},
   }
   const gotoIP=useCallback((pid)=>{setIpid(pid);setIpv('detail');setTab('ip')},[])
   const isAdmin=profile?.role==='admin'
-
-  const TABS=[
-    {k:'entry',l:'Daily Entry'},
-    {k:'ip',l:'IP Patients'},
-    {k:'exp',l:'Expenses'},
-    {k:'rep',l:'Reports'},
-    {k:'credit',l:'💳 Credit'},
-    ...(isAdmin?[{k:'admin',l:'👥 Users'}]:[]),
-  ]
+  const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'exp',l:'Expenses'},{k:'rep',l:'Reports'},{k:'credit',l:'💳 Credit'},...(isAdmin?[{k:'admin',l:'👥 Users'}]:[])]
 
   if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading…</div>
   if(!session)return<LoginPage/>
@@ -1183,7 +1100,7 @@ export default function App(){
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP}/></div>
         <div style={{display:tab==='exp'?'block':'none'}}><ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/></div>
-        <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} actions={actions} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP}/></div>
+        <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP}/></div>
         <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db}/></div>
         {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile}/></div>}
       </div>
