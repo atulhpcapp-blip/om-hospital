@@ -17,7 +17,7 @@ const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@omhospital.app`
 
 const todayStr=()=>new Date().toISOString().split('T')[0]
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
-const genRegNo=async()=>{const {data}=await supabase.rpc('next_reg_no').single();return data||('REG'+Date.now().toString().slice(-5))}
+const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');return data||('REG'+Date.now().toString().slice(-5))}catch(e){return 'REG'+Date.now().toString().slice(-5)}}
 const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'—';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||pats.find(p=>p.id===e.patient_id)?.ref_doctor||null
@@ -687,7 +687,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname}
-    const regNo=!isIP&&itype==='op'?await genRegNo():null
+    let regNo=null;if(!isIP&&itype==='op'){regNo=await genRegNo()}
     await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,patient_phone:iF.phone||'',payment:iF.pay,ref_doctor:isIP?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='vc'?parseFloat(iF.consultant_fee||0):0,op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo})
     setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:'',op_type:'New OP',custom_commission:''})
   }
@@ -1034,7 +1034,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Referral details</div>
           <FInp label="Referring doctor name" type="text" placeholder="Doctor name" value={pF.ref} onChange={e=>setPF({...pF,ref:e.target.value})}/>
-          <div style={{fontSize:11,color:'#b45309'}}>{pF.is_package?'Package commission: 40% on each package payment':'Commission: IP 40% · Pharmacy 40% · Lab 50%'}</div>
+          <div style={{fontSize:11,color:'#b45309',marginBottom:8}}>{pF.patient_type==='Package'?'Package: 40% per payment':'Default: IP 40% · Pharmacy 40% · Lab 50%'}</div>
+          <FInp label="Custom commission % (optional)" type="number" inputMode="numeric" placeholder="e.g. 30 for 30%" value={pF.custom_commission||''} onChange={e=>setPF({...pF,custom_commission:e.target.value})}/>
         </div>
         <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=await genRegNo();await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:''})}}>Admit patient</PBtn>
       </Card>
