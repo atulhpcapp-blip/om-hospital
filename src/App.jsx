@@ -1423,30 +1423,29 @@ const RefDoctorsTab=({db,actions})=>{
     setForm(blank);setShowAdd(false);setBusy(false)
   }
   const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',ip_pct:d.ip_pct,ip_r_pct:d.ip_r_pct,ip_l_pct:d.ip_l_pct,op_pct:d.op_pct,op_r_pct:d.op_r_pct,op_l_pct:d.op_l_pct});setEditId(d.id);setShowAdd(true)}
-  const FormPanel=()=>(<Card style={{border:'2px solid #e5e7eb'}}>
-    <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>{editId?'Edit doctor':'Add referral doctor'}</div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-      <FInp label="Doctor name *" type="text" placeholder="e.g. Dr. Ravi Kumar" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
-      <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
-    </div>
-    <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10,marginTop:4}}>Commission % per category</div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-      {cats.map(c=>(<div key={c.key}>
-        <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label}</label>
-        <div style={{position:'relative'}}>
-          <input style={{...S.inp,paddingRight:28}} type="number" inputMode="numeric" min="0" max="100" value={form[c.key]} onChange={e=>setForm({...form,[c.key]:parseFloat(e.target.value)||0})}/>
-          <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#aaa',fontWeight:700}}>%</span>
-        </div>
-      </div>))}
-    </div>
-    <div style={{display:'flex',gap:8,marginTop:14}}>
-      <button onClick={()=>{setShowAdd(false);setEditId(null);setForm(blank)}} style={{flex:1,padding:'11px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
-      <PBtn onClick={save} disabled={busy} style={{flex:2,marginTop:0}}>{busy?'Saving…':editId?'Save changes':'Add doctor'}</PBtn>
-    </div>
-  </Card>)
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add referral doctor</PBtn>}
-    {showAdd&&<FormPanel/>}
+    {showAdd&&<Card style={{border:'2px solid #e5e7eb'}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>{editId?'Edit doctor':'Add referral doctor'}</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        <FInp label="Doctor name *" type="text" placeholder="e.g. Dr. Ravi Kumar" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
+        <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
+      </div>
+      <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10,marginTop:4}}>Commission % per category</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        {cats.map(c=>(<div key={c.key}>
+          <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label}</label>
+          <div style={{position:'relative'}}>
+            <input style={{...S.inp,paddingRight:28}} type="number" inputMode="numeric" min="0" max="100" value={form[c.key]} onChange={e=>setForm({...form,[c.key]:parseFloat(e.target.value)||0})}/>
+            <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#aaa',fontWeight:700}}>%</span>
+          </div>
+        </div>))}
+      </div>
+      <div style={{display:'flex',gap:8,marginTop:14}}>
+        <button onClick={()=>{setShowAdd(false);setEditId(null);setForm(blank)}} style={{flex:1,padding:'11px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
+        <PBtn onClick={save} disabled={busy} style={{flex:2,marginTop:0}}>{busy?'Saving…':editId?'Save changes':'Add doctor'}</PBtn>
+      </div>
+    </Card>}
     <SecL>Registered doctors ({db.ref_doctors.length})</SecL>
     {!db.ref_doctors.length&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No referral doctors yet.<br/>Add doctors to link them to patients and auto-calculate commissions.</div>}
     {db.ref_doctors.map(d=>(<Card key={d.id} style={{marginBottom:12}}>
