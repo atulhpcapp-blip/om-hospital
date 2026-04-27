@@ -21,7 +21,7 @@ const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');retu
 const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'—';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||pats.find(p=>p.id===e.patient_id)?.ref_doctor||null
-const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?e.custom_commission/100:COMM[e.type]||0)
+const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isCredit=e=>e.payment==='credit'
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
@@ -1018,18 +1018,20 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <FInp label="Ward / Room" type="text" placeholder="Ward 2" value={pF.room} onChange={e=>setPF({...pF,room:e.target.value})}/>
         </div>
         <FInp label="Diagnosis" type="text" placeholder="Condition" value={pF.dx} onChange={e=>setPF({...pF,dx:e.target.value})}/>
-        {/* Patient type toggle */}
         <div style={{marginBottom:12}}>
           <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8,fontWeight:700}}>Patient type</label>
           <div style={{display:'flex',gap:0,border:'1px solid #e5e7eb',borderRadius:12,overflow:'hidden'}}>
-            <button onClick={()=>setPF({...pF,is_package:false})} style={{flex:1,padding:'11px',border:'none',background:!pF.is_package?'#111':'#fff',color:!pF.is_package?'#fff':'#888',fontWeight:600,fontSize:14,cursor:'pointer'}}>
-              Regular IP
-            </button>
-            <button onClick={()=>setPF({...pF,is_package:true})} style={{flex:1,padding:'11px',border:'none',borderLeft:'1px solid #e5e7eb',background:pF.is_package?'#1d4ed8':'#fff',color:pF.is_package?'#fff':'#888',fontWeight:600,fontSize:14,cursor:'pointer'}}>
-              📦 Package
-            </button>
+            {['Regular','Package','VC'].map((t,i)=>(
+              <button key={t} onClick={()=>setPF({...pF,patient_type:t,is_package:t==='Package'})}
+                style={{flex:1,padding:'10px 4px',border:'none',borderLeft:i>0?'1px solid #e5e7eb':'none',
+                  background:pF.patient_type===t?'#111':'#fff',color:pF.patient_type===t?'#fff':'#888',
+                  fontWeight:600,fontSize:12,cursor:'pointer'}}>
+                {t==='Package'?'📦 Pkg':t==='VC'?'🩺 VC':t}
+              </button>
+            ))}
           </div>
-          {pF.is_package&&<div style={{fontSize:11,color:'#1d4ed8',marginTop:6}}>Package patient — only package payment will be recorded, 40% referral commission auto-applied</div>}
+          {pF.patient_type==='Package'&&<div style={{fontSize:11,color:'#1d4ed8',marginTop:6}}>Package — only package payment recorded, 40% commission auto-applied</div>}
+          {pF.patient_type==='VC'&&<div style={{fontSize:11,color:'#065f46',marginTop:6}}>Visiting Consultant — collect from patient, pay consultant their share</div>}
         </div>
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Referral details</div>
