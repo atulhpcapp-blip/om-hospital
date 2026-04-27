@@ -1466,8 +1466,8 @@ export default function App(){
   useEffect(()=>{
     if(!session)return
     const init=async()=>{
-      const {data:sa}=await supabase.from('super_admins').select('id').eq('id',session.user.id).single()
-      if(sa){setIsSuperAdmin(true);return}
+      const {data:sa,error:saErr}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
+      if(sa&&!saErr){setIsSuperAdmin(true);setLoading(false);return}
       const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
       setProfile(prof)
       if(!prof?.hospital_id)return
