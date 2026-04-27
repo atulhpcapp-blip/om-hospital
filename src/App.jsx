@@ -714,9 +714,9 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
           :<>
             <FInp label="Patient name *" type="text" placeholder="Required" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>
             <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
-            {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>
+            {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
             {COMM[itype]>0&&<FInp label="Referring doctor (blank = self patient, no commission)" type="text" placeholder="Doctor name or leave blank" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>}
-            {COMM[itype]>0&&iF.ref.trim()&&<FInp label={`Commission % (default ${Math.round((COMM[itype]||0)*100)}%)`} type="number" inputMode="numeric" placeholder={String(Math.round((COMM[itype]||0)*100))} value={iF.custom_commission} onChange={e=>setIF({...iF,custom_commission:e.target.value})}/>}}
+            {COMM[itype]>0&&iF.ref.trim()&&<FInp label={`Commission % (default ${Math.round((COMM[itype]||0)*100)}%)`} type="number" inputMode="numeric" placeholder={String(Math.round((COMM[itype]||0)*100))} value={iF.custom_commission} onChange={e=>setIF({...iF,custom_commission:e.target.value})}/>}
             {itype==='vc'&&<>
               <FInp label="Consultant name" type="text" placeholder="e.g. Dr. Sharma (Neurologist)" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>
               <FInp label="Consultant fee to pay (₹)" type="number" inputMode="numeric" placeholder="Amount you give to consultant" value={iF.consultant_fee||''} onChange={e=>setIF({...iF,consultant_fee:e.target.value})}/>
