@@ -24,6 +24,15 @@ const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.categ
 const totalRef=(list,pats)=>list.reduce((a,e)=>a+(getRefDoc(e,pats)?getComm(e):0),0)
 const cashTotal=list=>list.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
 const credTotal=list=>list.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
+// Get all package payments from all patients, optionally filtered by date prefix
+const getPkgPayments=(pats,datePrefix)=>{
+  const all=[]
+  pats.forEach(p=>{(p.payments||[]).forEach(py=>{
+    if(!datePrefix||py.date?.startsWith(datePrefix))
+      all.push({...py,patient_name:p.name,patient_id:p.id,ref_doctor:py.ref_doctor||p.ref_doctor||''})
+  })})
+  return all
+}
 const buildRef=(income,pats)=>{const docs={};income.forEach(e=>{const doc=getRefDoc(e,pats);const comm=getComm(e);if(!doc||!comm)return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=comm;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
 
 const S={
@@ -474,6 +483,12 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {p.diagnosis&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Dx: {p.diagnosis}</div>}
               {p.room&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Room: {p.room}</div>}
               {p.ref_doctor&&<div style={{fontSize:12,color:'#d97706',fontWeight:700,marginTop:6}}>Ref: Dr. {p.ref_doctor}</div>}
+              <div style={{marginTop:8}}>
+                {p.is_package
+                  ?<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>📦 Package patient</span>
+                  :<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Regular IP patient</span>
+                }
+              </div>
             </div>
             {!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}
           </div>
@@ -493,16 +508,16 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total credit</span><span>{fmt(b.credit)}</span></div>
           </Card>
         </>)}
-        {p.ref_doctor&&ents.length>0&&(<>
+        {p.ref_doctor&&!p.is_package&&ents.length>0&&(<>
           <SecL>Commission breakdown</SecL>
           <Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>
-            {['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(
+            {!p.is_package&&['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(
               <Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={`${fmt(inc)} × ${CLBL[tk]}`} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>
             )})}
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
           </Card>
         </>)}
-        {!p.discharge_date&&(<>
+        {!p.discharge_date&&p.is_package!==true&&(<>
           <SecL>Add charge</SecL>
           <Card>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -522,7 +537,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
             <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:'',notes:cF.notes});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
           </Card>
-          <SecL>Package payment received</SecL>
+          {p.is_package&&<><SecL>Package payment received</SecL>
           <Card style={{border:'1px solid #d1fae5',background:'#f0fdf4'}}>
             <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>
               📦 Package payment — 40% referral commission auto-calculated
@@ -543,9 +558,10 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''})
               setPyF({...pyF,amt:''})
             }}>Save package payment</PBtn>
-          </Card>
-        </>)}
-        {['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const it=ITYPES.find(t=>t.key===tk);return(
+          </Card></>
+        }
+        )}
+        {!p.is_package&&['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const it=ITYPES.find(t=>t.key===tk);return(
           <div key={tk}><SecL>{it.full} — {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL>
           <Card>{te.map(e=>{const cr=isCredit(e);return(
             <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
@@ -620,12 +636,25 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <FInp label="Ward / Room" type="text" placeholder="Ward 2" value={pF.room} onChange={e=>setPF({...pF,room:e.target.value})}/>
         </div>
         <FInp label="Diagnosis" type="text" placeholder="Condition" value={pF.dx} onChange={e=>setPF({...pF,dx:e.target.value})}/>
+        {/* Patient type toggle */}
+        <div style={{marginBottom:12}}>
+          <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8,fontWeight:700}}>Patient type</label>
+          <div style={{display:'flex',gap:0,border:'1px solid #e5e7eb',borderRadius:12,overflow:'hidden'}}>
+            <button onClick={()=>setPF({...pF,is_package:false})} style={{flex:1,padding:'11px',border:'none',background:!pF.is_package?'#111':'#fff',color:!pF.is_package?'#fff':'#888',fontWeight:600,fontSize:14,cursor:'pointer'}}>
+              Regular IP
+            </button>
+            <button onClick={()=>setPF({...pF,is_package:true})} style={{flex:1,padding:'11px',border:'none',borderLeft:'1px solid #e5e7eb',background:pF.is_package?'#1d4ed8':'#fff',color:pF.is_package?'#fff':'#888',fontWeight:600,fontSize:14,cursor:'pointer'}}>
+              📦 Package
+            </button>
+          </div>
+          {pF.is_package&&<div style={{fontSize:11,color:'#1d4ed8',marginTop:6}}>Package patient — only package payment will be recorded, 40% referral commission auto-applied</div>}
+        </div>
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Referral details</div>
           <FInp label="Referring doctor name" type="text" placeholder="Doctor name" value={pF.ref} onChange={e=>setPF({...pF,ref:e.target.value})}/>
-          <div style={{fontSize:11,color:'#b45309'}}>Commission: IP 40% · Pharmacy 40% · Lab 50%</div>
+          <div style={{fontSize:11,color:'#b45309'}}>{pF.is_package?'Package commission: 40% on each package payment':'Commission: IP 40% · Pharmacy 40% · Lab 50%'}</div>
         </div>
-        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};await actions.admitPatient({id:uid(),name:pF.name,admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref,payments:[]});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:''})}}>Admit patient</PBtn>
+        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};await actions.admitPatient({id:uid(),name:pF.name,admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref,is_package:pF.is_package,payments:[]});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false})}}>Admit patient</PBtn>
       </Card>
     </div>
   )
@@ -636,7 +665,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       <PBtn onClick={()=>setIpv('add')} style={{marginBottom:16}}>+ Admit new patient</PBtn>
       {active.length>0&&(<><SecL>Active inpatients ({active.length})</SecL>
         <Card>{active.map(p=>{const b=qb(p.id);return<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}}
-          left={<span style={{fontSize:14}}>{p.name}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>}
+          left={<span style={{fontSize:14}}>{p.name}{p.is_package&&<Pill label="📦 Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>}
           sub={`Since ${fmtD(p.admission_date)}`}
           right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}{b.balance>0&&<div style={{fontSize:11,color:'#ef4444'}}>due: {fmt(b.balance)}</div>}</div>}
         />})}</Card></>)}
@@ -974,6 +1003,8 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=db.expenses.filter(e=>e.category==='ref_paid')
+  // Helper: get pkg payments for a date prefix (or all if none)
+  const pkgPay=(prefix)=>getPkgPayments(db.ip_patients,prefix)
 
   const RVTABS=[
     {k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},
@@ -981,18 +1012,25 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
     {k:'lab',l:'Lab'},{k:'realincome',l:'Real Income'},
   ]
 
-  const PLCards=({incList,exp,refComm})=>{
-    const cash=cashTotal(incList);const credit=credTotal(incList);const total=cash+credit;const net=cash-exp.total-refComm
+  const PLCards=({incList,exp,refComm,pkgList=[]})=>{
+    const cash=cashTotal(incList);const credit=credTotal(incList);const total=cash+credit
+    const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0)
+    const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0)
+    const net=cash+pkgTotal-exp.total-refComm-pkgComm
     return(
       <div style={{marginBottom:12}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
           <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Cash collected</div><div style={{fontSize:18,fontWeight:700,color:'#15803d'}}>{fmt(cash)}</div></div>
           <div style={{background:credit>0?'#fff7ed':'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:credit>0?'#92400e':'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit given</div><div style={{fontSize:18,fontWeight:700,color:credit>0?'#c2410c':'#ccc'}}>{fmt(credit)}</div></div>
-          <div style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total billed</div><div style={{fontSize:18,fontWeight:700,color:'#111'}}>{fmt(total)}</div></div>
-          <div style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Exp + Ref</div><div style={{fontSize:18,fontWeight:700,color:'#ef4444'}}>{fmt(exp.total+refComm)}</div></div>
+          <div style={{background:'#dbeafe',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Package payments</div><div style={{fontSize:18,fontWeight:700,color:'#1d4ed8'}}>{fmt(pkgTotal)}</div></div>
+          <div style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Exp + Ref</div><div style={{fontSize:18,fontWeight:700,color:'#ef4444'}}>{fmt(exp.total+refComm+pkgComm)}</div></div>
         </div>
+        {pkgTotal>0&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'8px 14px',marginBottom:8,fontSize:12}}>
+          <span style={{color:'#1d4ed8',fontWeight:600}}>📦 Package: </span>
+          <span style={{color:'#555'}}>Received {fmt(pkgTotal)} · Commission {fmt(pkgComm)} · Net {fmt(pkgTotal-pkgComm)}</span>
+        </div>}
         <div style={{background:net>=0?'#f0fdf4':'#fef2f2',borderRadius:12,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div><div style={{fontSize:11,color:net>=0?'#15803d':'#dc2626',fontWeight:700,textTransform:'uppercase'}}>Net cash profit</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Cash − expenses − commissions</div></div>
+          <div><div style={{fontSize:11,color:net>=0?'#15803d':'#dc2626',fontWeight:700,textTransform:'uppercase'}}>Net cash profit</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Cash + package − expenses − commissions</div></div>
           <div style={{fontSize:24,fontWeight:800,color:net>=0?'#15803d':'#dc2626'}}>{net>=0?'+':''}{fmt(net)}</div>
         </div>
       </div>
@@ -1013,10 +1051,29 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
         const dI=db.income.filter(e=>e.date===rd);const exp=sumExp(db.expenses.filter(e=>e.date===rd));const rc=totalRef(dI,db.ip_patients);const ipd=db.ip_patients.filter(p=>dI.some(e=>e.patient_id===p.id))
         return(<>
           <div style={{display:'flex',gap:8,marginBottom:14}}><input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/><GBtn onClick={()=>setRd(todayStr())}>Today</GBtn></div>
-          <PLCards incList={dI} exp={exp} refComm={rc}/>
+          <PLCards incList={dI} exp={exp} refComm={rc} pkgList={pkgPay(rd)}/>
           <HBarChart title="Income by source" data={ITYPES.map(t=>{const v=dI.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0);const[,tx]=TC[t.key];return{label:t.label,value:v,color:tx,fmt:fmt(v)}}).filter(d=>d.value>0)}/>
           {ipd.length>0&&(<><SecL>IP activity</SecL><Card>{ipd.map(p=>{const pe=dI.filter(e=>e.patient_id===p.id);const t=pe.reduce((a,e)=>a+e.amount,0);const cr=credTotal(pe);const tot=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);return<Row key={p.id} left={p.name} sub={`Today: ${fmt(t)}${cr>0?' (credit: '+fmt(cr)+')':''}`} right={tot-pd>0?<span style={{color:'#ef4444',fontSize:11,fontWeight:600}}>due {fmt(tot-pd)}</span>:<span style={{color:'#16a34a',fontSize:11}}>settled</span>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={dI}/>
+          {pkgPay(rd).length>0&&(<>
+            <SecL>Package payments received today</SecL>
+            <Card style={{border:'1px solid #bfdbfe',background:'#eff6ff'}}>
+              {pkgPay(rd).map(py=>(
+                <div key={py.id} style={{padding:'8px 0',borderBottom:'1px solid #dbeafe'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#1d4ed8'}}>{py.patient_name} <span style={{fontSize:11,fontWeight:400,color:'#555'}}>· {py.payment}</span></div>
+                      {py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:1}}>Commission: {fmt(py.commission)} · Net: {fmt(py.amount-py.commission)}</div>}
+                    </div>
+                    <span style={{fontSize:14,fontWeight:700,color:'#1d4ed8'}}>{fmt(py.amount)}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #bfdbfe',fontSize:13,fontWeight:700,color:'#1d4ed8'}}>
+                <span>Total package</span><span>{fmt(pkgPay(rd).reduce((a,py)=>a+py.amount,0))}</span>
+              </div>
+            </Card>
+          </>)}
           <SecL>Expenses</SecL><ExpT exp={exp}/>
           <SecL>Doctor referral report — {fmtD(rd)}</SecL>
           <ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>
@@ -1028,9 +1085,9 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
         return(<>
           <input style={S.inp} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>
           <div style={{fontSize:14,fontWeight:600,color:'#555',margin:'8px 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div>
-          <PLCards incList={mI} exp={exp} refComm={rc}/>
+          <PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkgPay(rm)}/>
           {days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI2=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI2),color:'#16a34a'}})}/>}
-          {days.length>0&&(<><SecL>Day-wise</SecL><Card>{days.map(d=>{const dI=db.income.filter(e=>e.date===d);const dc=cashTotal(dI);const cr=credTotal(dI);const de=db.expenses.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0);const dref=totalRef(dI,db.ip_patients);const net=dc-de-dref;return<Row key={d} left={fmtD(d)} right={<div style={{textAlign:'right'}}><span style={{color:'#16a34a',fontWeight:600}}>{fmt(dc)}</span>{cr>0&&<span style={{fontSize:10,color:'#c2410c',marginLeft:6}}>{fmt(cr)} cr</span>}<br/><span style={{fontSize:11,color:net>=0?'#16a34a':'#ef4444'}}>net {fmt(net)}</span></div>} onClick={()=>{setRv('daily');setRd(d)}}/>})}</Card></>)}
+          {days.length>0&&(<><SecL>Day-wise</SecL><Card>{days.map(d=>{const dI=db.income.filter(e=>e.date===d);const dc=cashTotal(dI);const cr=credTotal(dI);const de=db.expenses.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0);const dref=totalRef(dI,db.ip_patients);const dpkg=pkgPay(d);const dpkgTotal=dpkg.reduce((a,py)=>a+py.amount,0);const dpkgComm=dpkg.reduce((a,py)=>a+(py.commission||0),0);const net=dc+dpkgTotal-de-dref-dpkgComm;return<Row key={d} left={fmtD(d)} right={<div style={{textAlign:'right'}}><span style={{color:'#16a34a',fontWeight:600}}>{fmt(dc)}</span>{dpkgTotal>0&&<span style={{fontSize:10,color:'#1d4ed8',marginLeft:6}}>+pkg {fmt(dpkgTotal)}</span>}{cr>0&&<span style={{fontSize:10,color:'#c2410c',marginLeft:6}}>{fmt(cr)} cr</span>}<br/><span style={{fontSize:11,color:net>=0?'#16a34a':'#ef4444'}}>net {fmt(net)}</span></div>} onClick={()=>{setRv('daily');setRd(d)}}/>})}</Card></>)}
           {mps.length>0&&(<><SecL>IP patients this month</SecL><Card>{mps.map(p=>{const en=db.income.filter(e=>e.patient_id===p.id);const t=en.reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const cr=credTotal(en);return<Row key={p.id} left={<span>{p.name}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={`${fmtD(p.admission_date)}${p.discharge_date?' → '+fmtD(p.discharge_date):' (active)'}${cr>0?' · Credit: '+fmt(cr):''}`} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(t)}</div>{t-pd>0&&<div style={{fontSize:11,color:'#ef4444'}}>due {fmt(t-pd)}</div>}</div>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={mI}/>
           <SecL>Expenses</SecL><ExpT exp={exp}/>
@@ -1043,11 +1100,11 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
         const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry));const exp=sumExp(yE);const rc=totalRef(yI,db.ip_patients);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort()
         return(<>
           <select style={S.sel} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>
-          <PLCards incList={yI} exp={exp} refComm={rc}/>
+          <PLCards incList={yI} exp={exp} refComm={rc} pkgList={pkgPay(ry)}/>
           {mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}
           {mons.length>0&&(<><SecL>Month-wise</SecL><Card>
             <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr 1fr',marginBottom:4}}>{['Month','Cash','Credit','Net'].map(h=><div key={h} style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',padding:'4px 4px 8px 0',borderBottom:'1px solid #f0f0f0'}}>{h}</div>)}</div>
-            {mons.map(ym=>{const mI2=db.income.filter(e=>e.date?.startsWith(ym));const mc=cashTotal(mI2);const mcr=credTotal(mI2);const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const mref=totalRef(mI2,db.ip_patients);const mn=mc-me-mref;const[,m]=ym.split('-');return(
+            {mons.map(ym=>{const mI2=db.income.filter(e=>e.date?.startsWith(ym));const mc=cashTotal(mI2);const mcr=credTotal(mI2);const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const mref=totalRef(mI2,db.ip_patients);const mpkg=pkgPay(ym);const mpkgNet=mpkg.reduce((a,py)=>a+py.amount-(py.commission||0),0);const mn=mc+mpkgNet-me-mref;const[,m]=ym.split('-');return(
               <div key={ym} onClick={()=>{setRv('monthly');setRm(ym)}} style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr 1fr',padding:'8px 0',borderBottom:'1px solid #f5f5f5',cursor:'pointer'}}>
                 <span style={{fontSize:12,paddingRight:6}}>{MOS[parseInt(m)-1]}</span>
                 <span style={{fontSize:12,color:'#16a34a',fontWeight:600}}>{fmt(mc)}</span>
@@ -1083,7 +1140,7 @@ export default function App(){
   const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:''})
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
-  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:''})
+  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false})
   const [cF,setCF]=useState({date:todayStr(),type:'ip',amt:'',pay:'cash',notes:''})
   const [pyF,setPyF]=useState({date:todayStr(),amt:'',pay:'cash'})
   const [exD,setExD]=useState(todayStr())
