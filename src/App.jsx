@@ -453,8 +453,11 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const total=en.reduce((a,e)=>a+e.amount,0)
     const comm=en.reduce((a,e)=>a+getComm(e),0)
     const credit=credTotal(en)
-    const paid=(db.ip_patients.find(p=>p.id===pid)?.payments||[]).reduce((a,e)=>a+e.amount,0)
-    return{total,paid,balance:total-paid,commission:comm,credit}
+    const pats=db.ip_patients.find(p=>p.id===pid)
+    const payments=pats?.payments||[]
+    const paid=payments.reduce((a,e)=>a+e.amount,0)
+    const pkgComm=payments.reduce((a,py)=>a+(py.commission||0),0)
+    return{total,paid,balance:total-paid,commission:comm+pkgComm,credit,pkgComm}
   }
   if(ipv==='detail'&&ipid){
     const p=db.ip_patients.find(p=>p.id===ipid)
@@ -519,14 +522,27 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
             <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:'',notes:cF.notes});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
           </Card>
-          <SecL>Record payment received</SecL>
-          <Card>
+          <SecL>Package payment received</SecL>
+          <Card style={{border:'1px solid #d1fae5',background:'#f0fdf4'}}>
+            <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>
+              📦 Package payment — 40% referral commission auto-calculated
+            </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <FInp label="Date" type="date" value={pyF.date} onChange={e=>setPyF({...pyF,date:e.target.value})}/>
-              <FInp label="Amount (₹)" type="number" inputMode="numeric" placeholder="0" value={pyF.amt} onChange={e=>setPyF({...pyF,amt:e.target.value})}/>
+              <FInp label="Package amount (₹)" type="number" inputMode="numeric" placeholder="0" value={pyF.amt} onChange={e=>setPyF({...pyF,amt:e.target.value})}/>
             </div>
+            {pyF.amt&&p.ref_doctor&&(
+              <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>
+                Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(pyF.amt||0)*0.40)}</strong> (40%) · Net to hospital: <strong style={{color:'#16a34a'}}>{fmt(parseFloat(pyF.amt||0)*0.60)}</strong>
+              </div>
+            )}
             <FSel label="Payment mode" value={pyF.pay} onChange={e=>setPyF({...pyF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
-            <PBtn onClick={async()=>{const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay});setPyF({...pyF,amt:''})}}>Record payment</PBtn>
+            <PBtn style={{background:'#16a34a'}} onClick={async()=>{
+              const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return}
+              const comm=p.ref_doctor?Math.round(amt*0.40):0
+              await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''})
+              setPyF({...pyF,amt:''})
+            }}>Save package payment</PBtn>
           </Card>
         </>)}
         {['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const it=ITYPES.find(t=>t.key===tk);return(
@@ -546,7 +562,42 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             </div>
           )})}</Card></div>
         )})}
-        {p.payments?.length>0&&(<><SecL>Cash payments received</SecL><Card>{p.payments.map(py=><Row key={py.id} left={fmtD(py.date)} sub={py.payment} right={<span style={{color:'#16a34a',fontWeight:600,fontSize:13}}>{fmt(py.amount)}</span>}/>)}</Card></>)}
+        {p.payments?.length>0&&(
+          <>
+            <SecL>Package payments received</SecL>
+            <Card>
+              {p.payments.map(py=>(
+                <div key={py.id} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:500,color:'#111'}}>{fmtD(py.date)} · {py.payment}</div>
+                      {py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>
+                        Commission to {py.ref_doctor||'Ref doctor'}: {fmt(py.commission)} (40%)
+                      </div>}
+                      {py.commission>0&&<div style={{fontSize:11,color:'#16a34a',marginTop:1}}>
+                        Net to hospital: {fmt(py.amount-py.commission)}
+                      </div>}
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}>
+                      <span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(py.amount)}</span>
+                      <DBtn onClick={()=>{if(window.confirm('Delete this payment of '+fmt(py.amount)+'?'))actions.deletePayment(p.id,py.id)}}>Delete</DBtn>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700}}>
+                <span>Total received</span>
+                <span style={{color:'#16a34a'}}>{fmt((p.payments||[]).reduce((a,py)=>a+py.amount,0))}</span>
+              </div>
+              {p.ref_doctor&&(p.payments||[]).some(py=>py.commission>0)&&(
+                <div style={{display:'flex',justifyContent:'space-between',paddingTop:6,fontSize:13,fontWeight:700,color:'#d97706'}}>
+                  <span>Total commission (40%)</span>
+                  <span>{fmt((p.payments||[]).reduce((a,py)=>a+(py.commission||0),0))}</span>
+                </div>
+              )}
+            </Card>
+          </>
+        )}
         <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}>
           <button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}}
             onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records? This cannot be undone.')){actions.deletePatient(p.id);setIpv('list')}}}>
@@ -1067,7 +1118,8 @@ export default function App(){
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     admitPatient:async row=>{const {data}=await supabase.from('ip_patients').insert([row]).select();if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
     dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
-    addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
+    addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x);}))},
+    deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePatient:async id=>{await supabase.from('income').delete().eq('patient_id',id);await supabase.from('ip_patients').delete().eq('id',id);setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))},
   }
   const gotoIP=useCallback((pid)=>{setIpid(pid);setIpv('detail');setTab('ip')},[])
