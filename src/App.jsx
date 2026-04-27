@@ -647,13 +647,14 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
     setBusy(false)
   }
   return(
-    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
-      <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520,maxHeight:'92vh',overflowY:'auto'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+    <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
+      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
+          <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>← Cancel</button>
           <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
-          <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer',color:'#555'}}>✕</button>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?.5:1}}>{busy?'…':'Save'}</button>
+      </div>
+      <div style={{padding:'16px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,padding:'4px 0'}}>
           <TypeTag t={entry.type}/>
           <span style={{fontSize:13,color:'#555'}}>{ITYPES.find(t=>t.key===entry.type)?.full}</span>
           {entry.patient_name&&<span style={{fontSize:12,color:'#aaa'}}>· {entry.patient_name}</span>}
@@ -667,10 +668,8 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         {showRefField&&ref.trim()===''&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>No commission — self/direct patient</div>}
         <FSel label="Payment" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
         <FInp label="Notes" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
-        <div style={{display:'flex',gap:8,marginTop:8}}>
-          <button onClick={onCancel} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
-          <button onClick={go} disabled={busy} style={{flex:2,padding:'12px',background:'#111',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?.5:1}}>{busy?'Saving…':'Save changes'}</button>
-        </div>
+        <PBtn onClick={go} disabled={busy} style={{marginTop:8}}>{busy?'Saving…':'Save changes'}</PBtn>
+        <button onClick={onCancel} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
       </div>
     </div>
   )
@@ -780,6 +779,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
 
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP})=>{
   const [editIPEntry,setEditIPEntry]=useState(null)
+  const [editPatient,setEditPatient]=useState(null)
   const getBill=pid=>{
     const en=db.income.filter(e=>e.patient_id===pid)
     const total=en.reduce((a,e)=>a+e.amount,0)
@@ -793,6 +793,25 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const balance=pats?.is_package?0:credit
     return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
+  if(editIPEntry)return(<EditEntryForm entry={editIPEntry} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
+  if(editPatient)return(
+    <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
+      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
+        <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>← Cancel</button>
+        <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
+        <button onClick={async()=>{await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);const {data}=await supabase.from('ip_patients').select('*').eq('id',editPatient.id).single();if(data){setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===data.id?data:x)}))};setEditPatient(null)}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
+      </div>
+      <div style={{padding:'16px'}}>
+        <FInp label="Patient name" type="text" value={editPatient.name} onChange={e=>setEditPatient({...editPatient,name:e.target.value})}/>
+        <FInp label="Phone" type="tel" value={editPatient.phone||''} onChange={e=>setEditPatient({...editPatient,phone:e.target.value})}/>
+        <FInp label="Admission date" type="date" value={editPatient.adm} onChange={e=>setEditPatient({...editPatient,adm:e.target.value})}/>
+        <FInp label="Ward / Room" type="text" value={editPatient.room||''} onChange={e=>setEditPatient({...editPatient,room:e.target.value})}/>
+        <FInp label="Diagnosis" type="text" value={editPatient.dx||''} onChange={e=>setEditPatient({...editPatient,dx:e.target.value})}/>
+        <FInp label="Referring doctor" type="text" placeholder="Leave blank for self patient" value={editPatient.ref||''} onChange={e=>setEditPatient({...editPatient,ref:e.target.value})}/>
+        <PBtn onClick={async()=>{await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);const {data}=await supabase.from('ip_patients').select('*').eq('id',editPatient.id).single();if(data){setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===data.id?data:x)}))};setEditPatient(null)}}>Save changes</PBtn>
+      </div>
+    </div>
+  )
   if(ipv==='detail'&&ipid){
     const p=db.ip_patients.find(p=>p.id===ipid)
     if(!p)return<button onClick={()=>setIpv('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
@@ -818,7 +837,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 {p.custom_commission!=null&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#fff7ed',color:'#b45309',fontWeight:700}}>Custom comm: {p.custom_commission}%</span>}
               </div>
             </div>
-            {!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}
+            <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>{!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}<button onClick={()=>setEditPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date,dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||''})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button></div>
           </div>
         </Card>
         <MetGrid items={[{label:'Total billed',value:fmt(b.total)},{label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},{label:'Credit (due)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},{label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'}]}/>
@@ -873,7 +892,6 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span><button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
         {p.payments&&p.payments.length>0&&(<><SecL>Package payments received</SecL><Card>{p.payments.map(py=>(<div key={py.id} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:500}}>{fmtD(py.date)} - {py.payment}</div>{py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(py.commission)} - Net: {fmt(py.amount-py.commission)}</div>}</div><div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}><span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(py.amount)}</span><DBtn onClick={()=>{if(window.confirm('Delete this payment?'))actions.deletePayment(p.id,py.id)}}>Delete</DBtn></div></div></div>))}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700}}><span>Total received</span><span style={{color:'#16a34a'}}>{fmt((p.payments||[]).reduce((a,py)=>a+py.amount,0))}</span></div></Card></>)}
         <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}><button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}} onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records?')){actions.deletePatient(p.id);setIpv('list')}}}>Delete this patient and all records</button></div>
-      {editIPEntry&&<EditEntryForm entry={editIPEntry} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>}
     </div>
     )
   }
@@ -885,7 +903,17 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       </div>
       <Card>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-          <FInp label="Patient name *" type="text" placeholder="Full name" value={pF.name} onChange={e=>setPF({...pF,name:e.target.value})}/>
+          <FInp label="Patient name *" type="text" placeholder="Full name" value={pF.name} onChange={e=>setPF({...pF,name:e.target.value,linkedRegNo:''})}/>
+          {pF.name.trim().length>=2&&(()=>{
+            const opInc=db.income.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&e.patient_name.toLowerCase().includes(pF.name.toLowerCase()))
+            const opNames=[...new Set(opInc.map(e=>e.patient_name))].slice(0,4)
+            if(!opNames.length)return null
+            return(<div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
+              <div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Existing OP patients with similar name — tap to link</div>
+              {opNames.map(name=>{const entries=opInc.filter(e=>e.patient_name===name);const reg=entries.find(e=>e.reg_no)?.reg_no||'';return(<button key={name} onClick={()=>setPF({...pF,name,linkedRegNo:reg,phone:entries.find(e=>e.patient_phone)?.patient_phone||pF.phone})} style={{display:'block',width:'100%',textAlign:'left',padding:'8px 10px',marginBottom:4,background:pF.name===name?'#1d4ed8':'#fff',color:pF.name===name?'#fff':'#111',border:'1px solid #bfdbfe',borderRadius:8,cursor:'pointer',fontSize:13}}><strong>{name}</strong>{reg&&<span style={{fontSize:11,marginLeft:8,opacity:.7}}>Reg: {reg}</span>}<span style={{fontSize:11,marginLeft:8,opacity:.7}}>{entries.length} OP visit{entries.length!==1?'s':''}</span></button>)})}
+              {pF.linkedRegNo&&<div style={{fontSize:12,color:'#1d4ed8',fontWeight:600,marginTop:6}}>Will use same Reg No: {pF.linkedRegNo}</div>}
+            </div>)
+          })()}
           <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={pF.phone||''} onChange={e=>setPF({...pF,phone:e.target.value})}/>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -911,7 +939,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <div style={{fontSize:11,color:'#b45309',marginBottom:8}}>{pF.patient_type==='Package'?'Package: 40% per payment':'Default: IP 40% - Pharmacy 40% - Lab 50%'}</div>
           <FInp label="Custom commission % (optional)" type="number" inputMode="numeric" placeholder="e.g. 30 for 30%" value={pF.custom_commission||''} onChange={e=>setPF({...pF,custom_commission:e.target.value})}/>
         </div>
-        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=await genRegNo();await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:''})}}>Admit patient</PBtn>
+        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',linkedRegNo:''})}}>Admit patient</PBtn>
       </Card>
     </div>
   )
@@ -938,6 +966,7 @@ const OPTab=({db,actions})=>{
   opIncome.forEach(e=>{const k=e.patient_name;if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0})
   const patients=Object.values(byPat).sort((a,b)=>b.total-a.total)
   const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
+  if(editEntry)return(<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/> )
   if(selPat){
     const pat=byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
     const ents=pat.entries
@@ -971,7 +1000,6 @@ const OPTab=({db,actions})=>{
         <Card>
           {ents.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{const cr=isCredit(e);const comm=getComm(e);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' - Commission: '+fmt(comm):''}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}><button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
         </Card>
-      {editEntry&&<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>}
     </div>
     )
   }
@@ -1141,15 +1169,31 @@ const PatientTimeline=({db,pid,onBack})=>{
   if(!p)return<button onClick={onBack} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
   const ents=db.income.filter(e=>e.patient_id===p.id).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
   const pkgs=(p.payments||[]).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+  // Find linked OP records - same patient name (case-insensitive) or same reg_no
+  const opEnts=db.income.filter(e=>{
+    if(['ip','ip_r','ip_l'].includes(e.type))return false
+    if(e.patient_id===p.id)return false // already in ents
+    const nameMatch=e.patient_name&&e.patient_name.toLowerCase()===p.name.toLowerCase()
+    const regMatch=p.reg_no&&e.reg_no&&e.reg_no===p.reg_no
+    return nameMatch||regMatch
+  }).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+  const hasOpRecords=opEnts.length>0
   const events=[]
-  events.push({date:p.admission_date,label:'Admitted',sub:p.diagnosis?'Dx: '+p.diagnosis:'',color:'#1d4ed8',icon:'+'})
-  ents.forEach(e=>{const cr=isCredit(e);events.push({date:e.date,label:(ITYPES.find(t=>t.key===e.type)?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit (not collected)':e.payment)+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#16a34a',icon:cr?'C':'$'})})
-  pkgs.forEach(py=>{events.push({date:py.date,label:'Package payment - '+fmt(py.amount),sub:py.payment+(py.commission>0?' - Comm: '+fmt(py.commission):''),color:'#1d4ed8',icon:'P'})})
+  events.push({date:p.admission_date,label:'Admitted (IP)',sub:(p.diagnosis?'Dx: '+p.diagnosis:'')+(p.room?' - Room: '+p.room:''),color:'#1d4ed8',icon:'IP'})
+  ents.forEach(e=>{const cr=isCredit(e);events.push({date:e.date,label:(ITYPES.find(t=>t.key===e.type)?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':e.payment)+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#16a34a',icon:'IP'})})
+  pkgs.forEach(py=>{events.push({date:py.date,label:'Package payment - '+fmt(py.amount),sub:py.payment+(py.commission>0?' - Comm: '+fmt(py.commission):''),color:'#1d4ed8',icon:'Pkg'})})
   if(p.discharge_date)events.push({date:p.discharge_date,label:'Discharged',sub:'',color:'#6b7280',icon:'D'})
+  opEnts.forEach(e=>{const cr=isCredit(e);const it=ITYPES.find(t=>t.key===e.type);events.push({date:e.date,label:(it?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':e.payment)+(e.ref_doctor?' - Ref: '+e.ref_doctor:'')+(e.op_type?' - '+e.op_type:'')+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#3b82f6',icon:'OP'})})
   events.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-  const totalBilled=ents.reduce((a,e)=>a+e.amount,0);const totalCash=cashTotal(ents);const totalCredit=credTotal(ents);const totalComm=ents.reduce((a,e)=>a+getComm(e),0)+pkgs.reduce((a,py)=>a+(py.commission||0),0)
+  const ipBilled=ents.reduce((a,e)=>a+e.amount,0)+pkgs.reduce((a,py)=>a+py.amount,0)
+  const opBilled=opEnts.reduce((a,e)=>a+e.amount,0)
+  const totalBilled=ipBilled+opBilled
+  const totalCash=cashTotal(ents)+cashTotal(opEnts)
+  const totalCredit=credTotal(ents)+credTotal(opEnts)
+  const totalComm=ents.reduce((a,e)=>a+getComm(e),0)+pkgs.reduce((a,py)=>a+(py.commission||0),0)+opEnts.reduce((a,e)=>a+getComm(e),0)
   return(<>
     <button onClick={onBack} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>Back to Patient List</button>
+    {hasOpRecords&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'8px 12px',marginBottom:10,fontSize:12,color:'#1d4ed8'}}>Showing combined timeline: IP charges + {opEnts.length} linked OP visit{opEnts.length!==1?'s':''}</div>}
     <Card>
       <div style={{fontSize:17,fontWeight:700}}>{p.name}</div>
       {p.phone&&<div style={{fontSize:12,color:'#aaa',marginTop:2}}>Ph: {p.phone}</div>}
@@ -1161,10 +1205,10 @@ const PatientTimeline=({db,pid,onBack})=>{
       {[{l:'Total billed',v:fmt(totalBilled),c:'#111'},{l:'Cash collected',v:fmt(totalCash),c:'#16a34a'},{l:'Credit (due)',v:fmt(totalCredit),c:totalCredit>0?'#c2410c':'#aaa'},{l:'Commission',v:fmt(totalComm),c:'#d97706'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div><div style={{fontSize:17,fontWeight:700,color:m.c}}>{m.v}</div></div>))}
     </div>
     <SecL>Patient timeline</SecL>
-    <div style={{position:'relative',paddingLeft:32}}>
-      <div style={{position:'absolute',left:11,top:8,bottom:8,width:2,background:'#e5e7eb'}}/>
+    <div style={{position:'relative',paddingLeft:36}}>
+      <div style={{position:'absolute',left:13,top:8,bottom:8,width:2,background:'#e5e7eb'}}/>
       {events.map((ev,i)=>(<div key={i} style={{position:'relative',marginBottom:16}}>
-        <div style={{position:'absolute',left:-21,top:2,width:20,height:20,borderRadius:'50%',background:ev.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:700,zIndex:1}}>{ev.icon}</div>
+        <div style={{position:'absolute',left:-28,top:2,width:26,height:20,borderRadius:10,background:ev.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'#fff',fontWeight:700,zIndex:1,padding:'0 3px'}}>{ev.icon}</div>
         <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'10px 14px',borderLeft:'3px solid '+ev.color}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
             <div><div style={{fontSize:13,fontWeight:600,color:'#111'}}>{ev.label}</div>{ev.sub&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{ev.sub}</div>}</div>
@@ -1260,7 +1304,7 @@ export default function App(){
   const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:'',op_type:'New OP',custom_commission:''})
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
-  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:''})
+  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:''})
   const [cF,setCF]=useState({date:todayStr(),type:'ip',amt:'',pay:'cash',notes:''})
   const [pyF,setPyF]=useState({date:todayStr(),amt:'',pay:'cash'})
   const [exD,setExD]=useState(todayStr())
