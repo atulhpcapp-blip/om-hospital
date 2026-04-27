@@ -226,7 +226,175 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
 }
 
 /* ── LOGIN ── */
-const LoginPage=()=>{
+
+const PLANS=[{key:'trial',label:'Trial (30 days)',price:0},{key:'starter',label:'Starter',price:999},{key:'pro',label:'Pro',price:1999},{key:'enterprise',label:'Enterprise',price:4999}]
+const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@omhospital.app`
+
+/* ── SUPER ADMIN DASHBOARD ── */
+const SuperAdminDashboard=()=>{
+  const [hospitals,setHospitals]=useState([])
+  const [loading,setLoading]=useState(true)
+  const [view,setView]=useState('list')
+  const [sel,setSel]=useState(null)
+  const [selUsers,setSelUsers]=useState([])
+  const [nH,setNH]=useState({name:'',city:'',phone:'',plan:'trial',adminName:'',adminUser:'',adminPass:''})
+  const [busy,setBusy]=useState(false)
+  const [msg,setMsg]=useState(null)
+  const planClr={trial:['#fef3c7','#b45309'],starter:['#dbeafe','#1d4ed8'],pro:['#dcfce7','#16a34a'],enterprise:['#f3e8ff','#7e22ce']}
+  const load=async()=>{setLoading(true);const {data}=await supabase.from('hospitals').select('*').order('created_at',{ascending:false});setHospitals(data||[]);setLoading(false)}
+  useEffect(()=>{load()},[])
+  const openHosp=async h=>{setSel(h);setView('detail');const {data}=await supabase.from('profiles').select('*').eq('hospital_id',h.id);setSelUsers(data||[])}
+  const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+30*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
+  const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
+  const create=async()=>{
+    if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
+    if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
+    setBusy(true);setMsg(null)
+    const planEnd=nH.plan==='trial'?new Date(Date.now()+30*86400000).toISOString().split('T')[0]:'2099-12-31'
+    const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:nH.name,city:nH.city,phone:nH.phone,plan:nH.plan,plan_end:planEnd}]).select().single()
+    if(he){setMsg({ok:false,t:he.message});setBusy(false);return}
+    const {data:au,error:ae}=await supabase.auth.signUp({email:toEmail(nH.adminUser),password:nH.adminPass,options:{data:{name:nH.adminName}}})
+    if(ae){setMsg({ok:false,t:ae.message});setBusy(false);return}
+    await supabase.from('profiles').upsert({id:au.user.id,name:nH.adminName,username:nH.adminUser.toLowerCase(),role:'admin',hospital_id:hosp.id})
+    setMsg({ok:true,t:'Created!',u:nH.adminUser,p:nH.adminPass,h:nH.name})
+    setNH({name:'',city:'',phone:'',plan:'trial',adminName:'',adminUser:'',adminPass:''})
+    load();setBusy(false)
+  }
+  if(view==='detail'&&sel)return(
+    <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
+      <div style={{background:'#111',color:'#fff',padding:'14px 16px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div><div style={{fontWeight:700,fontSize:15}}>🏥 {sel.name}</div><div style={{fontSize:11,color:'#9ca3af'}}>{sel.city} · Super Admin</div></div>
+        <button onClick={()=>setView('list')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>← Back</button>
+      </div>
+      <div style={{padding:'16px 16px 60px'}}>
+        <Card><Row left="City" right={sel.city||'—'}/><Row left="Phone" right={sel.phone||'—'}/><Row left="Plan" right={<span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:(planClr[sel.plan]||planClr.trial)[0],color:(planClr[sel.plan]||planClr.trial)[1],fontWeight:700}}>{sel.plan}</span>}/><Row left="Plan end" right={fmtD(sel.plan_end)}/><Row left="Status" right={sel.is_active?<span style={{color:'#16a34a',fontWeight:600}}>✅ Active</span>:<span style={{color:'#ef4444',fontWeight:600}}>❌ Suspended</span>}/></Card>
+        <SecL>Change plan</SecL>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>{PLANS.map(p=>(<button key={p.key} onClick={()=>updatePlan(sel.id,p.key)} style={{padding:'10px 8px',border:sel.plan===p.key?'2px solid #111':'1px solid #e5e7eb',borderRadius:12,background:sel.plan===p.key?'#111':'#fff',color:sel.plan===p.key?'#fff':'#555',cursor:'pointer',textAlign:'center'}}><div style={{fontSize:12,fontWeight:700}}>{p.label}</div>{p.price>0&&<div style={{fontSize:10,marginTop:2,opacity:.7}}>{fmt(p.price)}/mo</div>}</button>))}</div>
+        <button onClick={()=>toggleActive(sel.id,sel.is_active)} style={{width:'100%',padding:'12px',background:sel.is_active?'#fef2f2':'#f0fdf4',color:sel.is_active?'#dc2626':'#16a34a',border:`1px solid ${sel.is_active?'#fecaca':'#bbf7d0'}`,borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:14}}>{sel.is_active?'🚫 Suspend':'✅ Activate'}</button>
+        <SecL>Staff ({selUsers.length})</SecL>
+        <Card>{selUsers.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No staff</div>:selUsers.map(u=><Row key={u.id} left={u.name||'—'} sub={`@${u.username||'—'}`} right={<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#f0f0f0',color:'#555',fontWeight:600}}>{u.role}</span>}/>)}</Card>
+      </div>
+    </div>
+  )
+  return(
+    <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
+      <div style={{background:'#111',color:'#fff',padding:'14px 16px 0',position:'sticky',top:0,zIndex:10}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <div><div style={{fontWeight:700,fontSize:15}}>⚡ Super Admin</div><div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>All hospitals</div></div>
+          <button onClick={()=>supabase.auth.signOut()} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>Logout</button>
+        </div>
+        <div style={{display:'flex',gap:0,marginBottom:-1}}>
+          {[{k:'list',l:'Hospitals'},{k:'add',l:'+ Add'}].map(t=>(<button key={t.k} onClick={()=>{setView(t.k);setMsg(null)}} style={{padding:'9px 14px',fontSize:12,fontWeight:600,border:'none',background:'none',color:view===t.k?'#fff':'#6b7280',borderBottom:view===t.k?'2px solid #fff':'2px solid transparent',cursor:'pointer'}}>{t.l}</button>))}
+        </div>
+      </div>
+      <div style={{padding:'16px 16px 60px'}}>
+        {view==='list'&&(<>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
+            {[{label:'Total',value:hospitals.length},{label:'Active',value:hospitals.filter(h=>h.is_active).length,color:'#16a34a'},{label:'Trial',value:hospitals.filter(h=>h.plan==='trial').length,color:'#b45309'},{label:'Paid',value:hospitals.filter(h=>h.plan!=='trial'&&h.is_active).length,color:'#1d4ed8'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>{m.label}</div><div style={{fontSize:22,fontWeight:700,color:m.color||'#111'}}>{m.value}</div></div>))}
+          </div>
+          {loading?<div style={{textAlign:'center',padding:32,color:'#ccc'}}>Loading…</div>:hospitals.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No hospitals yet</div>:hospitals.map(h=>(
+            <Card key={h.id} style={{cursor:'pointer'}} >
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>openHosp(h)}>
+                <div><div style={{fontSize:14,fontWeight:700}}>{h.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{h.city||'—'} · {fmtD(h.created_at?.split('T')[0])}</div><div style={{marginTop:6,display:'flex',gap:6,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:(planClr[h.plan]||planClr.trial)[0],color:(planClr[h.plan]||planClr.trial)[1],fontWeight:700}}>{h.plan}</span>{!h.is_active&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>Suspended</span>}</div></div>
+                <span style={{fontSize:18,color:'#aaa'}}>›</span>
+              </div>
+            </Card>
+          ))}
+        </>)}
+        {view==='add'&&(
+          <Card>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Add new hospital</div>
+            <SecL>Hospital details</SecL>
+            <FInp label="Hospital name *" type="text" placeholder="City Care Hospital" value={nH.name} onChange={e=>setNH({...nH,name:e.target.value})}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <FInp label="City" type="text" placeholder="Hyderabad" value={nH.city} onChange={e=>setNH({...nH,city:e.target.value})}/>
+              <FInp label="Phone" type="tel" placeholder="9999999999" value={nH.phone} onChange={e=>setNH({...nH,phone:e.target.value})}/>
+            </div>
+            <FSel label="Plan" value={nH.plan} onChange={e=>setNH({...nH,plan:e.target.value})}>{PLANS.map(p=><option key={p.key} value={p.key}>{p.label}{p.price>0?' — ₹'+p.price+'/mo':' — Free 30 days'}</option>)}</FSel>
+            <SecL>Admin account</SecL>
+            <FInp label="Admin full name *" type="text" placeholder="Admin name" value={nH.adminName} onChange={e=>setNH({...nH,adminName:e.target.value})}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <FInp label="Username *" type="text" placeholder="admin" value={nH.adminUser} onChange={e=>setNH({...nH,adminUser:e.target.value.toLowerCase().replace(/\s+/g,'')})} autoCapitalize="none"/>
+              <FInp label="Password *" type="text" placeholder="min 6 chars" value={nH.adminPass} onChange={e=>setNH({...nH,adminPass:e.target.value})}/>
+            </div>
+            {msg&&<div style={{fontSize:13,color:msg.ok?'#16a34a':'#dc2626',marginBottom:10,padding:'10px 12px',borderRadius:8,background:msg.ok?'#f0fdf4':'#fef2f2'}}>{msg.t}</div>}
+            <PBtn onClick={create} disabled={busy}>{busy?'Creating…':'Create hospital & admin'}</PBtn>
+            {msg?.ok&&<div style={{marginTop:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'14px 16px',fontSize:13,lineHeight:2}}>🏥 {msg.h}<br/>👤 Username: <strong>{msg.u}</strong><br/>🔑 Password: <strong>{msg.p}</strong></div>}
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── HOSPITAL ONBOARDING (self-signup) ── */
+const HospitalOnboarding=({onBack})=>{
+  const [step,setStep]=useState(1)
+  const [hF,setHF]=useState({name:'',city:'',phone:''})
+  const [aF,setAF]=useState({name:'',username:'',pass:'',confirm:''})
+  const [busy,setBusy]=useState(false)
+  const [err,setErr]=useState('')
+  const [done,setDone]=useState(null)
+  const submit=async()=>{
+    if(!aF.name.trim()||!aF.username.trim()||!aF.pass.trim()){setErr('All fields required');return}
+    if(aF.pass.length<6){setErr('Password min 6 characters');return}
+    if(aF.pass!==aF.confirm){setErr('Passwords do not match');return}
+    setBusy(true);setErr('')
+    const trialEnd=new Date(Date.now()+30*86400000).toISOString().split('T')[0]
+    const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:hF.name,city:hF.city,phone:hF.phone,plan:'trial',plan_end:trialEnd}]).select().single()
+    if(he){setErr(he.message);setBusy(false);return}
+    const {data:au,error:ae}=await supabase.auth.signUp({email:toEmail(aF.username),password:aF.pass,options:{data:{name:aF.name}}})
+    if(ae){setErr(ae.message);setBusy(false);return}
+    await supabase.from('profiles').upsert({id:au.user.id,name:aF.name,username:aF.username.toLowerCase(),role:'admin',hospital_id:hosp.id})
+    setDone({u:aF.username,p:aF.pass,h:hF.name,t:trialEnd});setBusy(false)
+  }
+  if(done)return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#f0f9ff 0%,#f7f7f7 100%)',padding:20}}>
+      <div style={{width:'100%',maxWidth:400,textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:12}}>🎉</div>
+        <div style={{fontSize:22,fontWeight:800,color:'#111',marginBottom:4}}>{done.h}</div>
+        <div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your hospital is ready!</div>
+        <Card style={{border:'1px solid #bbf7d0',background:'#f0fdf4',textAlign:'left'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#15803d',marginBottom:10}}>Save your login details:</div>
+          <div style={{fontSize:14,color:'#111',lineHeight:2.2}}>👤 Username: <strong>{done.u}</strong><br/>🔑 Password: <strong>{done.p}</strong><br/>⏰ Trial expires: <strong>{fmtD(done.t)}</strong></div>
+        </Card>
+        <PBtn onClick={()=>window.location.reload()} style={{marginTop:14}}>Login to your hospital →</PBtn>
+      </div>
+    </div>
+  )
+  return(
+    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#f0f9ff 0%,#f7f7f7 100%)',padding:20}}>
+      <div style={{maxWidth:420,margin:'0 auto'}}>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={{fontSize:40,marginBottom:8}}>🏥</div>
+          <div style={{fontSize:22,fontWeight:800,color:'#111'}}>Register your hospital</div>
+          <div style={{fontSize:13,color:'#aaa',marginTop:4}}>Free 30-day trial · No credit card</div>
+        </div>
+        <div style={{display:'flex',gap:8,marginBottom:20}}>{[1,2].map(s=>(<div key={s} style={{flex:1,height:4,borderRadius:2,background:step>=s?'#111':'#e5e7eb'}}/>))}</div>
+        {step===1&&(<Card>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Step 1 — Hospital details</div>
+          <FInp label="Hospital / Clinic name *" type="text" placeholder="e.g. City Care Hospital" value={hF.name} onChange={e=>setHF({...hF,name:e.target.value})}/>
+          <FInp label="City" type="text" placeholder="Your city" value={hF.city} onChange={e=>setHF({...hF,city:e.target.value})}/>
+          <FInp label="Phone" type="tel" placeholder="9999999999" value={hF.phone} onChange={e=>setHF({...hF,phone:e.target.value})}/>
+          {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:8}}>{err}</div>}
+          <PBtn onClick={()=>{if(!hF.name.trim()){setErr('Hospital name required');return};setErr('');setStep(2)}}>Next →</PBtn>
+        </Card>)}
+        {step===2&&(<Card>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Step 2 — Your admin account</div>
+          <FInp label="Your full name *" type="text" placeholder="Your name" value={aF.name} onChange={e=>setAF({...aF,name:e.target.value})}/>
+          <FInp label="Username *" type="text" placeholder="e.g. admin" value={aF.username} onChange={e=>setAF({...aF,username:e.target.value.toLowerCase().replace(/\s+/g,'')})} autoCapitalize="none"/>
+          <FInp label="Password *" type="password" placeholder="Min 6 characters" value={aF.pass} onChange={e=>setAF({...aF,pass:e.target.value})}/>
+          <FInp label="Confirm password *" type="password" placeholder="Repeat password" value={aF.confirm} onChange={e=>setAF({...aF,confirm:e.target.value})}/>
+          {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:8}}>{err}</div>}
+          <div style={{display:'flex',gap:8}}><GBtn onClick={()=>{setStep(1);setErr('')}} style={{flex:1}}>← Back</GBtn><button onClick={submit} disabled={busy} style={{flex:2,...S.pbtn,marginTop:0,opacity:busy?.5:1}}>{busy?'Creating…':'Create account'}</button></div>
+        </Card>)}
+        <div style={{textAlign:'center',marginTop:14}}><button onClick={onBack} style={{fontSize:13,color:'#aaa',background:'none',border:'none',cursor:'pointer'}}>Already have an account? Login →</button></div>
+      </div>
+    </div>
+  )
+}
+
+const LoginPage=({onRegister=()=>{}})=>{
   const [username,setUsername]=useState('')
   const [pass,setPass]=useState('')
   const [err,setErr]=useState('')
@@ -269,7 +437,7 @@ const LoginPage=()=>{
 }
 
 /* ── ADMIN ── */
-const AdminTab=({currentUser})=>{
+const AdminTab=({currentUser,hospital=null})=>{
   const [users,setUsers]=useState([])
   const [loading,setLoading]=useState(true)
   const [showAdd,setShowAdd]=useState(false)
@@ -292,8 +460,17 @@ const AdminTab=({currentUser})=>{
     setBusy(false)
   }
   const RC={admin:['#fee2e2','#dc2626'],management:['#fef3c7','#d97706'],accounts:['#dbeafe','#2563eb'],staff:['#f0fdf4','#16a34a']}
+  // hospital info banner rendered inside return
   return(
     <div>
+      {hospital&&(<div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:14,padding:'14px 16px',marginBottom:12,color:'#fff'}}>
+        <div style={{fontSize:11,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Your hospital</div>
+        <div style={{fontSize:16,fontWeight:700}}>{hospital.name}</div>
+        <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
+          <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,255,255,0.2)',color:'#fff',fontWeight:700}}>{hospital.plan?.toUpperCase()}</span>
+          <span style={{fontSize:11,color:'#bfdbfe'}}>Expires: {fmtD(hospital.plan_end)}</span>
+        </div>
+      </div>)}
       <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
         <div style={{fontSize:12,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>Logged in as</div>
         <div style={{fontSize:18,fontWeight:700}}>{currentUser.name||'Admin'}</div>
@@ -476,9 +653,13 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const credit=credTotal(en)
     const pats=db.ip_patients.find(p=>p.id===pid)
     const payments=pats?.payments||[]
-    const paid=payments.reduce((a,e)=>a+e.amount,0)
+    const pkgPaid=payments.reduce((a,e)=>a+e.amount,0)
     const pkgComm=payments.reduce((a,py)=>a+(py.commission||0),0)
-    return{total,paid,balance:total-paid,commission:comm+pkgComm,credit,pkgComm}
+    // Regular patients: cash/upi/card = already collected, balance = credit only
+    // Package patients: balance = 0 (package payments tracked separately)
+    const paid=pats?.is_package?pkgPaid:cashTotal(en)
+    const balance=pats?.is_package?0:credit
+    return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
   if(ipv==='detail'&&ipid){
     const p=db.ip_patients.find(p=>p.id===ipid)
@@ -507,9 +688,9 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         </Card>
         <MetGrid items={[
           {label:'Total billed',value:fmt(b.total)},
-          {label:'Cash received',value:fmt(b.paid),color:'#16a34a'},
-          {label:'Credit given',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},
-          {label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#111'},
+          {label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},
+          {label:'Credit (not collected)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},
+          {label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'},
         ]}/>
         {b.credit>0&&(<>
           <SecL>Credit by type</SecL>
@@ -676,7 +857,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     </div>
   )
   const active=db.ip_patients.filter(p=>!p.discharge_date);const disc=db.ip_patients.filter(p=>p.discharge_date)
-  const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const pd=(db.ip_patients.find(p=>p.id===pid)?.payments||[]).reduce((a,e)=>a+e.amount,0);const cr=credTotal(en);return{total:t,balance:t-pd,credit:cr}}
+  const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const p=db.ip_patients.find(pt=>pt.id===pid);const cr=credTotal(en);const balance=p?.is_package?0:cr;return{total:t,balance,credit:cr}}
   return(
     <div>
       <PBtn onClick={()=>setIpv('add')} style={{marginBottom:16}}>+ Admit new patient</PBtn>
@@ -1256,6 +1437,9 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
+  const [hospital,setHospital]=useState(null)
+  const [isSuperAdmin,setIsSuperAdmin]=useState(false)
+  const [showRegister,setShowRegister]=useState(false)
   const [loading,setLoading]=useState(true)
   const [db,setDb]=useState({income:[],expenses:[],ip_patients:[]})
   const [dbLoading,setDbLoading]=useState(false)
@@ -1277,27 +1461,31 @@ export default function App(){
 
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false)})
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session)setProfile(null);setLoading(false)})
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false)})
     return()=>subscription.unsubscribe()
   },[])
 
   useEffect(()=>{
     if(!session)return
-    const load=async(hid)=>{
-      if(!hid){console.warn('No hospital_id on profile');setDbLoading(false);return}
+    const init=async()=>{
+      const {data:sa}=await supabase.from('super_admins').select('id').eq('id',session.user.id).single()
+      if(sa){setIsSuperAdmin(true);return}
+      const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
+      setProfile(prof)
+      if(!prof?.hospital_id)return
+      const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',prof.hospital_id).single()
+      setHospital(hosp)
+      if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
       setDbLoading(true)
       const [inc,exp,pts]=await Promise.all([
-        supabase.from('income').select('*').eq('hospital_id',hid).order('date',{ascending:false}),
-        supabase.from('expenses').select('*').eq('hospital_id',hid).order('date',{ascending:false}),
-        supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false})
+        supabase.from('income').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
+        supabase.from('expenses').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
+        supabase.from('ip_patients').select('*').eq('hospital_id',prof.hospital_id).order('admission_date',{ascending:false})
       ])
       setDb({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[]})
       setDbLoading(false)
     }
-    supabase.from('profiles').select('*').eq('id',session.user.id).single().then(({data})=>{
-      setProfile(data)
-      load(data?.hospital_id)
-    })
+    init()
   },[session])
 
   const actions={
@@ -1316,15 +1504,28 @@ export default function App(){
   const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'exp',l:'Expenses'},{k:'rep',l:'Reports'},{k:'credit',l:'💳 Credit'},...(isAdmin?[{k:'admin',l:'👥 Users'}]:[])]
 
   if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading…</div>
-  if(!session)return<LoginPage/>
+  if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
+  if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
+  if(isSuperAdmin)return<SuperAdminDashboard/>
+  if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise')return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f7f7f7',padding:20}}>
+      <div style={{maxWidth:360,width:'100%',textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:12}}>⏰</div>
+        <div style={{fontSize:20,fontWeight:700,color:'#111',marginBottom:8}}>Trial expired</div>
+        <div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your 30-day free trial has ended.<br/>Contact support to continue.</div>
+        <Card><div style={{fontSize:13,color:'#555',lineHeight:2}}>Hospital: <strong>{hospital?.name}</strong><br/>Contact: support@hosptrack.in</div></Card>
+        <button onClick={()=>supabase.auth.signOut()} style={{marginTop:14,padding:'10px 20px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Logout</button>
+      </div>
+    </div>
+  )
 
   return(
     <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'12px 16px 0',position:'sticky',top:0,zIndex:10}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
           <div>
-            <div style={{fontWeight:700,fontSize:15,color:'#111'}}>🏥 Om Hospital</div>
-            {profile&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{profile.name||'Staff'} · {profile.role||'staff'}</div>}
+            <div style={{fontWeight:700,fontSize:15,color:'#111'}}>🏥 {hospital?.name||'Hospital'}</div>
+            {profile&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{profile.name||'Staff'} · {profile.role||'staff'}{hospital?.plan&&hospital.plan!=='pro'?' · '+hospital.plan:''}</div>}
           </div>
           <button onClick={()=>supabase.auth.signOut()} style={{fontSize:12,color:'#aaa',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>Logout</button>
         </div>
@@ -1343,7 +1544,7 @@ export default function App(){
         <div style={{display:tab==='exp'?'block':'none'}}><ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/></div>
         <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP}/></div>
         <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db}/></div>
-        {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile}/></div>}
+        {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile} hospital={hospital}/></div>}
       </div>
     </div>
   )
