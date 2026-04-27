@@ -1495,8 +1495,48 @@ const PatientListReport=({db,gotoTimeline})=>{
             </div>
             <div style={{textAlign:'right'}}>{p.is_package&&<div style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700,marginBottom:4}}>📦</div>}<div style={{fontSize:14,fontWeight:700}}>{fmt(total)}</div></div>
           </div>
+          {/* IP Report — category breakdown */}
+          <div style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f0f0'}}>
+            <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Charges breakdown</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+              <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
+              <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:56}}>Billed</div>
+              <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:56}}>Deduction</div>
+              <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:56}}>Real</div>
+            </div>
+            {['ip','ip_r','ip_l'].map(tk=>{
+              const te=ents.filter(e=>e.type===tk)
+              if(!te.length)return null
+              const inc=te.reduce((a,e)=>a+e.amount,0)
+              const cm=te.reduce((a,e)=>a+getComm(e),0)
+              const it=ITYPES.find(t=>t.key===tk)
+              return(
+                <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'5px 0',borderBottom:'1px solid #f9f9f9',alignItems:'center'}}>
+                  <span style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}><TypeTag t={tk}/>{it?.label}</span>
+                  <span style={{fontSize:11,textAlign:'right',minWidth:56}}>{fmt(inc)}</span>
+                  <span style={{fontSize:11,textAlign:'right',color:'#ef4444',minWidth:56}}>{cm>0?'-'+fmt(cm):'—'}</span>
+                  <span style={{fontSize:11,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:56}}>{fmt(inc-cm)}</span>
+                </div>
+              )
+            })}
+            {pkgPd>0&&(
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'5px 0',borderBottom:'1px solid #f9f9f9',alignItems:'center'}}>
+                <span style={{fontSize:11,color:'#1d4ed8'}}>📦 Package received</span>
+                <span style={{fontSize:11,textAlign:'right',color:'#1d4ed8',minWidth:56}}>{fmt(pkgPd)}</span>
+                <span style={{fontSize:11,textAlign:'right',color:'#ef4444',minWidth:56}}>{comm>0?'-'+fmt((p.payments||[]).reduce((a,py)=>a+(py.commission||0),0)):'—'}</span>
+                <span style={{fontSize:11,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:56}}>{fmt(pkgPd-(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0))}</span>
+              </div>
+            )}
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0 0',marginTop:2,borderTop:'1px solid #e5e7eb'}}>
+              <span style={{fontSize:11,fontWeight:700}}>Total</span>
+              <span style={{fontSize:11,fontWeight:700,textAlign:'right',minWidth:56}}>{fmt(total+pkgPd)}</span>
+              <span style={{fontSize:11,fontWeight:700,textAlign:'right',color:'#ef4444',minWidth:56}}>{comm>0?'-'+fmt(comm):'—'}</span>
+              <span style={{fontSize:11,fontWeight:700,textAlign:'right',color:'#16a34a',minWidth:56}}>{fmt(total+pkgPd-comm)}</span>
+            </div>
+          </div>
+          {/* Summary boxes */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
-            {[{l:'Cash',v:fmt(cash),c:'#16a34a'},{l:'Credit',v:fmt(credit),c:credit>0?'#c2410c':'#aaa'},{l:'Pkg',v:fmt(pkgPd),c:'#1d4ed8'},{l:'Commission',v:fmt(comm),c:'#d97706'}].map((m,i)=>(
+            {[{l:'Cash',v:fmt(cash),c:'#16a34a'},{l:'Credit',v:fmt(credit),c:credit>0?'#c2410c':'#aaa'},{l:'Pkg paid',v:fmt(pkgPd),c:'#1d4ed8'},{l:'Commission',v:fmt(comm),c:'#d97706'}].map((m,i)=>(
               <div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'6px 8px',textAlign:'center'}}>
                 <div style={{fontSize:9,color:'#aaa',fontWeight:600,textTransform:'uppercase'}}>{m.l}</div>
                 <div style={{fontSize:11,fontWeight:700,color:m.c,marginTop:2}}>{m.v}</div>
