@@ -799,7 +799,8 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs})=>{
                   {!isOpen
                     ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>
                     :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{
-                      const row={id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false}
+                      const profData=await supabase.from('profiles').select('hospital_id').eq('id',(await supabase.auth.getUser()).data.user?.id).single()
+                      const row={id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false,hospital_id:profData.data?.hospital_id}
                       const {data}=await supabase.from('expenses').insert([row]).select()
                       // force page reload to refresh data
                       if(data)window.location.reload()
@@ -1282,22 +1283,29 @@ export default function App(){
 
   useEffect(()=>{
     if(!session)return
-    supabase.from('profiles').select('*').eq('id',session.user.id).single().then(({data})=>setProfile(data))
-    const load=async()=>{
+    const load=async(hid)=>{
+      if(!hid){console.warn('No hospital_id on profile');setDbLoading(false);return}
       setDbLoading(true)
-      const [inc,exp,pts]=await Promise.all([supabase.from('income').select('*').order('date',{ascending:false}),supabase.from('expenses').select('*').order('date',{ascending:false}),supabase.from('ip_patients').select('*').order('admission_date',{ascending:false})])
+      const [inc,exp,pts]=await Promise.all([
+        supabase.from('income').select('*').eq('hospital_id',hid).order('date',{ascending:false}),
+        supabase.from('expenses').select('*').eq('hospital_id',hid).order('date',{ascending:false}),
+        supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false})
+      ])
       setDb({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[]})
       setDbLoading(false)
     }
-    load()
+    supabase.from('profiles').select('*').eq('id',session.user.id).single().then(({data})=>{
+      setProfile(data)
+      load(data?.hospital_id)
+    })
   },[session])
 
   const actions={
-    addIncome:async row=>{const {data}=await supabase.from('income').insert([row]).select();if(data)setDb(d=>({...d,income:[data[0],...d.income]}))},
+    addIncome:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addIncome',error);if(data)setDb(d=>({...d,income:[data[0],...d.income]}))},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
-    addExpense:async row=>{const {data}=await supabase.from('expenses').insert([row]).select();if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}))},
+    addExpense:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addExpense',error);if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}))},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
-    admitPatient:async row=>{const {data}=await supabase.from('ip_patients').insert([row]).select();if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
+    admitPatient:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('ip_patients').insert([{...row,hospital_id:hid}]).select();if(error)console.error('admitPatient',error);if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
     dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
