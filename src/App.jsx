@@ -517,49 +517,54 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
           </Card>
         </>)}
-        {!p.discharge_date&&p.is_package!==true&&(<>
-          <SecL>Add charge</SecL>
-          <Card>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <FInp label="Date" type="date" value={cF.date} onChange={e=>setCF({...cF,date:e.target.value})}/>
-              <FSel label="Type" value={cF.type} onChange={e=>setCF({...cF,type:e.target.value})}>
-                <option value="ip">IP Charges (40%)</option>
-                <option value="ip_r">IP Pharmacy (40%)</option>
-                <option value="ip_l">IP Lab/Scan (50%)</option>
-              </FSel>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <FInp label="Amount (₹)" type="number" inputMode="numeric" placeholder="0" value={cF.amt} onChange={e=>setCF({...cF,amt:e.target.value})}/>
-              <FSel label="Payment" value={cF.pay} onChange={e=>setCF({...cF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
-            </div>
-            {cF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit — amount not yet collected</div>}
-            {cF.amt&&p.ref_doctor&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(cF.amt)*(COMM[cF.type]||0))}</strong></div>}
-            <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
-            <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:'',notes:cF.notes});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
-          </Card>
-          {p.is_package&&<><SecL>Package payment received</SecL>
-          <Card style={{border:'1px solid #d1fae5',background:'#f0fdf4'}}>
-            <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>
-              📦 Package payment — 40% referral commission auto-calculated
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <FInp label="Date" type="date" value={pyF.date} onChange={e=>setPyF({...pyF,date:e.target.value})}/>
-              <FInp label="Package amount (₹)" type="number" inputMode="numeric" placeholder="0" value={pyF.amt} onChange={e=>setPyF({...pyF,amt:e.target.value})}/>
-            </div>
-            {pyF.amt&&p.ref_doctor&&(
-              <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>
-                Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(pyF.amt||0)*0.40)}</strong> (40%) · Net to hospital: <strong style={{color:'#16a34a'}}>{fmt(parseFloat(pyF.amt||0)*0.60)}</strong>
+        {!p.discharge_date&&!p.is_package&&(
+          <>
+            <SecL>Add charge</SecL>
+            <Card>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <FInp label="Date" type="date" value={cF.date} onChange={e=>setCF({...cF,date:e.target.value})}/>
+                <FSel label="Type" value={cF.type} onChange={e=>setCF({...cF,type:e.target.value})}>
+                  <option value="ip">IP Charges (40%)</option>
+                  <option value="ip_r">IP Pharmacy (40%)</option>
+                  <option value="ip_l">IP Lab/Scan (50%)</option>
+                </FSel>
               </div>
-            )}
-            <FSel label="Payment mode" value={pyF.pay} onChange={e=>setPyF({...pyF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
-            <PBtn style={{background:'#16a34a'}} onClick={async()=>{
-              const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return}
-              const comm=p.ref_doctor?Math.round(amt*0.40):0
-              await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''})
-              setPyF({...pyF,amt:''})
-            }}>Save package payment</PBtn>
-          </Card></>
-        }
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <FInp label="Amount (₹)" type="number" inputMode="numeric" placeholder="0" value={cF.amt} onChange={e=>setCF({...cF,amt:e.target.value})}/>
+                <FSel label="Payment" value={cF.pay} onChange={e=>setCF({...cF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
+              </div>
+              {cF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit — amount not yet collected</div>}
+              {cF.amt&&p.ref_doctor&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(cF.amt)*(COMM[cF.type]||0))}</strong></div>}
+              <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
+              <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:'',notes:cF.notes});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
+            </Card>
+          </>
+        )}
+        {!p.discharge_date&&p.is_package&&(
+          <>
+            <SecL>Package payment received</SecL>
+            <Card style={{border:'1px solid #d1fae5',background:'#f0fdf4'}}>
+              <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>
+                📦 Package payment — 40% referral commission auto-calculated
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <FInp label="Date" type="date" value={pyF.date} onChange={e=>setPyF({...pyF,date:e.target.value})}/>
+                <FInp label="Package amount (₹)" type="number" inputMode="numeric" placeholder="0" value={pyF.amt} onChange={e=>setPyF({...pyF,amt:e.target.value})}/>
+              </div>
+              {pyF.amt&&p.ref_doctor&&(
+                <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>
+                  Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(pyF.amt||0)*0.40)}</strong> (40%) · Net: <strong style={{color:'#16a34a'}}>{fmt(parseFloat(pyF.amt||0)*0.60)}</strong>
+                </div>
+              )}
+              <FSel label="Payment mode" value={pyF.pay} onChange={e=>setPyF({...pyF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
+              <PBtn style={{background:'#16a34a'}} onClick={async()=>{
+                const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return}
+                const comm=p.ref_doctor?Math.round(amt*0.40):0
+                await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''})
+                setPyF({...pyF,amt:''})
+              }}>Save package payment</PBtn>
+            </Card>
+          </>
         )}
         {!p.is_package&&['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const it=ITYPES.find(t=>t.key===tk);return(
           <div key={tk}><SecL>{it.full} — {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL>
