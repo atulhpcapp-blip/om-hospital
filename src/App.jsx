@@ -985,13 +985,13 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       {active.length>0&&(<><SecL>Active inpatients ({active.length})</SecL>
         <Card>{active.map(p=>{const b=qb(p.id);return<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}}
           left={<span style={{fontSize:14}}>{p.name}{p.is_package&&<Pill label="📦 Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>}
-          sub={`Since ${fmtD(p.admission_date)}`}
+          sub={`${fmtD(p.admission_date)}${p.phone?' · 📞'+p.phone:''}`}
           right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}{b.balance>0&&<div style={{fontSize:11,color:'#ef4444'}}>due: {fmt(b.balance)}</div>}</div>}
         />})}</Card></>)}
       {disc.length>0&&(<><SecL>Discharged patients</SecL>
         <Card>{disc.slice().reverse().map(p=>{const b=qb(p.id);return<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}}
           left={<span>{p.name}<Pill label="Discharged"/></span>}
-          sub={`${fmtD(p.admission_date)} → ${fmtD(p.discharge_date)}`}
+          sub={`${fmtD(p.admission_date)} → ${fmtD(p.discharge_date)}${p.phone?' · 📞'+p.phone:''}`}
           right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.balance>0&&<div style={{fontSize:11,color:'#ef4444'}}>due {fmt(b.balance)}</div>}</div>}
         />})}</Card></>)}
       {!db.ip_patients.length&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No inpatients yet</div>}
@@ -1846,7 +1846,7 @@ export default function App(){
   const [tab,setTab]=useState('entry')
   const [eDate,setEDate]=useState(todayStr())
   const [itype,setItype]=useState('op')
-  const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:''})
+  const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:''})
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
   const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:''})
