@@ -656,9 +656,9 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         </div>
         <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
         <FInp label="Amount (₹)" type="number" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/>
-        {isOP&&<FSel label="OP type" value={opType} onChange={e=>setOpType(e.target.value)}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>
+        {isOP&&<FSel label="OP type" value={opType} onChange={e=>setOpType(e.target.value)}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
         {COMM[entry.type]>0&&<FInp label="Referring doctor (leave empty if self patient)" type="text" placeholder="Doctor name or leave blank" value={ref} onChange={e=>setRef(e.target.value)}/>}
-        {COMM[entry.type]>0&&ref.trim()&&<FInp label={`Commission % (default: ${defaultCommPct}%)`} type="number" inputMode="numeric" placeholder={String(defaultCommPct)} value={custComm} onChange={e=>setCustComm(e.target.value)}/>}}
+        {COMM[entry.type]>0&&ref.trim()&&<FInp label={`Commission % (default: ${defaultCommPct}%)`} type="number" inputMode="numeric" placeholder={String(defaultCommPct)} value={custComm} onChange={e=>setCustComm(e.target.value)}/>}
         {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Referral commission: <strong>{fmt(comm)}</strong> ({commPct}%)</div>}
         {comm===0&&ref.trim()===''&&COMM[entry.type]>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>No commission — direct/self patient</div>}
         <FSel label="Payment" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
