@@ -18,7 +18,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'—';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||pats.find(p=>p.id===e.patient_id)?.ref_doctor||null
-const getComm=e=>(e.payment==='credit'||!e.ref_doctor)?0:e.amount*(COMM[e.type]||0)
+const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(COMM[e.type]||0)
 const isCredit=e=>e.payment==='credit'
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
@@ -619,7 +619,51 @@ const CreditTab=({db})=>{
 }
 
 /* ── DAILY ENTRY ── */
+
+/* ── EDIT ENTRY FORM ── */
+const EditEntryForm=({entry,db,onSave,onCancel})=>{
+  const [amount,setAmount]=useState(String(entry.amount))
+  const [ref,setRef]=useState(entry.ref_doctor||'')
+  const [pay,setPay]=useState(entry.payment||'cash')
+  const [notes,setNotes]=useState(entry.notes||'')
+  const [date,setDate]=useState(entry.date||todayStr())
+  const [busy,setBusy]=useState(false)
+  const comm=ref.trim()&&COMM[entry.type]?parseFloat(amount||0)*COMM[entry.type]:0
+  const go=async()=>{
+    const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter valid amount');return}
+    setBusy(true)
+    await onSave({...entry,amount:amt,ref_doctor:ref.trim(),payment:pay,notes,date})
+    setBusy(false)
+  }
+  return(
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:100,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
+          <button onClick={onCancel} style={{background:'none',border:'none',fontSize:22,cursor:'pointer',color:'#aaa'}}>✕</button>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+          <TypeTag t={entry.type}/>
+          <span style={{fontSize:13,color:'#555'}}>{ITYPES.find(t=>t.key===entry.type)?.full}</span>
+        </div>
+        <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        <FInp label="Amount (₹)" type="number" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/>
+        {COMM[entry.type]>0&&<FInp label="Referring doctor (leave empty if self patient)" type="text" placeholder="Doctor name or leave blank" value={ref} onChange={e=>setRef(e.target.value)}/>}
+        {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Referral commission: <strong>{fmt(comm)}</strong> ({CLBL[entry.type]})</div>}
+        {comm===0&&ref.trim()===''&&COMM[entry.type]>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>No commission — direct/self patient</div>}
+        <FSel label="Payment" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
+        <FInp label="Notes" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <button onClick={onCancel} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
+          <button onClick={go} disabled={busy} style={{flex:2,padding:'12px',background:'#111',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?.5:1}}>{busy?'Saving…':'Save changes'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
+  const [editEntry,setEditEntry]=useState(null)
   const di=db.income.filter(e=>e.date===eDate)
   const tots={};ITYPES.forEach(t=>{tots[t.key]=di.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)})
   const tot=Object.values(tots).reduce((a,b)=>a+b,0)
@@ -705,6 +749,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
+                <button onClick={()=>setEditEntry(e)} style={{padding:'4px 8px',background:'none',border:'1px solid #d1d5db',borderRadius:6,fontSize:11,color:'#555',cursor:'pointer'}}>Edit</button>
                 <DBtn onClick={()=>actions.delIncome(e.id)}>✕</DBtn>
               </div>
             </div>
@@ -717,6 +762,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
 
 /* ── IP PATIENTS ── */
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP})=>{
+  const [editIPEntry,setEditIPEntry]=useState(null)
   const getBill=pid=>{
     const en=db.income.filter(e=>e.patient_id===pid)
     const total=en.reduce((a,e)=>a+e.amount,0)
@@ -889,6 +935,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
+                <button onClick={()=>setEditIPEntry(e)} style={{padding:'3px 8px',background:'none',border:'1px solid #d1d5db',borderRadius:6,fontSize:11,color:'#555',cursor:'pointer'}}>Edit</button>
                 <DBtn onClick={()=>actions.delIncome(e.id)}>✕</DBtn>
               </div>
             </div>
@@ -939,6 +986,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       </div>
     )
   }
+  if(editIPEntry)return(<div><EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/></div>)
   if(ipv==='add')return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
@@ -1007,6 +1055,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
 const OPTab=({db,actions})=>{
   const [selPat,setSelPat]=useState(null)
   const [payDoc,setPayDoc]=useState(null)
+  const [editEntry,setEditEntry]=useState(null)
 
   // Build OP patient list — group non-IP income entries by patient name
   const opIncome=db.income.filter(e=>
@@ -1179,7 +1228,10 @@ const OPTab=({db,actions})=>{
                     {e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' · Commission: '+fmt(comm):''}</div>}
                     {e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{e.notes}</div>}
                   </div>
-                  <span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a',marginLeft:8}}>{fmt(e.amount)}</span>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>
+                    <button onClick={()=>setEditEntry(e)} style={{padding:'3px 8px',background:'none',border:'1px solid #d1d5db',borderRadius:6,fontSize:11,color:'#555',cursor:'pointer'}}>Edit</button>
+                    <span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span>
+                  </div>
                 </div>
               </div>
             )
@@ -2115,6 +2167,7 @@ export default function App(){
   const actions={
     addIncome:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addIncome',error);if(data)setDb(d=>({...d,income:[data[0],...d.income]}))},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
+    editIncome:async row=>{const {data}=await supabase.from('income').update(row).eq('id',row.id).select();if(data)setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?data[0]:e)}))},
     addExpense:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addExpense',error);if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}))},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     admitPatient:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('ip_patients').insert([{...row,hospital_id:hid}]).select();if(error)console.error('admitPatient',error);if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
