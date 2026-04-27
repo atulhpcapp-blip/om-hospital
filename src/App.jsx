@@ -17,7 +17,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'—';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||pats.find(p=>p.id===e.patient_id)?.ref_doctor||null
-const getComm=e=>e.payment==='credit'?0:e.amount*(COMM[e.type]||0)
+const getComm=e=>(e.payment==='credit'||!e.ref_doctor)?0:e.amount*(COMM[e.type]||0)
 const isCredit=e=>e.payment==='credit'
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
@@ -548,7 +548,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {cF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit — amount not yet collected</div>}
               {cF.amt&&p.ref_doctor&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(cF.amt)*(COMM[cF.type]||0))}</strong></div>}
               <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
-              <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:'',notes:cF.notes});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
+              <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:p.ref_doctor||'',notes:cF.notes});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
             </Card>
           </>
         )}
