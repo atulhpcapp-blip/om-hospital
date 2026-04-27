@@ -946,7 +946,10 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <GBtn onClick={()=>setIpv('list')}>Cancel</GBtn>
       </div>
       <Card>
-        <FInp label="Patient name *" type="text" placeholder="Full name" value={pF.name} onChange={e=>setPF({...pF,name:e.target.value})}/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <FInp label="Patient name *" type="text" placeholder="Full name" value={pF.name} onChange={e=>setPF({...pF,name:e.target.value})}/>
+          <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={pF.phone||''} onChange={e=>setPF({...pF,phone:e.target.value})}/>
+        </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
           <FInp label="Admission date" type="date" value={pF.adm} onChange={e=>setPF({...pF,adm:e.target.value})}/>
           <FInp label="Ward / Room" type="text" placeholder="Ward 2" value={pF.room} onChange={e=>setPF({...pF,room:e.target.value})}/>
@@ -1651,6 +1654,7 @@ const PatientTimeline=({db,pid,onBack})=>{
 
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const [timelinePid,setTimelinePid]=useState(null)
+  const [timelineSelPid,setTimelineSelPid]=useState('')
   const [vcPer,setVcPer]=useState('month')
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
@@ -1661,9 +1665,9 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const RVTABS=[
     {k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},
     {k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},
-    {k:'patlist',l:'Patient List'},{k:'patients',l:'IP Report'},
-    {k:'expenses',l:'Expenses'},{k:'lab',l:'Lab'},
-    {k:'realincome',l:'Real Income'},{k:'vc',l:'Consultants'},
+    {k:'patlist',l:'Patient List'},{k:'timeline',l:'Timeline'},
+    {k:'patients',l:'IP Report'},{k:'expenses',l:'Expenses'},
+    {k:'lab',l:'Lab'},{k:'realincome',l:'Real Income'},{k:'vc',l:'Consultants'},
   ]
 
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
@@ -1801,6 +1805,29 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
       {rv==='patlist'&&(timelinePid
         ?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>
         :<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>
+      )}
+      {rv==='timeline'&&(
+        timelineSelPid
+          ?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>setTimelineSelPid('')}/>
+          :<>
+            <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>Select a patient to view their full timeline</div>
+            <Card>
+              {db.ip_patients.length===0&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No patients yet</div>}
+              {db.ip_patients.map(p=>{
+                const ents=db.income.filter(e=>e.patient_id===p.id)
+                const total=ents.reduce((a,e)=>a+e.amount,0)
+                const paid=(p.payments||[]).reduce((a,py)=>a+py.amount,0)
+                return(
+                  <Row key={p.id}
+                    left={<span style={{fontWeight:600}}>{p.name}{p.is_package&&<Pill label="📦" bg="#dbeafe" tx="#1d4ed8"/>}</span>}
+                    sub={fmtD(p.admission_date)+(p.discharge_date?' → '+fmtD(p.discharge_date):' · Active')+(p.phone?' · 📞'+p.phone:'')}
+                    right={<div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:600}}>{fmt(total)}</div>{p.ref_doctor&&<div style={{fontSize:10,color:'#d97706'}}>Ref: {p.ref_doctor}</div>}</div>}
+                    onClick={()=>setTimelineSelPid(p.id)}
+                  />
+                )
+              })}
+            </Card>
+          </>
       )}
     </div>
   )
