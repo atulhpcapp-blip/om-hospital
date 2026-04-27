@@ -884,7 +884,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <FInp label="Date" type="date" value={pyF.date} onChange={e=>setPyF({...pyF,date:e.target.value})}/>
             <FInp label="Package amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={pyF.amt} onChange={e=>setPyF({...pyF,amt:e.target.value})}/>
           </div>
-          {pyF.amt&&p.ref_doctor&&(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>(()=>{const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const pkgComm=parseFloat(pyF.amt||0)*pkgRate;const pkgNet=parseFloat(pyF.amt||0)-pkgComm;return(<span>Commission to {p.ref_doctor}: <strong>{fmt(pkgComm)}</strong> ({Math.round(pkgRate*100)}%) — Net: <strong style={{color:'#16a34a'}}>{fmt(pkgNet)}</strong></span>)})()</div>)}
+          {pyF.amt&&p.ref_doctor&&(()=>{const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const pkgComm=parseFloat(pyF.amt||0)*pkgRate;const pkgNet=parseFloat(pyF.amt||0)-pkgComm;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {p.ref_doctor}: <strong>{fmt(pkgComm)}</strong> ({Math.round(pkgRate*100)}%) — Net: <strong style={{color:'#16a34a'}}>{fmt(pkgNet)}</strong></div>)})()}
           <FSel label="Payment mode" value={pyF.pay} onChange={e=>setPyF({...pyF,pay:e.target.value})}>
             {PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}
           </FSel>
