@@ -227,9 +227,6 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
 
 /* ── LOGIN ── */
 
-const PLANS=[{key:'trial',label:'Trial (30 days)',price:0},{key:'starter',label:'Starter',price:999},{key:'pro',label:'Pro',price:1999},{key:'enterprise',label:'Enterprise',price:4999}]
-const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@omhospital.app`
-
 /* ── SUPER ADMIN DASHBOARD ── */
 const SuperAdminDashboard=()=>{
   const [hospitals,setHospitals]=useState([])
