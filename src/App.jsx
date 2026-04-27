@@ -765,8 +765,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'},
         ]}/>
         {/* IP Report — category breakdown */}
-        {ents.length>0&&(
-          <Card style={{marginBottom:12}}>
+        <Card style={{marginBottom:12}}>
             <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Charges breakdown</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
               <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
@@ -810,8 +809,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 </div>
               )
             })()}
-          </Card>
-        )}
+        </Card>
         {b.credit>0&&(<>
           <SecL>Credit by type</SecL>
           <Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>
