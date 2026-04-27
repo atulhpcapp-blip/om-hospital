@@ -691,8 +691,8 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname}
     let regNo=null;if(!isIP&&itype==='op'){regNo=await genRegNo()}
-    await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,patient_phone:iF.phone||'',payment:iF.pay,ref_doctor:isIP?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='vc'?parseFloat(iF.consultant_fee||0):0,op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo})
-    setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:'',op_type:'New OP',custom_commission:''})
+    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,patient_phone:iF.phone||'',payment:iF.pay,ref_doctor:isIP?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='vc'?parseFloat(iF.consultant_fee||0):0,op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo})
+    if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:'',op_type:'New OP',custom_commission:''})
   }
   return(
     <div>
@@ -799,7 +799,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
         <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>← Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
-        <button onClick={async()=>{await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);const {data}=await supabase.from('ip_patients').select('*').eq('id',editPatient.id).single();if(data){setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===data.id?data:x)}))};setEditPatient(null)}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
+        <button onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}window.location.reload()}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
       <div style={{padding:'16px'}}>
         <FInp label="Patient name" type="text" value={editPatient.name} onChange={e=>setEditPatient({...editPatient,name:e.target.value})}/>
@@ -808,7 +808,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <FInp label="Ward / Room" type="text" value={editPatient.room||''} onChange={e=>setEditPatient({...editPatient,room:e.target.value})}/>
         <FInp label="Diagnosis" type="text" value={editPatient.dx||''} onChange={e=>setEditPatient({...editPatient,dx:e.target.value})}/>
         <FInp label="Referring doctor" type="text" placeholder="Leave blank for self patient" value={editPatient.ref||''} onChange={e=>setEditPatient({...editPatient,ref:e.target.value})}/>
-        <PBtn onClick={async()=>{await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);const {data}=await supabase.from('ip_patients').select('*').eq('id',editPatient.id).single();if(data){setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===data.id?data:x)}))};setEditPatient(null)}}>Save changes</PBtn>
+        <PBtn onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}window.location.reload()}}>Save changes</PBtn>
       </div>
     </div>
   )
@@ -875,7 +875,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {cF.amt&&p.ref_doctor&&cF.type!=='vc'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(cF.amt)*(p.custom_commission!=null?p.custom_commission/100:(COMM[cF.type]||0)))}</strong></div>}
           {cF.type==='vc'&&cF.amt&&cF.vcFee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#065f46'}}>Your income: <strong>{fmt(parseFloat(cF.amt||0)-parseFloat(cF.vcFee||0))}</strong></div>}
           <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
-          <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};const isVC=cF.type==='vc';await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:isVC?(cF.vcName||''):(p.ref_doctor||''),notes:cF.notes,custom_commission:p.custom_commission||null,consultant_fee:isVC?parseFloat(cF.vcFee||0):0,reg_no:p.reg_no||''});setCF({...cF,amt:'',notes:'',vcName:'',vcFee:''})}}>Add charge</PBtn>
+          <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};const isVC=cF.type==='vc';const ok=await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:isVC?(cF.vcName||''):(p.ref_doctor||''),notes:cF.notes,custom_commission:p.custom_commission||null,consultant_fee:isVC?parseFloat(cF.vcFee||0):0,reg_no:p.reg_no||''});if(ok!==false)setCF({...cF,amt:'',notes:'',vcName:'',vcFee:''})}}>Add charge</PBtn>
         </Card></>)}
         {!p.discharge_date&&p.is_package&&(<><SecL>Package payment received</SecL><Card style={{border:'1px solid #d1fae5',background:'#f0fdf4'}}>
           <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>Package payment - 40% referral commission auto-calculated</div>
@@ -1019,7 +1019,7 @@ const OPTab=({db,actions})=>{
 /* ── EXPENSES TAB ── */
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const exp=db.expenses.filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
-  const go=async()=>{const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon});setExF({...exF,amt:'',desc:''})}
+  const go=async()=>{const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return};const ok=await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon});if(ok!==false)setExF({...exF,amt:'',desc:''})}
   return(
     <div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -1344,10 +1344,10 @@ export default function App(){
   },[session])
 
   const actions={
-    addIncome:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addIncome',error);if(data)setDb(d=>({...d,income:[data[0],...d.income]}))},
+    addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{const {data}=await supabase.from('income').update(row).eq('id',row.id).select();if(data)setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?data[0]:e)}))},
-    addExpense:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addExpense',error);if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}))},
+    addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     admitPatient:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('ip_patients').insert([{...row,hospital_id:hid}]).select();if(error)console.error('admitPatient',error);if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
     dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
