@@ -10,15 +10,18 @@ const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,vc:0}
 const CLBL={op:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%',vc:'None'}
 const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],vc:['#f0fdf4','#065f46']}
 const ROLES=['admin','management','accounts','staff']
+const OP_TYPES=['New OP','Review OP']
+const IP_PAT_TYPES=['Regular','Package','VC']
 const PLANS=[{key:'trial',label:'Trial (30 days)',price:0},{key:'starter',label:'Starter',price:999},{key:'pro',label:'Pro',price:1999},{key:'enterprise',label:'Enterprise',price:4999}]
 const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@omhospital.app`
 
 const todayStr=()=>new Date().toISOString().split('T')[0]
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
+const genRegNo=async()=>{const {data}=await supabase.rpc('next_reg_no').single();return data||('REG'+Date.now().toString().slice(-5))}
 const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'—';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||pats.find(p=>p.id===e.patient_id)?.ref_doctor||null
-const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(COMM[e.type]||0)
+const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?e.custom_commission/100:COMM[e.type]||0)
 const isCredit=e=>e.payment==='credit'
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
@@ -627,12 +630,17 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [pay,setPay]=useState(entry.payment||'cash')
   const [notes,setNotes]=useState(entry.notes||'')
   const [date,setDate]=useState(entry.date||todayStr())
+  const [opType,setOpType]=useState(entry.op_type||'New OP')
+  const [custComm,setCustComm]=useState(entry.custom_commission!=null?String(Math.round(entry.custom_commission)):'')
   const [busy,setBusy]=useState(false)
-  const comm=ref.trim()&&COMM[entry.type]?parseFloat(amount||0)*COMM[entry.type]:0
+  const defaultCommPct=COMM[entry.type]!=null?Math.round(COMM[entry.type]*100):0
+  const commPct=custComm!==''?parseFloat(custComm):defaultCommPct
+  const comm=ref.trim()&&commPct>0?parseFloat(amount||0)*commPct/100:0
+  const isOP=['op'].includes(entry.type)
   const go=async()=>{
     const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter valid amount');return}
     setBusy(true)
-    await onSave({...entry,amount:amt,ref_doctor:ref.trim(),payment:pay,notes,date})
+    await onSave({...entry,amount:amt,ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null})
     setBusy(false)
   }
   return(
@@ -648,8 +656,10 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         </div>
         <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
         <FInp label="Amount (₹)" type="number" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/>
+        {isOP&&<FSel label="OP type" value={opType} onChange={e=>setOpType(e.target.value)}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>
         {COMM[entry.type]>0&&<FInp label="Referring doctor (leave empty if self patient)" type="text" placeholder="Doctor name or leave blank" value={ref} onChange={e=>setRef(e.target.value)}/>}
-        {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Referral commission: <strong>{fmt(comm)}</strong> ({CLBL[entry.type]})</div>}
+        {COMM[entry.type]>0&&ref.trim()&&<FInp label={`Commission % (default: ${defaultCommPct}%)`} type="number" inputMode="numeric" placeholder={String(defaultCommPct)} value={custComm} onChange={e=>setCustComm(e.target.value)}/>}}
+        {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Referral commission: <strong>{fmt(comm)}</strong> ({commPct}%)</div>}
         {comm===0&&ref.trim()===''&&COMM[entry.type]>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>No commission — direct/self patient</div>}
         <FSel label="Payment" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
         <FInp label="Notes" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
@@ -669,15 +679,17 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   const tot=Object.values(tots).reduce((a,b)=>a+b,0)
   const isIP=['ip','ip_r','ip_l'].includes(itype)
   const aps=db.ip_patients.filter(p=>!p.discharge_date)
-  const prev=iF.amount&&COMM[itype]&&iF.ref?parseFloat(iF.amount)*COMM[itype]:0
+  const custCommPct=iF.custom_commission!==''?parseFloat(iF.custom_commission)/100:(COMM[itype]||0)
+  const prev=iF.amount&&iF.ref&&iF.ref.trim()&&custCommPct?parseFloat(iF.amount)*custCommPct:0
   const todayCash=cashTotal(di);const todayCredit=credTotal(di)
   const go=async()=>{
     const amt=parseFloat(iF.amount);if(!amt||amt<=0){alert('Enter a valid amount');return}
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname}
-    await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,patient_phone:iF.phone||'',payment:iF.pay,ref_doctor:isIP?'':iF.ref,notes:iF.notes,consultant_fee:itype==='vc'?parseFloat(iF.consultant_fee||0):0})
-    setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:''})
+    const regNo=!isIP&&itype==='op'?await genRegNo():null
+    await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,patient_phone:iF.phone||'',payment:iF.pay,ref_doctor:isIP?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='vc'?parseFloat(iF.consultant_fee||0):0,op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo})
+    setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:'',op_type:'New OP',custom_commission:''})
   }
   return(
     <div>
@@ -697,12 +709,14 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
       </div>
       <Card>
         <FInp label="Amount (₹)" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
-        {prev>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:13}}>Commission: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> ({CLBL[itype]})</div>}
+        {prev>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:13}}>Commission to {iF.ref}: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> ({iF.custom_commission||Math.round((COMM[itype]||0)*100)}%)</div>}
         {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>setIF({...iF,pid:e.target.value})}><option value="">— select admitted patient —</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
           :<>
             <FInp label="Patient name *" type="text" placeholder="Required" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>
             <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
-            {COMM[itype]>0&&<FInp label="Referring doctor" type="text" placeholder="Doctor name" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>}
+            {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>
+            {COMM[itype]>0&&<FInp label="Referring doctor (blank = self patient, no commission)" type="text" placeholder="Doctor name or leave blank" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>}
+            {COMM[itype]>0&&iF.ref.trim()&&<FInp label={`Commission % (default ${Math.round((COMM[itype]||0)*100)}%)`} type="number" inputMode="numeric" placeholder={String(Math.round((COMM[itype]||0)*100))} value={iF.custom_commission} onChange={e=>setIF({...iF,custom_commission:e.target.value})}/>}}
             {itype==='vc'&&<>
               <FInp label="Consultant name" type="text" placeholder="e.g. Dr. Sharma (Neurologist)" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>
               <FInp label="Consultant fee to pay (₹)" type="number" inputMode="numeric" placeholder="Amount you give to consultant" value={iF.consultant_fee||''} onChange={e=>setIF({...iF,consultant_fee:e.target.value})}/>
@@ -793,6 +807,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {p.diagnosis&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Dx: {p.diagnosis}</div>}
               {p.room&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Room: {p.room}</div>}
               {p.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>📞 {p.phone}</div>}
+              {p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',marginTop:2,fontWeight:600}}>Reg: {p.reg_no}</div>}
               {p.ref_doctor&&<div style={{fontSize:12,color:'#d97706',fontWeight:700,marginTop:6}}>Ref: Dr. {p.ref_doctor}</div>}
               <div style={{marginTop:8}}>
                 {p.is_package
@@ -893,7 +908,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {cF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit — amount not yet collected</div>}
               {cF.amt&&p.ref_doctor&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to {p.ref_doctor}: <strong>{fmt(parseFloat(cF.amt)*(COMM[cF.type]||0))}</strong></div>}
               <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
-              <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:p.ref_doctor||'',notes:cF.notes});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
+              <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:p.ref_doctor||'',notes:cF.notes,custom_commission:p.custom_commission||null,reg_no:p.reg_no||''});setCF({...cF,amt:'',notes:''})}}>Add charge</PBtn>
             </Card>
           </>
         )}
@@ -1021,7 +1036,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <FInp label="Referring doctor name" type="text" placeholder="Doctor name" value={pF.ref} onChange={e=>setPF({...pF,ref:e.target.value})}/>
           <div style={{fontSize:11,color:'#b45309'}}>{pF.is_package?'Package commission: 40% on each package payment':'Commission: IP 40% · Pharmacy 40% · Lab 50%'}</div>
         </div>
-        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref,is_package:pF.is_package,payments:[]});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:''})}}>Admit patient</PBtn>
+        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=await genRegNo();await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:''})}}>Admit patient</PBtn>
       </Card>
     </div>
   )
@@ -1033,7 +1048,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       {active.length>0&&(<><SecL>Active inpatients ({active.length})</SecL>
         <Card>{active.map(p=>{const b=qb(p.id);return<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}}
           left={<span style={{fontSize:14}}>{p.name}{p.is_package&&<Pill label="📦 Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>}
-          sub={`${fmtD(p.admission_date)}${p.phone?' · 📞'+p.phone:''}`}
+          sub={`${fmtD(p.admission_date)}${p.reg_no?' · Reg:'+p.reg_no:''}${p.phone?' · 📞'+p.phone:''}`}
           right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}{b.balance>0&&<div style={{fontSize:11,color:'#ef4444'}}>due: {fmt(b.balance)}</div>}</div>}
         />})}</Card></>)}
       {disc.length>0&&(<><SecL>Discharged patients</SecL>
@@ -1066,7 +1081,7 @@ const OPTab=({db,actions})=>{
   const byPat={}
   opIncome.forEach(e=>{
     const k=e.patient_name
-    if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',entries:[],total:0,totalComm:0,totalCredit:0}
+    if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0}
     byPat[k].entries.push(e)
     byPat[k].total+=e.amount
     byPat[k].totalComm+=getComm(e)
@@ -1092,6 +1107,7 @@ const OPTab=({db,actions})=>{
       if(!byType[e.type])byType[e.type]={inc:0,comm:0,entries:[]}
       byType[e.type].inc+=e.amount
       byType[e.type].comm+=getComm(e)
+      if(!byType[e.type].commPct&&e.ref_doctor)byType[e.type].commPct=e.custom_commission!=null?e.custom_commission:Math.round((COMM[e.type]||0)*100)
       byType[e.type].entries.push(e)
     })
 
@@ -1114,7 +1130,8 @@ const OPTab=({db,actions})=>{
         <Card>
           <div style={{fontSize:17,fontWeight:700}}>{pat.name}</div>
           {pat.phone&&<div style={{fontSize:12,color:'#aaa',marginTop:2}}>📞 {pat.phone}</div>}
-          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{ents.length} visit{ents.length!==1?'s':''} · {[...new Set(ents.map(e=>e.date))].sort()[0]&&fmtD([...new Set(ents.map(e=>e.date))].sort()[0])}</div>
+          {pat.reg_no&&<div style={{fontSize:12,color:'#1d4ed8',fontWeight:700,marginTop:2}}>Reg No: {pat.reg_no}</div>}
+          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{ents.length} visit{ents.length!==1?'s':''} · {[...new Set(ents.map(e=>e.op_type).filter(Boolean))].join(' / ')||'OP'} · {[...new Set(ents.map(e=>e.date))].sort()[0]&&fmtD([...new Set(ents.map(e=>e.date))].sort()[0])}</div>
         </Card>
 
         {/* Summary metrics */}
@@ -1147,7 +1164,7 @@ const OPTab=({db,actions})=>{
               <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
                 <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span>
                 <span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(v.inc)}</span>
-                <span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{v.comm>0?'-'+fmt(v.comm):'—'}</span>
+                <span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{v.comm>0?'-'+fmt(v.comm)+(v.commPct?' ('+v.commPct+'%)':''):'—'}</span>
                 <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(v.inc-v.comm)}</span>
               </div>
             )
@@ -1222,6 +1239,7 @@ const OPTab=({db,actions})=>{
                   <div>
                     <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
                       <TypeTag t={e.type}/>
+                      {e.op_type&&<span style={{fontSize:10,padding:'1px 7px',borderRadius:20,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}
                       <span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>
                       {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                     </div>
@@ -1791,7 +1809,7 @@ const PatientListReport=({db,gotoTimeline})=>{
   const periodInc=per==='month'?db.income.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.income.filter(e=>e.date?.startsWith(ry2)):db.income.filter(e=>e.date>=from&&e.date<=to)
   const opEnts=periodInc.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
   const opByPat={}
-  opEnts.forEach(e=>{const k=e.patient_name;if(!opByPat[k])opByPat[k]={name:k,phone:e.patient_phone||'',total:0,entries:[]};opByPat[k].total+=e.amount;opByPat[k].entries.push(e)})
+  opEnts.forEach(e=>{const k=e.patient_name;if(!opByPat[k])opByPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,entries:[]};opByPat[k].total+=e.amount;opByPat[k].entries.push(e)})
   const opPats=Object.values(opByPat).sort((a,b)=>b.total-a.total)
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
@@ -1815,6 +1833,8 @@ const PatientListReport=({db,gotoTimeline})=>{
             <div>
               <button onClick={()=>gotoTimeline(p.id)} style={{fontSize:14,fontWeight:700,color:'#1d4ed8',background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>{p.name} →</button>
               {p.phone&&<div style={{fontSize:11,color:'#aaa'}}>📞 {p.phone}</div>}
+              {p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {p.reg_no}</div>}
+              {p.patient_type&&p.patient_type!=='Regular'&&<div style={{fontSize:10,padding:'1px 7px',borderRadius:20,background:p.patient_type==='Package'?'#dbeafe':'#f0fdf4',color:p.patient_type==='Package'?'#1d4ed8':'#065f46',fontWeight:700,display:'inline-block',marginTop:4}}>{p.patient_type==='Package'?'📦 Package':'🩺 VC'}</div>}
               <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>
               {p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}
             </div>
@@ -2122,10 +2142,10 @@ export default function App(){
   const [tab,setTab]=useState('entry')
   const [eDate,setEDate]=useState(todayStr())
   const [itype,setItype]=useState('op')
-  const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:''})
+  const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:'',op_type:'New OP',custom_commission:''})
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
-  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:''})
+  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:''})
   const [cF,setCF]=useState({date:todayStr(),type:'ip',amt:'',pay:'cash',notes:''})
   const [pyF,setPyF]=useState({date:todayStr(),amt:'',pay:'cash'})
   const [exD,setExD]=useState(todayStr())
