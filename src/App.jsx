@@ -822,20 +822,23 @@ const PatientsReport=({db,gotoIP})=>{
   if(!pats.length)return<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No patients yet</div>
   const grandInc=db.income.filter(e=>db.ip_patients.some(p=>p.id===e.patient_id)).reduce((a,e)=>a+e.amount,0)
   const grandComm=db.income.filter(e=>db.ip_patients.some(p=>p.id===e.patient_id)).reduce((a,e)=>a+getComm(e),0)
+  const grandVCTotal=db.income.filter(e=>e.type==='vc'&&db.ip_patients.some(p=>p.id===e.patient_id)).reduce((a,e)=>a+(e.consultant_fee||0),0)
   return(
     <>
       <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>All IP patients — income vs commission vs real income</div>
       <HBarChart title="Real income per patient" data={pats.map(p=>{
         const en=db.income.filter(e=>e.patient_id===p.id)
-        const real=en.reduce((a,e)=>a+e.amount,0)-en.reduce((a,e)=>a+getComm(e),0)
-        return{label:p.name?.split(' ')[0]||'?',value:real,color:'#16a34a',fmt:fmt(real)}
+        const vcf=en.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+        const real=en.reduce((a,e)=>a+e.amount,0)-en.reduce((a,e)=>a+getComm(e),0)-vcf
+        return{label:p.name?.split(' ')[0]||'?',value:Math.max(real,0),color:'#16a34a',fmt:fmt(real)}
       }).filter(d=>d.value>0)}/>
       {pats.map(p=>{
         const ents=db.income.filter(e=>e.patient_id===p.id)
         if(!ents.length)return null
         const grandTotal=ents.reduce((a,e)=>a+e.amount,0)
         const grandCommP=ents.reduce((a,e)=>a+getComm(e),0)
-        const grandReal=grandTotal-grandCommP
+        const grandVCFees=ents.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+        const grandReal=grandTotal-grandCommP-grandVCFees
         const paid=(p.payments||[]).reduce((a,e)=>a+e.amount,0)
         return(
           <Card key={p.id} style={{marginBottom:14}}>
@@ -874,7 +877,7 @@ const PatientsReport=({db,gotoIP})=>{
             <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #f0f0f0'}}>
               <span style={{fontSize:13,fontWeight:700}}>Total</span>
               <span style={{fontSize:13,fontWeight:700,textAlign:'right',minWidth:64}}>{fmt(grandTotal)}</span>
-              <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#d97706',minWidth:64}}>{grandCommP>0?'-'+fmt(grandCommP):'—'}</span>
+              <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#ef4444',minWidth:64}}>{(grandCommP+grandVCFees)>0?'-'+fmt(grandCommP+grandVCFees):'—'}</span>
               <span style={{fontSize:13,fontWeight:700,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(grandReal)}</span>
             </div>
           </Card>
@@ -886,20 +889,21 @@ const PatientsReport=({db,gotoIP})=>{
           const all=db.income.filter(e=>e.type===tk&&db.ip_patients.some(p=>p.id===e.patient_id))
           if(!all.length)return null
           const inc=all.reduce((a,e)=>a+e.amount,0);const comm=all.reduce((a,e)=>a+getComm(e),0)
+          const vcf2=tk==='vc'?all.reduce((a,e)=>a+(e.consultant_fee||0),0):0
           return(
             <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #374151'}}>
               <span style={{fontSize:12,color:'#d1d5db'}}>{ITYPES.find(t=>t.key===tk)?.full}</span>
               <span style={{fontSize:12,textAlign:'right',color:'#d1d5db',minWidth:60}}>{fmt(inc)}</span>
-              <span style={{fontSize:12,textAlign:'right',color:'#fbbf24',minWidth:60}}>-{fmt(comm)}</span>
-              <span style={{fontSize:12,textAlign:'right',color:'#4ade80',fontWeight:600,minWidth:60}}>{fmt(inc-comm)}</span>
+              <span style={{fontSize:12,textAlign:'right',color:'#fbbf24',minWidth:60}}>{(comm+vcf2)>0?'-'+fmt(comm+vcf2):'—'}</span>
+              <span style={{fontSize:12,textAlign:'right',color:'#4ade80',fontWeight:600,minWidth:60}}>{fmt(inc-comm-vcf2)}</span>
             </div>
           )
         })}
         <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,paddingTop:10,marginTop:4,borderTop:'1px solid #6b7280'}}>
           <span style={{fontSize:14,fontWeight:700,color:'#fff'}}>Grand total</span>
           <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fff',minWidth:60}}>{fmt(grandInc)}</span>
-          <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fbbf24',minWidth:60}}>-{fmt(grandComm)}</span>
-          <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#4ade80',minWidth:60}}>{fmt(grandInc-grandComm)}</span>
+          <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#fbbf24',minWidth:60}}>{(grandComm+grandVCTotal)>0?'-'+fmt(grandComm+grandVCTotal):'—'}</span>
+          <span style={{fontSize:14,fontWeight:700,textAlign:'right',color:'#4ade80',minWidth:60}}>{fmt(grandInc-grandComm-grandVCTotal)}</span>
         </div>
       </div>
     </>
@@ -1030,15 +1034,17 @@ const VCReport=({db,income})=>{
 const RealIncomeReport=({db})=>{
   const allInc=db.income.reduce((a,e)=>a+e.amount,0)
   const allComm=db.income.reduce((a,e)=>a+getComm(e),0)
-  const allReal=allInc-allComm
+  const allVCFees=db.income.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const allDeductions=allComm+allVCFees
+  const allReal=allInc-allDeductions
   return(
     <>
-      <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>All income sources — total billed minus referral commission = real income</div>
+      <div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>All income — total collected minus commissions and consultant fees = real income</div>
       <Card>
         <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
           <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
-          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Income</div>
-          <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Comm</div>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Collected</div>
+          <div style={{fontSize:10,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Deductions</div>
           <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
         </div>
         {ITYPES.map(t=>{
@@ -1046,44 +1052,51 @@ const RealIncomeReport=({db})=>{
           const inc=ents.reduce((a,e)=>a+e.amount,0)
           const comm=ents.reduce((a,e)=>a+getComm(e),0)
           const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0
-          const real=inc-comm-vcf
+          const deductions=comm+vcf
+          const real=inc-deductions
           if(!inc)return null
           return(
             <div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
-              <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span>
+              <div>
+                <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span>
+                {t.key==='vc'&&vcf>0&&<div style={{fontSize:10,color:'#aaa',marginTop:2,marginLeft:2}}>Comm: {fmt(comm)} + Consultant fee: {fmt(vcf)}</div>}
+                {t.key!=='vc'&&comm>0&&<div style={{fontSize:10,color:'#aaa',marginTop:2,marginLeft:2}}>Referral commission: {fmt(comm)}</div>}
+              </div>
               <span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
-              <span style={{fontSize:13,textAlign:'right',color:'#d97706',minWidth:64}}>{(comm+vcf)>0?'-'+fmt(comm+vcf):'—'}</span>
-              <span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
+              <span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{deductions>0?'-'+fmt(deductions):'—'}</span>
+              <span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(real)}</span>
             </div>
           )
         })}
         <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}>
           <span style={{fontSize:14,fontWeight:800}}>Grand total</span>
           <span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span>
-          <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#d97706',minWidth:64}}>{allComm>0?'-'+fmt(allComm):'—'}</span>
+          <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:64}}>{allDeductions>0?'-'+fmt(allDeductions):'—'}</span>
           <span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span>
         </div>
       </Card>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:4}}>
         <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}>
-          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total billed</div>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total collected</div>
           <div style={{fontSize:20,fontWeight:700}}>{fmt(allInc)}</div>
         </div>
-        <div style={{background:'#fff7ed',borderRadius:12,padding:'12px 14px'}}>
-          <div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total commission</div>
-          <div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(allComm)}</div>
+        <div style={{background:'#fef2f2',borderRadius:12,padding:'12px 14px'}}>
+          <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total deductions</div>
+          <div style={{fontSize:20,fontWeight:700,color:'#dc2626'}}>{fmt(allDeductions)}</div>
+          <div style={{fontSize:10,color:'#aaa',marginTop:2}}>Commissions + consultant fees</div>
         </div>
         <div style={{background:'#f0fdf4',borderRadius:12,padding:'14px 16px',gridColumn:'1/-1'}}>
           <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income (all time)</div>
-          <div style={{fontSize:28,fontWeight:800,color:'#15803d'}}>{fmt(allReal)}</div>
-          <div style={{fontSize:11,color:'#aaa',marginTop:4}}>Total billed minus all referral commissions</div>
+          <div style={{fontSize:32,fontWeight:800,color:'#15803d'}}>{fmt(allReal)}</div>
+          <div style={{fontSize:11,color:'#aaa',marginTop:4}}>Total collected − commissions − consultant fees</div>
         </div>
       </div>
       <HBarChart title="Real income by source" data={ITYPES.map(t=>{
         const ents=db.income.filter(e=>e.type===t.key)
-        const real=ents.reduce((a,e)=>a+e.amount,0)-ents.reduce((a,e)=>a+getComm(e),0)
-        const [,tx]=TC[t.key]
-        return{label:t.label,value:real,color:tx,fmt:fmt(real)}
+        const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0
+        const real=ents.reduce((a,e)=>a+e.amount,0)-ents.reduce((a,e)=>a+getComm(e),0)-vcf
+        const [,tx]=TC[t.key]||['#f0f0f0','#555']
+        return{label:t.label,value:Math.max(real,0),color:tx,fmt:fmt(real)}
       }).filter(d=>d.value>0)}/>
     </>
   )
