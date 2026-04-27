@@ -859,13 +859,15 @@ const PatientsReport=({db,gotoIP})=>{
             {IP_TYPES.map(tk=>{
               const te=ents.filter(e=>e.type===tk);if(!te.length)return null
               const inc=te.reduce((a,e)=>a+e.amount,0);const comm=te.reduce((a,e)=>a+getComm(e),0)
+              const vcf=tk==='vc'?te.reduce((a,e)=>a+(e.consultant_fee||0),0):0
+              const realInc=inc-comm-vcf
               const it=ITYPES.find(t=>t.key===tk)
               return(
                 <div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
                   <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.label}</span>
                   <span style={{fontSize:12,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
-                  <span style={{fontSize:12,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
-                  <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(inc-comm)}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#d97706',minWidth:64}}>{(comm+vcf)>0?'-'+fmt(comm+vcf):'—'}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(realInc)}</span>
                 </div>
               )
             })}
@@ -1043,13 +1045,15 @@ const RealIncomeReport=({db})=>{
           const ents=db.income.filter(e=>e.type===t.key)
           const inc=ents.reduce((a,e)=>a+e.amount,0)
           const comm=ents.reduce((a,e)=>a+getComm(e),0)
+          const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0
+          const real=inc-comm-vcf
           if(!inc)return null
           return(
             <div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
               <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span>
               <span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(inc)}</span>
-              <span style={{fontSize:13,textAlign:'right',color:'#d97706',minWidth:64}}>{comm>0?'-'+fmt(comm):'—'}</span>
-              <span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(inc-comm)}</span>
+              <span style={{fontSize:13,textAlign:'right',color:'#d97706',minWidth:64}}>{(comm+vcf)>0?'-'+fmt(comm+vcf):'—'}</span>
+              <span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:64}}>{fmt(real)}</span>
             </div>
           )
         })}
@@ -1103,21 +1107,26 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const total=cash+credit
     const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0)
     const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0)
-    const net=cash+pkgTotal-exp.total-refComm-pkgComm
+    const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+    const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
     return(
       <div style={{marginBottom:12}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
           <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Cash collected</div><div style={{fontSize:18,fontWeight:700,color:'#15803d'}}>{fmt(cash)}</div></div>
           <div style={{background:credit>0?'#fff7ed':'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:credit>0?'#92400e':'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit given</div><div style={{fontSize:18,fontWeight:700,color:credit>0?'#c2410c':'#ccc'}}>{fmt(credit)}</div></div>
           <div style={{background:'#dbeafe',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Package payments</div><div style={{fontSize:18,fontWeight:700,color:'#1d4ed8'}}>{fmt(pkgTotal)}</div></div>
-          <div style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Exp + Ref</div><div style={{fontSize:18,fontWeight:700,color:'#ef4444'}}>{fmt(exp.total+refComm+pkgComm)}</div></div>
+          <div style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Exp + Ref + VC fees</div><div style={{fontSize:18,fontWeight:700,color:'#ef4444'}}>{fmt(exp.total+refComm+pkgComm+vcFees)}</div></div>
         </div>
         {pkgTotal>0&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'8px 14px',marginBottom:8,fontSize:12}}>
           <span style={{color:'#1d4ed8',fontWeight:600}}>📦 Package: </span>
           <span style={{color:'#555'}}>Received {fmt(pkgTotal)} · Commission {fmt(pkgComm)} · Net {fmt(pkgTotal-pkgComm)}</span>
         </div>}
+        {vcFees>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'8px 14px',marginBottom:8,fontSize:12}}>
+          <span style={{color:'#065f46',fontWeight:600}}>🩺 VC visits: </span>
+          <span style={{color:'#555'}}>Collected {fmt(incList.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0))} · To consultants {fmt(vcFees)} · Your income {fmt(incList.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)-vcFees)}</span>
+        </div>}
         <div style={{background:net>=0?'#f0fdf4':'#fef2f2',borderRadius:12,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div><div style={{fontSize:11,color:net>=0?'#15803d':'#dc2626',fontWeight:700,textTransform:'uppercase'}}>Net cash profit</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Cash + package − expenses − commissions</div></div>
+          <div><div style={{fontSize:11,color:net>=0?'#15803d':'#dc2626',fontWeight:700,textTransform:'uppercase'}}>Net cash profit</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Cash + package − expenses − commissions − consultant fees</div></div>
           <div style={{fontSize:24,fontWeight:800,color:net>=0?'#15803d':'#dc2626'}}>{net>=0?'+':''}{fmt(net)}</div>
         </div>
       </div>
@@ -1174,7 +1183,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           <div style={{fontSize:14,fontWeight:600,color:'#555',margin:'8px 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div>
           <PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkgPay(rm)}/>
           {days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI2=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI2),color:'#16a34a'}})}/>}
-          {days.length>0&&(<><SecL>Day-wise</SecL><Card>{days.map(d=>{const dI=db.income.filter(e=>e.date===d);const dc=cashTotal(dI);const cr=credTotal(dI);const de=db.expenses.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0);const dref=totalRef(dI,db.ip_patients);const dpkg=pkgPay(d);const dpkgTotal=dpkg.reduce((a,py)=>a+py.amount,0);const dpkgComm=dpkg.reduce((a,py)=>a+(py.commission||0),0);const net=dc+dpkgTotal-de-dref-dpkgComm;return<Row key={d} left={fmtD(d)} right={<div style={{textAlign:'right'}}><span style={{color:'#16a34a',fontWeight:600}}>{fmt(dc)}</span>{dpkgTotal>0&&<span style={{fontSize:10,color:'#1d4ed8',marginLeft:6}}>+pkg {fmt(dpkgTotal)}</span>}{cr>0&&<span style={{fontSize:10,color:'#c2410c',marginLeft:6}}>{fmt(cr)} cr</span>}<br/><span style={{fontSize:11,color:net>=0?'#16a34a':'#ef4444'}}>net {fmt(net)}</span></div>} onClick={()=>{setRv('daily');setRd(d)}}/>})}</Card></>)}
+          {days.length>0&&(<><SecL>Day-wise</SecL><Card>{days.map(d=>{const dI=db.income.filter(e=>e.date===d);const dc=cashTotal(dI);const cr=credTotal(dI);const de=db.expenses.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0);const dref=totalRef(dI,db.ip_patients);const dpkg=pkgPay(d);const dpkgTotal=dpkg.reduce((a,py)=>a+py.amount,0);const dpkgComm=dpkg.reduce((a,py)=>a+(py.commission||0),0);const dvcFees=db.income.filter(e=>e.date===d&&e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=dc+dpkgTotal-de-dref-dpkgComm-dvcFees;return<Row key={d} left={fmtD(d)} right={<div style={{textAlign:'right'}}><span style={{color:'#16a34a',fontWeight:600}}>{fmt(dc)}</span>{dpkgTotal>0&&<span style={{fontSize:10,color:'#1d4ed8',marginLeft:6}}>+pkg {fmt(dpkgTotal)}</span>}{cr>0&&<span style={{fontSize:10,color:'#c2410c',marginLeft:6}}>{fmt(cr)} cr</span>}<br/><span style={{fontSize:11,color:net>=0?'#16a34a':'#ef4444'}}>net {fmt(net)}</span></div>} onClick={()=>{setRv('daily');setRd(d)}}/>})}</Card></>)}
           {mps.length>0&&(<><SecL>IP patients this month</SecL><Card>{mps.map(p=>{const en=db.income.filter(e=>e.patient_id===p.id);const t=en.reduce((a,e)=>a+e.amount,0);const pd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const cr=credTotal(en);return<Row key={p.id} left={<span>{p.name}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={`${fmtD(p.admission_date)}${p.discharge_date?' → '+fmtD(p.discharge_date):' (active)'}${cr>0?' · Credit: '+fmt(cr):''}`} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(t)}</div>{t-pd>0&&<div style={{fontSize:11,color:'#ef4444'}}>due {fmt(t-pd)}</div>}</div>} onClick={()=>gotoIP(p.id)}/>})}</Card></>)}
           <SecL>Income by source</SecL><IncT incList={mI}/>
           <SecL>Expenses</SecL><ExpT exp={exp}/>
@@ -1191,7 +1200,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
           {mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}
           {mons.length>0&&(<><SecL>Month-wise</SecL><Card>
             <div style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr 1fr',marginBottom:4}}>{['Month','Cash','Credit','Net'].map(h=><div key={h} style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',padding:'4px 4px 8px 0',borderBottom:'1px solid #f0f0f0'}}>{h}</div>)}</div>
-            {mons.map(ym=>{const mI2=db.income.filter(e=>e.date?.startsWith(ym));const mc=cashTotal(mI2);const mcr=credTotal(mI2);const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const mref=totalRef(mI2,db.ip_patients);const mpkg=pkgPay(ym);const mpkgNet=mpkg.reduce((a,py)=>a+py.amount-(py.commission||0),0);const mn=mc+mpkgNet-me-mref;const[,m]=ym.split('-');return(
+            {mons.map(ym=>{const mI2=db.income.filter(e=>e.date?.startsWith(ym));const mc=cashTotal(mI2);const mcr=credTotal(mI2);const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const mref=totalRef(mI2,db.ip_patients);const mpkg=pkgPay(ym);const mpkgNet=mpkg.reduce((a,py)=>a+py.amount-(py.commission||0),0);const mvcFees=db.income.filter(e=>e.date?.startsWith(ym)&&e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const mn=mc+mpkgNet-me-mref-mvcFees;const[,m]=ym.split('-');return(
               <div key={ym} onClick={()=>{setRv('monthly');setRm(ym)}} style={{display:'grid',gridTemplateColumns:'auto 1fr 1fr 1fr',padding:'8px 0',borderBottom:'1px solid #f5f5f5',cursor:'pointer'}}>
                 <span style={{fontSize:12,paddingRight:6}}>{MOS[parseInt(m)-1]}</span>
                 <span style={{fontSize:12,color:'#16a34a',fontWeight:600}}>{fmt(mc)}</span>
