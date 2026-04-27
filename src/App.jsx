@@ -228,6 +228,75 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
 
 /* ── LOGIN ── */
 
+
+/* ── SETTINGS PANEL ── */
+const SettingsPanel=()=>{
+  const [plans,setPlans]=useState({
+    trial:{label:'Trial',days:30,price:0},
+    starter:{label:'Starter',price:999,days:365},
+    pro:{label:'Pro',price:1999,days:365},
+    enterprise:{label:'Enterprise',price:4999,days:365},
+  })
+  const [appName,setAppName]=useState('HospTrack')
+  const [support,setSupport]=useState('support@hosptrack.in')
+  const [saved,setSaved]=useState(false)
+  const save=()=>{
+    // Save to localStorage for persistence
+    localStorage.setItem('sa_settings',JSON.stringify({plans,appName,support}))
+    setSaved(true)
+    setTimeout(()=>setSaved(false),2000)
+  }
+  useEffect(()=>{
+    const s=localStorage.getItem('sa_settings')
+    if(s){const d=JSON.parse(s);setPlans(d.plans||plans);setAppName(d.appName||appName);setSupport(d.support||support)}
+  },[])
+  return(
+    <div>
+      <Card>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:16}}>App settings</div>
+        <FInp label="App name" type="text" value={appName} onChange={e=>setAppName(e.target.value)}/>
+        <FInp label="Support email" type="email" value={support} onChange={e=>setSupport(e.target.value)}/>
+      </Card>
+      <SecL>Plan pricing</SecL>
+      {Object.entries(plans).map(([key,plan])=>(
+        <Card key={key}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111',marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+            {plan.label}
+            {key==='trial'&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef3c7',color:'#b45309',fontWeight:700}}>FREE</span>}
+            {key==='pro'&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>POPULAR</span>}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <div>
+              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Price (₹/month)</label>
+              <input style={{...S.inp,background:key==='trial'?'#f9f9f9':'#fff'}} type="number" inputMode="numeric" value={plan.price} disabled={key==='trial'} onChange={e=>setPlans({...plans,[key]:{...plan,price:parseInt(e.target.value)||0}})}/>
+            </div>
+            <div>
+              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Trial days</label>
+              <input style={S.inp} type="number" inputMode="numeric" value={plan.days} onChange={e=>setPlans({...plans,[key]:{...plan,days:parseInt(e.target.value)||30}})}/>
+            </div>
+          </div>
+          <div style={{fontSize:11,color:'#aaa',marginTop:4}}>
+            {key==='trial'?`Free for ${plan.days} days then requires upgrade`:`₹${plan.price}/month · Billed monthly`}
+          </div>
+        </Card>
+      ))}
+      {saved&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#16a34a',fontWeight:600}}>✅ Settings saved!</div>}
+      <PBtn onClick={save}>Save settings</PBtn>
+      <div style={{marginTop:16,background:'#f9f9f9',borderRadius:12,padding:'14px 16px'}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',marginBottom:10}}>Current plan summary</div>
+        {Object.entries(plans).map(([key,plan])=>(
+          <div key={key} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f0f0f0',fontSize:13}}>
+            <span style={{fontWeight:600}}>{plan.label}</span>
+            <span style={{color:key==='trial'?'#b45309':'#111',fontWeight:key==='pro'?700:400}}>
+              {key==='trial'?`Free · ${plan.days} days`:fmt(plan.price)+'/month'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── SUPER ADMIN DASHBOARD ── */
 const SuperAdminDashboard=()=>{
   const [hospitals,setHospitals]=useState([])
@@ -282,7 +351,7 @@ const SuperAdminDashboard=()=>{
           <button onClick={()=>supabase.auth.signOut()} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>Logout</button>
         </div>
         <div style={{display:'flex',gap:0,marginBottom:-1}}>
-          {[{k:'list',l:'Hospitals'},{k:'add',l:'+ Add'}].map(t=>(<button key={t.k} onClick={()=>{setView(t.k);setMsg(null)}} style={{padding:'9px 14px',fontSize:12,fontWeight:600,border:'none',background:'none',color:view===t.k?'#fff':'#6b7280',borderBottom:view===t.k?'2px solid #fff':'2px solid transparent',cursor:'pointer'}}>{t.l}</button>))}
+          {[{k:'list',l:'Hospitals'},{k:'add',l:'+ Add'},{k:'settings',l:'⚙️ Settings'}].map(t=>(<button key={t.k} onClick={()=>{setView(t.k);setMsg(null)}} style={{padding:'9px 14px',fontSize:12,fontWeight:600,border:'none',background:'none',color:view===t.k?'#fff':'#6b7280',borderBottom:view===t.k?'2px solid #fff':'2px solid transparent',cursor:'pointer'}}>{t.l}</button>))}
         </div>
       </div>
       <div style={{padding:'16px 16px 60px'}}>
@@ -319,6 +388,9 @@ const SuperAdminDashboard=()=>{
             <PBtn onClick={create} disabled={busy}>{busy?'Creating…':'Create hospital & admin'}</PBtn>
             {msg?.ok&&<div style={{marginTop:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'14px 16px',fontSize:13,lineHeight:2}}>🏥 {msg.h}<br/>👤 Username: <strong>{msg.u}</strong><br/>🔑 Password: <strong>{msg.p}</strong></div>}
           </Card>
+        )}
+        {view==='settings'&&(
+          <SettingsPanel/>
         )}
       </div>
     </div>
