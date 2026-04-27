@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase.js'
 
-const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'}]
-const ECATS=[{key:'ip_ref',label:'IP Referral commission'},{key:'op_ref',label:'OP Referral commission'},{key:'ref_paid',label:'Referral commission paid'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'misc',label:'Miscellaneous'}]
+const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
+const ECATS=[{key:'ip_ref',label:'IP Referral commission'},{key:'op_ref',label:'OP Referral commission'},{key:'ref_paid',label:'Referral commission paid'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'consultant_fee',label:'Consultant fee paid'},{key:'misc',label:'Miscellaneous'}]
 const PMODES=['cash','upi','card','credit','other']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
-const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50}
-const CLBL={op:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%'}
-const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce']}
+const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,vc:0}
+const CLBL={op:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%',vc:'None'}
+const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],vc:['#f0fdf4','#065f46']}
 const ROLES=['admin','management','accounts','staff']
 const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@omhospital.app`
 
@@ -385,8 +385,8 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else pname=iF.pname
-    await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:isIP?'':iF.ref,notes:iF.notes})
-    setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:''})
+    await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:isIP?'':iF.ref,notes:iF.notes,consultant_fee:itype==='vc'?parseFloat(iF.consultant_fee||0):0})
+    setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:''})
   }
   return(
     <div>
@@ -408,7 +408,19 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
         <FInp label="Amount (₹)" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
         {prev>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:13}}>Commission: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> ({CLBL[itype]})</div>}
         {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>setIF({...iF,pid:e.target.value})}><option value="">— select admitted patient —</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
-          :<><FInp label="Patient name" type="text" placeholder="Optional" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>{COMM[itype]>0&&<FInp label="Referring doctor" type="text" placeholder="Doctor name" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>}</>}
+          :<>
+            <FInp label="Patient name" type="text" placeholder="Optional" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>
+            {COMM[itype]>0&&<FInp label="Referring doctor" type="text" placeholder="Doctor name" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>}
+            {itype==='vc'&&<>
+              <FInp label="Consultant name" type="text" placeholder="e.g. Dr. Sharma (Neurologist)" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>
+              <FInp label="Consultant fee to pay (₹)" type="number" inputMode="numeric" placeholder="Amount you give to consultant" value={iF.consultant_fee||''} onChange={e=>setIF({...iF,consultant_fee:e.target.value})}/>
+              {iF.amount&&iF.consultant_fee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13}}>
+                <span style={{color:'#065f46',fontWeight:600}}>Your income: </span>
+                <span style={{color:'#16a34a',fontWeight:700,fontSize:15}}>{fmt(parseFloat(iF.amount||0)-parseFloat(iF.consultant_fee||0))}</span>
+                <span style={{color:'#888',fontSize:11,marginLeft:6}}>(₹{iF.amount} collected − ₹{iF.consultant_fee} to consultant)</span>
+              </div>}
+            </>}
+          </>}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
           <FSel label="Payment" value={iF.pay} onChange={e=>setIF({...iF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
           <FInp label="Notes" type="text" placeholder="Optional" value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})}/>
@@ -441,7 +453,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
                   <TypeTag t={t.key}/>{e.patient_name||'—'}
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{doc?' · Ref: '+doc:''}{comm?' · Comm: '+fmt(comm):''}{e.notes?' · '+e.notes:''}</div>
+                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' · Consultant: '+e.ref_doctor:doc?' · Ref: '+doc:''}{comm?' · Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' · Fee to consultant: '+fmt(e.consultant_fee)+' · Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' · '+e.notes:''}</div>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -943,6 +955,76 @@ const LabReport=({db,rm,setRm,ry,setRy,yrs})=>{
   )
 }
 
+const VCReport=({db,income})=>{
+  const vcList=income.filter(e=>e.type==='vc')
+  const totalCollected=vcList.reduce((a,e)=>a+e.amount,0)
+  const totalFees=vcList.reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const totalIncome=totalCollected-totalFees
+
+  // Group by consultant
+  const consultants={}
+  vcList.forEach(e=>{
+    const name=e.ref_doctor||'Unknown consultant'
+    if(!consultants[name])consultants[name]={name,collected:0,fees:0,count:0,entries:[]}
+    consultants[name].collected+=e.amount
+    consultants[name].fees+=(e.consultant_fee||0)
+    consultants[name].count++
+    consultants[name].entries.push(e)
+  })
+  const docs=Object.values(consultants).sort((a,b)=>b.collected-a.collected)
+
+  if(!vcList.length)return<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No visiting consultant entries for this period</div>
+
+  return(
+    <>
+      {/* Summary */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+        <div style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total collected</div>
+          <div style={{fontSize:20,fontWeight:700}}>{fmt(totalCollected)}</div>
+        </div>
+        <div style={{background:'#fef2f2',borderRadius:12,padding:'10px 14px'}}>
+          <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Fees to pay</div>
+          <div style={{fontSize:20,fontWeight:700,color:'#dc2626'}}>{fmt(totalFees)}</div>
+        </div>
+        <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px',gridColumn:'1/-1'}}>
+          <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Your income from VC visits</div>
+          <div style={{fontSize:26,fontWeight:800,color:'#15803d'}}>{fmt(totalIncome)}</div>
+        </div>
+      </div>
+
+      {/* Per consultant */}
+      <SecL>Consultant-wise breakdown</SecL>
+      {docs.map(doc=>(
+        <Card key={doc.name} style={{border:'1px solid #d1fae5'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+            <div>
+              <div style={{fontSize:15,fontWeight:700}}>{doc.name}</div>
+              <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{doc.count} visit{doc.count!==1?'s':''}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:11,color:'#dc2626',fontWeight:600}}>Fee to pay</div>
+              <div style={{fontSize:20,fontWeight:700,color:'#dc2626'}}>{fmt(doc.fees)}</div>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f0f0f0',borderBottom:'1px solid #f0f0f0',marginBottom:10}}>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Collected</div><div style={{fontSize:13,fontWeight:700}}>{fmt(doc.collected)}</div></div>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Fee</div><div style={{fontSize:13,fontWeight:700,color:'#dc2626'}}>{fmt(doc.fees)}</div></div>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Your income</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(doc.collected-doc.fees)}</div></div>
+          </div>
+          {doc.entries.map(e=>(
+            <Row key={e.id}
+              left={<span>{fmtD(e.date)}{e.patient_name?' · '+e.patient_name:''}</span>}
+              sub={`Collected: ${fmt(e.amount)} · Fee: ${fmt(e.consultant_fee||0)} · Income: ${fmt(e.amount-(e.consultant_fee||0))}`}
+              right={<span style={{color:'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>}
+            />
+          ))}
+        </Card>
+      ))}
+    </>
+  )
+}
+
 const RealIncomeReport=({db})=>{
   const allInc=db.income.reduce((a,e)=>a+e.amount,0)
   const allComm=db.income.reduce((a,e)=>a+getComm(e),0)
@@ -1014,7 +1096,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const RVTABS=[
     {k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},
     {k:'referrals',l:'Referrals'},{k:'patients',l:'Patients'},
-    {k:'lab',l:'Lab'},{k:'realincome',l:'Real Income'},
+    {k:'lab',l:'Lab'},{k:'realincome',l:'Real Income'},{k:'vc',l:'Consultants'},
   ]
 
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
@@ -1128,6 +1210,21 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
       {rv==='patients'&&<PatientsReport db={db} gotoIP={gotoIP}/>}
       {rv==='lab'&&<LabReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
       {rv==='realincome'&&<RealIncomeReport db={db}/>}
+      {rv==='vc'&&(()=>{
+        const [vcPer,setVcPer]=useState('month')
+        const fi=vcPer==='month'?db.income.filter(e=>e.date?.startsWith(rm)):db.income.filter(e=>e.date?.startsWith(ry))
+        return(<>
+          <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
+            <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
+            {[{k:'month',l:'This month'},{k:'year',l:'This year'},{k:'all',l:'All time'}].map(v=>(
+              <button key={v.k} onClick={()=>setVcPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:vcPer===v.k?'none':'1px solid #e5e7eb',background:vcPer===v.k?'#111':'none',color:vcPer===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>
+            ))}
+          </div>
+          {vcPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
+          {vcPer==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+          <VCReport db={db} income={vcPer==='all'?db.income:fi}/>
+        </>)
+      })()}
     </div>
   )
 }
