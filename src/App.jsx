@@ -625,7 +625,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   const tot=Object.values(tots).reduce((a,b)=>a+b,0)
   const isIP=['ip','ip_r','ip_l'].includes(itype)
   const aps=db.ip_patients.filter(p=>!p.discharge_date)
-  const prev=iF.amount&&COMM[itype]?parseFloat(iF.amount)*COMM[itype]:0
+  const prev=iF.amount&&COMM[itype]&&iF.ref?parseFloat(iF.amount)*COMM[itype]:0
   const todayCash=cashTotal(di);const todayCredit=credTotal(di)
   const go=async()=>{
     const amt=parseFloat(iF.amount);if(!amt||amt<=0){alert('Enter a valid amount');return}
@@ -885,7 +885,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
                   {fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' · '+e.notes:''} · Commission: {fmt(getComm(e))}</div>
+                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' · '+e.notes:''}{getComm(e)>0?' · Commission: '+fmt(getComm(e)):''}</div>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -1089,7 +1089,7 @@ const OPTab=({db,actions})=>{
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:6,borderBottom:'1px solid #f0f0f0'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Billed</div>
-            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Commission</div>
+            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Ref comm</div>
             <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Real</div>
           </div>
           {Object.entries(byType).map(([tk,v])=>{
@@ -1196,7 +1196,7 @@ const OPTab=({db,actions})=>{
         <div style={{fontSize:12,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP patients</div>
         <div style={{fontSize:32,fontWeight:800}}>{patients.length}</div>
         <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>
-          Total billed: {fmt(patients.reduce((a,p)=>a+p.total,0))} · Commission: {fmt(patients.reduce((a,p)=>a+p.totalComm,0))}
+          Total billed: {fmt(patients.reduce((a,p)=>a+p.total,0))} · Referral commission: {fmt(patients.reduce((a,p)=>a+p.totalComm,0))}
         </div>
       </div>
 
@@ -1209,7 +1209,7 @@ const OPTab=({db,actions})=>{
               <div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>
               {pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>📞 {pat.phone}</div>}
               <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''}</div>
-              {pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(pat.totalComm)}</div>}
+              {pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Referral commission: {fmt(pat.totalComm)}</div>}
               {pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}
             </div>
             <div style={{textAlign:'right'}}>
