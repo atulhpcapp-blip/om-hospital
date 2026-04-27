@@ -764,6 +764,54 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {label:'Credit (not collected)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},
           {label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'},
         ]}/>
+        {/* IP Report — category breakdown */}
+        {ents.length>0&&(
+          <Card style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Charges breakdown</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+              <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
+              <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Billed</div>
+              <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduction</div>
+              <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Real</div>
+            </div>
+            {ITYPES.map(t=>{
+              const te=ents.filter(e=>e.type===t.key)
+              if(!te.length)return null
+              const inc=te.reduce((a,e)=>a+e.amount,0)
+              const cm=te.reduce((a,e)=>a+getComm(e),0)
+              return(
+                <div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
+                  <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={t.key}/>{t.full}</span>
+                  <span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(inc)}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{cm>0?'-'+fmt(cm):'—'}</span>
+                  <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(inc-cm)}</span>
+                </div>
+              )
+            })}
+            {b.pkgComm>0&&(p.payments||[]).length>0&&(
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}>
+                <span style={{fontSize:12,color:'#1d4ed8'}}>📦 Package received</span>
+                <span style={{fontSize:12,textAlign:'right',color:'#1d4ed8',minWidth:60}}>{fmt((p.payments||[]).reduce((a,py)=>a+py.amount,0))}</span>
+                <span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{b.pkgComm>0?'-'+fmt(b.pkgComm):'—'}</span>
+                <span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt((p.payments||[]).reduce((a,py)=>a+py.amount,0)-b.pkgComm)}</span>
+              </div>
+            )}
+            {(()=>{
+              const allInc=ents.reduce((a,e)=>a+e.amount,0)
+              const allComm=ents.reduce((a,e)=>a+getComm(e),0)
+              const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0)
+              const totalDeductions=allComm+b.pkgComm
+              return(
+                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 2px',marginTop:2,borderTop:'2px solid #111'}}>
+                  <span style={{fontSize:13,fontWeight:800}}>Total</span>
+                  <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(allInc+pkgPd)}</span>
+                  <span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totalDeductions>0?'-'+fmt(totalDeductions):'—'}</span>
+                  <span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(allInc+pkgPd-totalDeductions)}</span>
+                </div>
+              )
+            })()}
+          </Card>
+        )}
         {b.credit>0&&(<>
           <SecL>Credit by type</SecL>
           <Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>
