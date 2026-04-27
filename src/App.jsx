@@ -703,7 +703,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
       </div>
       <SecL>Select income type</SecL>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}}>
-        {ITYPES.map(t=>{const [bg,tx]=TC[t.key];const on=itype===t.key;return(
+        {ITYPES.filter(t=>t.key!=='vc').map(t=>{const [bg,tx]=TC[t.key];const on=itype===t.key;return(
           <button key={t.key} onClick={()=>setItype(t.key)} style={{padding:'10px 4px',border:on?`2px solid ${tx}`:'1px solid #e5e7eb',borderRadius:12,background:on?bg:'#fafafa',cursor:'pointer',textAlign:'center'}}>
             <div style={{fontSize:12,fontWeight:700,color:on?tx:'#555'}}>{t.label}</div>
             <div style={{fontSize:9,color:on?tx:'#aaa',marginTop:2}}>{t.full}</div>
@@ -767,7 +767,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
-                <button onClick={()=>setEditEntry(e)} style={{padding:'4px 8px',background:'none',border:'1px solid #d1d5db',borderRadius:6,fontSize:11,color:'#555',cursor:'pointer'}}>Edit</button>
+                <button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
                 <DBtn onClick={()=>actions.delIncome(e.id)}>✕</DBtn>
               </div>
             </div>
@@ -778,127 +778,6 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   )
 }
 
-
-/* ── MAIN APP ── */
-export default function App(){
-  const [session,setSession]=useState(null)
-  const [profile,setProfile]=useState(null)
-  const [hospital,setHospital]=useState(null)
-  const [isSuperAdmin,setIsSuperAdmin]=useState(false)
-  const [showRegister,setShowRegister]=useState(false)
-  const [loading,setLoading]=useState(true)
-  const [db,setDb]=useState({income:[],expenses:[],ip_patients:[]})
-  const [dbLoading,setDbLoading]=useState(false)
-  const [tab,setTab]=useState('entry')
-  const [eDate,setEDate]=useState(todayStr())
-  const [itype,setItype]=useState('op')
-  const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:'',phone:'',op_type:'New OP',custom_commission:''})
-  const [ipv,setIpv]=useState('list')
-  const [ipid,setIpid]=useState(null)
-  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:''})
-  const [cF,setCF]=useState({date:todayStr(),type:'ip',amt:'',pay:'cash',notes:''})
-  const [pyF,setPyF]=useState({date:todayStr(),amt:'',pay:'cash'})
-  const [exD,setExD]=useState(todayStr())
-  const [exF,setExF]=useState({cat:'water',amt:'',desc:'',pay:'cash',mon:false})
-  const [rv,setRv]=useState('daily')
-  const [rd,setRd]=useState(todayStr())
-  const [rm,setRm]=useState(todayStr().slice(0,7))
-  const [ry,setRy]=useState(todayStr().slice(0,4))
-
-  useEffect(()=>{
-    supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false)})
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false)})
-    return()=>subscription.unsubscribe()
-  },[])
-
-  useEffect(()=>{
-    if(!session)return
-    const init=async()=>{
-      const {data:sa,error:saErr}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
-      if(sa&&!saErr){setIsSuperAdmin(true);setLoading(false);return}
-      const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
-      setProfile(prof)
-      if(!prof?.hospital_id)return
-      const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',prof.hospital_id).single()
-      setHospital(hosp)
-      if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
-      setDbLoading(true)
-      const [inc,exp,pts]=await Promise.all([
-        supabase.from('income').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
-        supabase.from('expenses').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
-        supabase.from('ip_patients').select('*').eq('hospital_id',prof.hospital_id).order('admission_date',{ascending:false})
-      ])
-      setDb({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[]})
-      setDbLoading(false)
-    }
-    init()
-  },[session])
-
-  const actions={
-    addIncome:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addIncome',error);if(data)setDb(d=>({...d,income:[data[0],...d.income]}))},
-    delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
-    editIncome:async row=>{const {data}=await supabase.from('income').update(row).eq('id',row.id).select();if(data)setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?data[0]:e)}))},
-    addExpense:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error)console.error('addExpense',error);if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}))},
-    delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
-    admitPatient:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('ip_patients').insert([{...row,hospital_id:hid}]).select();if(error)console.error('admitPatient',error);if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))},
-    dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
-    addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
-    deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
-    deletePatient:async id=>{await supabase.from('income').delete().eq('patient_id',id);await supabase.from('ip_patients').delete().eq('id',id);setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))},
-  }
-  const gotoIP=useCallback((pid)=>{setIpid(pid);setIpv('detail');setTab('ip')},[])
-  const isAdmin=profile?.role==='admin'
-  const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'rep',l:'Reports'},{k:'credit',l:'💳 Credit'},...(isAdmin?[{k:'admin',l:'👥 Users'}]:[])]
-
-  if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading…</div>
-  if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
-  if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
-  if(isSuperAdmin)return<SuperAdminDashboard/>
-  if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise')return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f7f7f7',padding:20}}>
-      <div style={{maxWidth:360,width:'100%',textAlign:'center'}}>
-        <div style={{fontSize:48,marginBottom:12}}>⏰</div>
-        <div style={{fontSize:20,fontWeight:700,color:'#111',marginBottom:8}}>Trial expired</div>
-        <div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your 30-day free trial has ended.<br/>Contact support to continue.</div>
-        <Card><div style={{fontSize:13,color:'#555',lineHeight:2}}>Hospital: <strong>{hospital?.name}</strong><br/>Contact: support@hosptrack.in</div></Card>
-        <button onClick={()=>supabase.auth.signOut()} style={{marginTop:14,padding:'10px 20px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Logout</button>
-      </div>
-    </div>
-  )
-
-  return(
-    <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
-      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'12px 16px 0',position:'sticky',top:0,zIndex:10}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-          <div>
-            <div style={{fontWeight:700,fontSize:15,color:'#111'}}>🏥 {hospital?.name||'Hospital'}</div>
-            {profile&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{profile.name||'Staff'} · {profile.role||'staff'}{hospital?.plan&&hospital.plan!=='pro'?' · '+hospital.plan:''}</div>}
-          </div>
-          <button onClick={()=>supabase.auth.signOut()} style={{fontSize:12,color:'#aaa',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>Logout</button>
-        </div>
-        {dbLoading&&<div style={{fontSize:11,color:'#3b82f6',marginBottom:6,textAlign:'center'}}>Syncing…</div>}
-        <div style={{display:'flex',overflowX:'auto',gap:0,marginBottom:-1}}>
-          {TABS.map(t=>(
-            <button key={t.k} onClick={()=>setTab(t.k)} style={{flexShrink:0,padding:'9px 10px',fontSize:12,fontWeight:600,border:'none',background:'none',color:tab===t.k?'#111':'#bbb',borderBottom:tab===t.k?'2.5px solid #111':'2.5px solid transparent',cursor:'pointer',whiteSpace:'nowrap'}}>
-              {t.l}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{padding:'16px 16px 80px'}}>
-        <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
-        <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP}/></div>
-        <div style={{display:tab==='op'?'block':'none'}}><OPTab db={db} actions={actions}/></div>
-        <div style={{display:tab==='exp'?'block':'none'}}><ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/></div>
-        <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP}/></div>
-        <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db}/></div>
-        {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile} hospital={hospital}/></div>}
-      </div>
-    </div>
-  )
-}
-
-/* ── IP PATIENTS TAB ── */
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP})=>{
   const [editIPEntry,setEditIPEntry]=useState(null)
   const getBill=pid=>{
@@ -914,7 +793,6 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const balance=pats?.is_package?0:credit
     return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
-  if(editIPEntry)return(<div><EditEntryForm entry={editIPEntry} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/></div>)
   if(ipv==='detail'&&ipid){
     const p=db.ip_patients.find(p=>p.id===ipid)
     if(!p)return<button onClick={()=>setIpv('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
@@ -992,10 +870,11 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           </FSel>
           <PBtn style={{background:'#16a34a'}} onClick={async()=>{const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return};const comm=p.ref_doctor?Math.round(amt*0.40):0;await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''});setPyF({...pyF,amt:''})}}>Save package payment</PBtn>
         </Card></>)}
-        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span><button onClick={()=>setEditIPEntry(e)} style={{padding:'3px 8px',background:'none',border:'1px solid #d1d5db',borderRadius:6,fontSize:11,color:'#555',cursor:'pointer'}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
+        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span><button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
         {p.payments&&p.payments.length>0&&(<><SecL>Package payments received</SecL><Card>{p.payments.map(py=>(<div key={py.id} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:500}}>{fmtD(py.date)} - {py.payment}</div>{py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(py.commission)} - Net: {fmt(py.amount-py.commission)}</div>}</div><div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}><span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(py.amount)}</span><DBtn onClick={()=>{if(window.confirm('Delete this payment?'))actions.deletePayment(p.id,py.id)}}>Delete</DBtn></div></div></div>))}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700}}><span>Total received</span><span style={{color:'#16a34a'}}>{fmt((p.payments||[]).reduce((a,py)=>a+py.amount,0))}</span></div></Card></>)}
         <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}><button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}} onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records?')){actions.deletePatient(p.id);setIpv('list')}}}>Delete this patient and all records</button></div>
-      </div>
+      {editIPEntry&&<EditEntryForm entry={editIPEntry} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>}
+    </div>
     )
   }
   if(ipv==='add')return(
@@ -1059,7 +938,6 @@ const OPTab=({db,actions})=>{
   opIncome.forEach(e=>{const k=e.patient_name;if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0})
   const patients=Object.values(byPat).sort((a,b)=>b.total-a.total)
   const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
-  if(editEntry)return<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>
   if(selPat){
     const pat=byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
     const ents=pat.entries
@@ -1091,9 +969,10 @@ const OPTab=({db,actions})=>{
         {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{balance>0&&(!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{const {data:prof}=await supabase.from('profiles').select('hospital_id').eq('id',(await supabase.auth.getUser()).data.user?.id).single();const row={id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false,hospital_id:prof?.hospital_id};await supabase.from('expenses').insert([row]).select();window.location.reload()}}/>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}</Card>)})}</>)}
         <SecL>All visits</SecL>
         <Card>
-          {ents.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{const cr=isCredit(e);const comm=getComm(e);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' - Commission: '+fmt(comm):''}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}><button onClick={()=>setEditEntry(e)} style={{padding:'3px 8px',background:'none',border:'1px solid #d1d5db',borderRadius:6,fontSize:11,color:'#555',cursor:'pointer'}}>Edit</button><span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
+          {ents.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{const cr=isCredit(e);const comm=getComm(e);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' - Commission: '+fmt(comm):''}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}><button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
         </Card>
-      </div>
+      {editEntry&&<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>}
+    </div>
     )
   }
   return(
@@ -1324,6 +1203,8 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
   const [vcPer,setVcPer]=useState('month')
+  const [customFrom,setCustomFrom]=useState(todayStr().slice(0,7)+'-01')
+  const [customTo,setCustomTo]=useState(todayStr())
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=db.expenses.filter(e=>e.category==='ref_paid')
@@ -1353,7 +1234,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
       {rv==='daily'&&(()=>{const dI=db.income.filter(e=>e.date===rd);const exp=sumExp(db.expenses.filter(e=>e.date===rd));const rc=totalRef(dI);const pkg=getPkgPayments(db.ip_patients,rd);return(<><div style={{display:'flex',gap:8,marginBottom:14}}><input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/><GBtn onClick={()=>setRd(todayStr())}>Today</GBtn></div><PLCards incList={dI} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={dI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Doctor referrals</SecL><ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
       {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm));const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry));const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
-      {rv==='custom'&&(()=>{const [from,setFrom]=useState(todayStr().slice(0,7)+'-01');const [to,setTo]=useState(todayStr());const incList=db.income.filter(e=>e.date>=from&&e.date<=to);const expList=db.expenses.filter(e=>e.date>=from&&e.date<=to);const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=from&&py.date<=to);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={from} onChange={e=>setFrom(e.target.value)}/><FInp label="To" type="date" value={to} onChange={e=>setTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
+      {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo);const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
       {rv==='patlist'&&(timelinePid?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>:<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>)}
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>setTimelineSelPid('')}/>:<><div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>Select a patient to view timeline</div><Card>{db.ip_patients.length===0&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No patients yet</div>}{db.ip_patients.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);return(<Row key={p.id} left={<span style={{fontWeight:600}}>{p.name}{p.is_package&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}</span>} sub={fmtD(p.admission_date)+(p.discharge_date?' to '+fmtD(p.discharge_date):' - Active')+(p.reg_no?' - Reg:'+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:600}}>{fmt(total)}</div>{p.ref_doctor&&<div style={{fontSize:10,color:'#d97706'}}>Ref: {p.ref_doctor}</div>}</div>} onClick={()=>setTimelineSelPid(p.id)}/>)})}</Card></>)}
