@@ -601,13 +601,32 @@ const LoginPage=({onRegister=()=>{}})=>{
   )
 }
 /*  ADMIN  */
-const AdminTab=({currentUser,hospital=null})=>{
+const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
   const [users,setUsers]=useState([])
   const [loading,setLoading]=useState(true)
   const [showAdd,setShowAdd]=useState(false)
   const [nF,setNF]=useState({name:'',username:'',pass:'',role:'staff'})
   const [busy,setBusy]=useState(false)
   const [msg,setMsg]=useState(null)
+  const [logoUrl,setLogoUrl]=useState(hospital?.logo_url||'')
+  const [logoUploading,setLogoUploading]=useState(false)
+  const [logoMsg,setLogoMsg]=useState('')
+  const uploadLogo=async(e)=>{
+    const file=e.target.files?.[0];if(!file)return
+    if(!file.type.startsWith('image/')){setLogoMsg('Please select an image file');return}
+    if(file.size>2*1024*1024){setLogoMsg('Image must be under 2MB');return}
+    setLogoUploading(true);setLogoMsg('')
+    const ext=file.name.split('.').pop()
+    const path=`${hospital.id}/logo.${ext}`
+    const {error:upErr}=await supabase.storage.from('hospital-logos').upload(path,file,{upsert:true})
+    if(upErr){setLogoMsg('Upload failed: '+upErr.message);setLogoUploading(false);return}
+    const {data:{publicUrl}}=supabase.storage.from('hospital-logos').getPublicUrl(path)
+    const url=publicUrl+'?t='+Date.now()
+    await supabase.from('hospitals').update({logo_url:url}).eq('id',hospital.id)
+    setLogoUrl(url);onLogoUpdate(url)
+    setLogoMsg('Logo updated!');setLogoUploading(false)
+    setTimeout(()=>setLogoMsg(''),3000)
+  }
   useEffect(()=>{supabase.from('profiles').select('*').order('name').then(({data})=>{setUsers(data||[]);setLoading(false)})},[])
   const createUser=async()=>{
     if(!nF.name.trim()||!nF.username.trim()||!nF.pass.trim()){setMsg({ok:false,t:'Fill in all fields'});return}
@@ -628,11 +647,29 @@ const AdminTab=({currentUser,hospital=null})=>{
   return(
     <div>
       {hospital&&(<div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:14,padding:'14px 16px',marginBottom:12,color:'#fff'}}>
-        <div style={{fontSize:11,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Your hospital</div>
-        <div style={{fontSize:16,fontWeight:700}}>{hospital.name}</div>
-        <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
+          {logoUrl?<img src={logoUrl} alt="logo" style={{width:44,height:44,borderRadius:10,objectFit:'cover',border:'2px solid rgba(255,255,255,0.3)'}}/>:<div style={{width:44,height:44,borderRadius:10,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:'#fff',flexShrink:0}}>{hospital.name?.[0]||'H'}</div>}
+          <div>
+            <div style={{fontSize:11,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Your hospital</div>
+            <div style={{fontSize:16,fontWeight:700}}>{hospital.name}</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
           <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,255,255,0.2)',color:'#fff',fontWeight:700}}>{hospital.plan?.toUpperCase()}</span>
           <span style={{fontSize:11,color:'#bfdbfe'}}>Expires: {fmtD(hospital.plan_end)}</span>
+        </div>
+        <div style={{borderTop:'1px solid rgba(255,255,255,0.15)',paddingTop:10}}>
+          <div style={{fontSize:11,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Hospital logo</div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <label style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.25)',color:'#fff',padding:'7px 14px',borderRadius:10,cursor:'pointer',fontSize:12,fontWeight:600}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="white" stroke-width="2" stroke-linecap="round"/><polyline points="17 8 12 3 7 8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="3" x2="12" y2="15" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+              {logoUploading?'Uploading...':'Upload logo'}
+              <input type="file" accept="image/*" onChange={uploadLogo} style={{display:'none'}} disabled={logoUploading}/>
+            </label>
+            {logoUrl&&<div style={{fontSize:11,color:'#bfdbfe'}}>Logo uploaded</div>}
+          </div>
+          {logoMsg&&<div style={{marginTop:6,fontSize:12,color:logoMsg.includes('failed')||logoMsg.includes('must')?'#fca5a5':'#bbf7d0',fontWeight:600}}>{logoMsg}</div>}
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:6}}>Recommended: Square image, PNG or JPG, under 2MB</div>
         </div>
       </div>)}
       <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
@@ -1924,8 +1961,8 @@ export default function App(){
       <div style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:10,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{width:34,height:34,borderRadius:10,background:tc.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-              <svg width="18" height="18" viewBox="0 0 40 40" fill="none"><rect x="16" y="6" width="8" height="28" rx="4" fill={tc.active}/><rect x="6" y="16" width="28" height="8" rx="4" fill={tc.active}/><circle cx="20" cy="20" r="5" fill={tc.active} opacity="0.7"/></svg>
+            <div style={{width:34,height:34,borderRadius:10,background:tc.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
+              {hospital?.logo_url?<img src={hospital.logo_url} alt="logo" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<svg width="18" height="18" viewBox="0 0 40 40" fill="none"><rect x="16" y="6" width="8" height="28" rx="4" fill={tc.active}/><rect x="6" y="16" width="28" height="8" rx="4" fill={tc.active}/><circle cx="20" cy="20" r="5" fill={tc.active} opacity="0.7"/></svg>}
             </div>
             <div>
               <div style={{fontWeight:800,fontSize:14,color:'#0f172a',letterSpacing:'-0.3px'}}>{hospital?.name||'EasyMedical'}</div>
@@ -1948,7 +1985,7 @@ export default function App(){
         <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db} actions={actions}/></div>
         <div style={{display:tab==='refdrs'?'block':'none'}}><RefDoctorsTab db={db} actions={actions}/></div>
         <div style={{display:tab==='consult'?'block':'none'}}><ConsultantsTab db={db} actions={actions}/></div>
-        {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile} hospital={hospital}/></div>}
+        {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile} hospital={hospital} onLogoUpdate={url=>setHospital(h=>({...h,logo_url:url}))}/></div>}
       </div>
     </div>
   )
