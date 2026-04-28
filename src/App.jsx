@@ -479,7 +479,7 @@ const LoginPage=({onRegister=()=>{}})=>{
     const isEmail=username.includes('@')
     let error
     if(isEmail){const r=await supabase.auth.signInWithPassword({email:username,password:pass});error=r.error}
-    else{const r=await supabase.auth.signInWithPassword({email:toEmail(username),password:pass});error=r.error;if(error){const r2=await supabase.auth.signInWithPassword({email:username,password:pass});if(!r2.error)error=null}}
+    else{const r=await supabase.auth.signInWithPassword({email:toEmail(username),password:pass});error=r.error;if(error){const r2=await supabase.auth.signInWithPassword({email:username+'@omhospital.app',password:pass});if(!r2.error)error=null;else{const r3=await supabase.auth.signInWithPassword({email:username,password:pass});if(!r3.error)error=null}}}
     if(error)setErr('Wrong username or password. Please try again.')
     setBusy(false)
   }
@@ -1628,6 +1628,65 @@ const RealIncomeReport=({db})=>{
 }
 
 /*  REPORTS TAB  */
+/* ── AREA-WISE REPORT ── */
+const AreaReport=({db,rm,setRm,ry,setRy,yrs,aPer,setAPer,aFrom,setAFrom,aTo,setATo})=>{
+  const aInc=aPer==='month'?db.income.filter(e=>e.date?.startsWith(rm)):aPer==='year'?db.income.filter(e=>e.date?.startsWith(ry)):db.income.filter(e=>e.date>=aFrom&&e.date<=aTo)
+  const areaMap={}
+  db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'(no area set)'})
+  const areasObj={}
+  aInc.forEach(e=>{
+    if(!e.ref_doctor||!e.ref_doctor.trim())return
+    const area=areaMap[e.ref_doctor]||'(no area set)'
+    if(!areasObj[area])areasObj[area]={area,doctors:{},total:0,commission:0,patientNames:[]}
+    if(!areasObj[area].doctors[e.ref_doctor])areasObj[area].doctors[e.ref_doctor]={name:e.ref_doctor,income:0,commission:0,count:0}
+    areasObj[area].total+=e.amount
+    areasObj[area].commission+=getComm(e)
+    areasObj[area].doctors[e.ref_doctor].income+=e.amount
+    areasObj[area].doctors[e.ref_doctor].commission+=getComm(e)
+    areasObj[area].doctors[e.ref_doctor].count+=1
+    if(e.patient_name&&!areasObj[area].patientNames.includes(e.patient_name))areasObj[area].patientNames.push(e.patient_name)
+  })
+  const areaList=Object.values(areasObj).sort((a,b)=>b.total-a.total)
+  const grandTotal=areaList.reduce((a,r)=>a+r.total,0)
+  const grandComm=areaList.reduce((a,r)=>a+r.commission,0)
+  return(<>
+    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+      {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setAPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:aPer===v.k?'none':'1px solid #e5e7eb',background:aPer===v.k?'#111':'none',color:aPer===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+    </div>
+    {aPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
+    {aPer==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+    {aPer==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={aFrom} onChange={e=>setAFrom(e.target.value)}/><FInp label="To" type="date" value={aTo} onChange={e=>setATo(e.target.value)}/></div>}
+    {!areaList.length&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No referral data for this period.<br/>Add area to doctors in Ref Doctors tab first.</div>}
+    {areaList.length>0&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
+      {[{l:'Areas',v:areaList.length,c:'#1d4ed8'},{l:'Total income',v:fmt(grandTotal),c:'#16a34a'},{l:'Real income',v:fmt(grandTotal-grandComm),c:'#065f46'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:10,padding:'10px 14px',textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div><div style={{fontSize:15,fontWeight:800,color:m.c}}>{m.v}</div></div>))}
+    </div>}
+    {areaList.map(ar=>(
+      <Card key={ar.area} style={{marginBottom:12,borderLeft:'3px solid #1d4ed8'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:800,color:'#1d4ed8'}}>{ar.area}</div>
+            <div style={{fontSize:12,color:'#aaa',marginTop:2}}>{Object.keys(ar.doctors).length} doctor{Object.keys(ar.doctors).length!==1?'s':''} - {ar.patientNames.length} patient{ar.patientNames.length!==1?'s':''}</div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:20,fontWeight:800,color:'#16a34a'}}>{fmt(ar.total)}</div>
+            <div style={{fontSize:11,color:'#c2410c'}}>comm: {fmt(ar.commission)}</div>
+            <div style={{fontSize:11,color:'#1d4ed8',fontWeight:700}}>real: {fmt(ar.total-ar.commission)}</div>
+          </div>
+        </div>
+        <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
+          {Object.values(ar.doctors).sort((a,b)=>b.income-a.income).map(doc=>(
+            <div key={doc.name} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f9f9f9'}}>
+              <div><div style={{fontSize:13,fontWeight:600}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa'}}>{doc.count} entr{doc.count!==1?'ies':'y'}</div></div>
+              <div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(doc.income)}</div><div style={{fontSize:11,color:'#c2410c'}}>-{fmt(doc.commission)} comm</div></div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    ))}
+  </>)
+}
+
+
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
@@ -1669,74 +1728,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>setTimelineSelPid('')}/>:<><div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>Select a patient to view timeline</div><Card>{db.ip_patients.length===0&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No patients yet</div>}{db.ip_patients.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);return(<Row key={p.id} left={<span style={{fontWeight:600}}>{p.name}{p.is_package&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}</span>} sub={fmtD(p.admission_date)+(p.discharge_date?' to '+fmtD(p.discharge_date):' - Active')+(p.reg_no?' - Reg:'+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:600}}>{fmt(total)}</div>{p.ref_doctor&&<div style={{fontSize:10,color:'#d97706'}}>Ref: {p.ref_doctor}</div>}</div>} onClick={()=>setTimelineSelPid(p.id)}/>)})}</Card></>)}
       {rv==='expenses'&&<ExpensesReport db={db}/>}
       {rv==='realincome'&&<RealIncomeReport db={db}/>}
-      {rv==='area'&&(()=>{
-        const aInc=aPer==='month'?db.income.filter(e=>e.date?.startsWith(rm)):aPer==='year'?db.income.filter(e=>e.date?.startsWith(ry)):db.income.filter(e=>e.date>=aFrom&&e.date<=aTo)
-        // Build area-wise data using ref_doctors area field
-        const areaMap={}
-        db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'(no area)'})
-        const areas={}
-        aInc.forEach(e=>{
-          if(!e.ref_doctor||!e.ref_doctor.trim())return
-          const area=areaMap[e.ref_doctor]||'(no area)'
-          if(!areas[area])areas[area]={area,doctors:{},total:0,commission:0,patients:new Set()}
-          if(!areas[area].doctors[e.ref_doctor])areas[area].doctors[e.ref_doctor]={name:e.ref_doctor,income:0,commission:0,count:0}
-          areas[area].total+=e.amount
-          areas[area].commission+=getComm(e)
-          areas[area].doctors[e.ref_doctor].income+=e.amount
-          areas[area].doctors[e.ref_doctor].commission+=getComm(e)
-          areas[area].doctors[e.ref_doctor].count+=1
-          if(e.patient_name)areas[area].patients.add(e.patient_name)
-        })
-        const areaList=Object.values(areas).sort((a,b)=>b.total-a.total)
-        return(<>
-          <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
-            {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setAPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:aPer===v.k?'none':'1px solid #e5e7eb',background:aPer===v.k?'#111':'none',color:aPer===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
-          </div>
-          {aPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
-          {aPer==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-          {aPer==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={aFrom} onChange={e=>setAFrom(e.target.value)}/><FInp label="To" type="date" value={aTo} onChange={e=>setATo(e.target.value)}/></div>}
-          {!areaList.length&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No referral data for this period.<br/>Make sure doctors have area set in Ref Doctors tab.</div>}
-          {areaList.map(ar=>(
-            <Card key={ar.area} style={{marginBottom:12,borderLeft:'3px solid #1d4ed8'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                <div>
-                  <div style={{fontSize:16,fontWeight:800,color:'#1d4ed8'}}>{ar.area}</div>
-                  <div style={{fontSize:12,color:'#aaa',marginTop:2}}>{Object.keys(ar.doctors).length} doctor{Object.keys(ar.doctors).length!==1?'s':''} - {ar.patients.size} patient{ar.patients.size!==1?'s':''}</div>
-                </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:20,fontWeight:800,color:'#16a34a'}}>{fmt(ar.total)}</div>
-                  <div style={{fontSize:11,color:'#c2410c'}}>comm: {fmt(ar.commission)}</div>
-                  <div style={{fontSize:11,color:'#1d4ed8',fontWeight:700}}>real: {fmt(ar.total-ar.commission)}</div>
-                </div>
-              </div>
-              <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
-                {Object.values(ar.doctors).sort((a,b)=>b.income-a.income).map(doc=>(
-                  <div key={doc.name} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f9f9f9'}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:600}}>Dr. {doc.name}</div>
-                      <div style={{fontSize:11,color:'#aaa'}}>{doc.count} entr{doc.count!==1?'ies':'y'}</div>
-                    </div>
-                    <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(doc.income)}</div>
-                      <div style={{fontSize:11,color:'#c2410c'}}>-{fmt(doc.commission)} comm</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ))}
-          {areaList.length>0&&(
-            <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'14px 16px',marginTop:4}}>
-              <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Summary - {areaList.length} areas</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                {[{l:'Total income',v:fmt(areaList.reduce((a,r)=>a+r.total,0)),c:'#16a34a'},{l:'Commission',v:fmt(areaList.reduce((a,r)=>a+r.commission,0)),c:'#c2410c'},{l:'Real income',v:fmt(areaList.reduce((a,r)=>a+r.total-r.commission,0)),c:'#1d4ed8'}].map((m,i)=>(
-                  <div key={i} style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:16,fontWeight:800,color:m.c,marginTop:2}}>{m.v}</div></div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>)
-      })()}
+      {rv==='area'&&<AreaReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} aPer={aPer} setAPer={setAPer} aFrom={aFrom} setAFrom={setAFrom} aTo={aTo} setATo={setATo}/>}
     </div>
   )
 }
