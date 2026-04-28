@@ -1629,7 +1629,10 @@ const RealIncomeReport=({db})=>{
 
 /*  REPORTS TAB  */
 /* ── AREA-WISE REPORT ── */
-const AreaReport=({db,rm,setRm,ry,setRy,yrs,aPer,setAPer,aFrom,setAFrom,aTo,setATo})=>{
+const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
+  const [aPer,setAPer]=useState('month')
+  const [aFrom,setAFrom]=useState(todayStr().slice(0,7)+'-01')
+  const [aTo,setATo]=useState(todayStr())
   const aInc=aPer==='month'?db.income.filter(e=>e.date?.startsWith(rm)):aPer==='year'?db.income.filter(e=>e.date?.startsWith(ry)):db.income.filter(e=>e.date>=aFrom&&e.date<=aTo)
   const areaMap={}
   db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'(no area set)'})
@@ -1728,7 +1731,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>setTimelineSelPid('')}/>:<><div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>Select a patient to view timeline</div><Card>{db.ip_patients.length===0&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No patients yet</div>}{db.ip_patients.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);return(<Row key={p.id} left={<span style={{fontWeight:600}}>{p.name}{p.is_package&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}</span>} sub={fmtD(p.admission_date)+(p.discharge_date?' to '+fmtD(p.discharge_date):' - Active')+(p.reg_no?' - Reg:'+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:600}}>{fmt(total)}</div>{p.ref_doctor&&<div style={{fontSize:10,color:'#d97706'}}>Ref: {p.ref_doctor}</div>}</div>} onClick={()=>setTimelineSelPid(p.id)}/>)})}</Card></>)}
       {rv==='expenses'&&<ExpensesReport db={db}/>}
       {rv==='realincome'&&<RealIncomeReport db={db}/>}
-      {rv==='area'&&<AreaReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} aPer={aPer} setAPer={setAPer} aFrom={aFrom} setAFrom={setAFrom} aTo={aTo} setATo={setATo}/>}
+      {rv==='area'&&<AreaReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
     </div>
   )
 }
