@@ -1884,7 +1884,7 @@ export default function App(){
   const [loading,setLoading]=useState(true)
   const [db,setDb]=useState({income:[],expenses:[],ip_patients:[],ref_doctors:[],consultants:[]})
   const [dbLoading,setDbLoading]=useState(false)
-  const [tab,setTab]=useState('entry')
+  const [tab,setTab]=useState('dash')
   const [eDate,setEDate]=useState(todayStr())
   const [itype,setItype]=useState('op')
   const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:''})
@@ -1954,7 +1954,7 @@ export default function App(){
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
-  const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading...</div>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
@@ -1965,7 +1965,7 @@ export default function App(){
     return <PaymentPage/>
   }
 
-  const TAB_COLORS={entry:{active:'#16a34a',bg:'#f0fdf4'},ip:{active:'#2563eb',bg:'#eff6ff'},op:{active:'#7c3aed',bg:'#f5f3ff'},exp:{active:'#dc2626',bg:'#fff1f2'},rep:{active:'#d97706',bg:'#fffbeb'},credit:{active:'#c2410c',bg:'#fff7ed'},refdrs:{active:'#0891b2',bg:'#ecfeff'},consult:{active:'#7c3aed',bg:'#f5f3ff'},admin:{active:'#475569',bg:'#f8fafc'}}
+  const TAB_COLORS={dash:{active:'#6366f1',bg:'#eef2ff'},entry:{active:'#16a34a',bg:'#f0fdf4'},ip:{active:'#2563eb',bg:'#eff6ff'},op:{active:'#7c3aed',bg:'#f5f3ff'},exp:{active:'#dc2626',bg:'#fff1f2'},rep:{active:'#d97706',bg:'#fffbeb'},credit:{active:'#c2410c',bg:'#fff7ed'},refdrs:{active:'#0891b2',bg:'#ecfeff'},consult:{active:'#7c3aed',bg:'#f5f3ff'},admin:{active:'#475569',bg:'#f8fafc'}}
   const tc=TAB_COLORS[tab]||{active:'#16a34a',bg:'#f0fdf4'}
   return(
     <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
@@ -1991,6 +1991,7 @@ export default function App(){
         </div>
       </div>
       <div style={{padding:'16px 16px 80px'}}>
+        <div style={{display:tab==='dash'?'block':'none'}}>{canSeeReports&&<AnalyticsDash db={db}/>}{!canSeeReports&&<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>}</div>
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP}/></div>
         <div style={{display:tab==='op'?'block':'none'}}><OPTab db={db} actions={actions}/></div>
@@ -2168,6 +2169,7 @@ const ConsultantsTab=({db,actions})=>{
 }
 
 /*  PAYMENT PAGE  */
+
 const PaymentPage=({onBack=null})=>{
   const [plan,setPlan]=useState('pro')
   const [billing,setBilling]=useState('monthly')
@@ -2281,6 +2283,167 @@ const PaymentPage=({onBack=null})=>{
           {onBack&&<button onClick={onBack} style={{fontSize:11,color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',fontWeight:600}}>Back to app</button>}
           <button onClick={()=>supabase.auth.signOut()} style={{fontSize:11,color:'rgba(255,255,255,0.2)',background:'none',border:'none',cursor:'pointer'}}>Logout</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/*  ANALYTICS DASHBOARD  */
+const AnalyticsDash=({db})=>{
+  const today=todayStr()
+  const thisMonth=today.slice(0,7)
+  const lastMonth=(()=>{const d=new Date(today);d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7)})()
+  const thisYear=today.slice(0,4)
+
+  const inc=db.income
+  const exp=db.expenses
+
+  // Period helpers
+  const incBy=(prefix)=>inc.filter(e=>e.date?.startsWith(prefix))
+  const expBy=(prefix)=>exp.filter(e=>e.date?.startsWith(prefix))
+  const sum=(arr)=>arr.reduce((a,e)=>a+e.amount,0)
+  const comm=(arr)=>arr.reduce((a,e)=>a+getComm(e),0)
+  const credit=(arr)=>arr.reduce((a,e)=>a+(isCredit(e)?e.amount:0),0)
+
+  // This month vs last month
+  const tmInc=incBy(thisMonth);const lmInc=incBy(lastMonth)
+  const tmExp=expBy(thisMonth);const lmExp=expBy(lastMonth)
+  const tmTotal=sum(tmInc);const lmTotal=sum(lmInc)
+  const tmComm=comm(tmInc);const lmComm=comm(lmInc)
+  const tmExpTotal=sum(tmExp);const lmExpTotal=sum(lmExp)
+  const tmReal=tmTotal-tmComm-tmExpTotal
+  const lmReal=lmTotal-lmComm-lmExpTotal
+  const tmCredit=credit(tmInc)
+  const growthPct=lmTotal>0?Math.round((tmTotal-lmTotal)/lmTotal*100):null
+  const realGrowthPct=lmReal>0?Math.round((tmReal-lmReal)/lmReal*100):null
+
+  // Today
+  const todayInc=incBy(today);const todayExp=expBy(today)
+  const todayTotal=sum(todayInc);const todayComm=comm(todayInc)
+  const todayCredit=credit(todayInc);const todayExpTotal=sum(todayExp)
+
+  // Year totals
+  const yrInc=incBy(thisYear)
+  const yrTotal=sum(yrInc);const yrComm=comm(yrInc);const yrExp=sum(expBy(thisYear))
+  const yrReal=yrTotal-yrComm-yrExp
+
+  // Income by type - this month
+  const byType={}
+  tmInc.forEach(e=>{if(!byType[e.type])byType[e.type]={total:0,comm:0,count:0};byType[e.type].total+=e.amount;byType[e.type].comm+=getComm(e);byType[e.type].count++})
+  const typeList=Object.entries(byType).sort((a,b)=>b[1].total-a[1].total)
+
+  // Top referral doctors - this month
+  const refMap={}
+  tmInc.forEach(e=>{if(!e.ref_doctor||!e.ref_doctor.trim())return;if(!refMap[e.ref_doctor])refMap[e.ref_doctor]={name:e.ref_doctor,income:0,comm:0,count:0};refMap[e.ref_doctor].income+=e.amount;refMap[e.ref_doctor].comm+=getComm(e);refMap[e.ref_doctor].count++})
+  const topRefs=Object.values(refMap).sort((a,b)=>b.income-a.income).slice(0,5)
+
+  // Last 7 days trend
+  const last7=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-6+i);const ds=d.toISOString().slice(0,10);const dayInc=inc.filter(e=>e.date===ds);return{date:ds,label:d.toLocaleDateString('en-IN',{weekday:'short'}),total:sum(dayInc),credit:credit(dayInc)}})
+  const maxDay=Math.max(...last7.map(d=>d.total),1)
+
+  // IP stats
+  const activeIP=db.ip_patients.filter(p=>!p.discharge_date).length
+  const dischargedTM=db.ip_patients.filter(p=>p.discharge_date?.startsWith(thisMonth)).length
+  const admittedTM=db.ip_patients.filter(p=>p.admission_date?.startsWith(thisMonth)).length
+
+
+  return(
+    <div>
+      {/* TODAY STRIP */}
+      <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)',borderRadius:16,padding:'16px',marginBottom:14,color:'#fff'}}>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:10}}>Today  {new Date(today+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+          {[{l:'Collected',v:fmt(todayTotal-todayCredit),c:'#4ade80'},{l:'Credit',v:fmt(todayCredit),c:'#f87171'},{l:'Expenses',v:fmt(todayExpTotal),c:'#fbbf24'},{l:'Real profit',v:fmt(todayTotal-todayComm-todayExpTotal),c:'#34d399'}].map((m,i)=>(
+            <div key={i} style={{textAlign:'center'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>{m.l}</div>
+              <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 7-DAY CHART */}
+      <Card>
+        <div style={{fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:14}}>Last 7 days</div>
+        <div style={{display:'flex',alignItems:'flex-end',gap:6,height:80}}>
+          {last7.map((d,i)=>{const h=Math.max(4,Math.round((d.total/maxDay)*80));const isToday=d.date===today;const bar=(<div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}><div style={{fontSize:8,color:'#94a3b8',fontWeight:600}}>{d.total>0?fmt(d.total).replace('Rs ',''):'-'}</div><div style={{width:'100%',height:h,borderRadius:'4px 4px 0 0',background:isToday?'linear-gradient(180deg,#22c55e,#16a34a)':'linear-gradient(180deg,#3b82f6,#2563eb)',opacity:isToday?1:0.6,minHeight:4}}/><div style={{fontSize:9,color:isToday?'#16a34a':'#94a3b8',fontWeight:isToday?700:500}}>{d.label}</div></div>);return bar})}
+        </div>
+      </Card>
+
+      {/* THIS MONTH VS LAST MONTH */}
+      <SecL>This month vs last month</SecL>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+        {[
+          {l:'Total income',tm:tmTotal,lm:lmTotal,c:'#16a34a'},
+          {l:'Real income',tm:tmReal,lm:lmReal,c:'#0891b2'},
+          {l:'Commission paid',tm:tmComm,lm:lmComm,c:'#d97706'},
+          {l:'Expenses',tm:tmExpTotal,lm:lmExpTotal,c:'#dc2626'},
+        ].map((m,i)=>{const pct=m.lm>0?Math.round((m.tm-m.lm)/m.lm*100):null;const up=pct===null||pct>=0;return(
+          <div key={i} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px'}}>
+            <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>{m.l}</div>
+            <div style={{fontSize:18,fontWeight:800,color:m.c,marginBottom:4}}>{fmt(m.tm)}</div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span style={{fontSize:10,color:'#94a3b8'}}>Last: {fmt(m.lm)}</span>
+              {pct!==null&&<span style={{fontSize:10,fontWeight:700,color:up?'#16a34a':'#dc2626'}}>{up?'+':''}{pct}%</span>}
+            </div>
+          </div>
+        )})}
+      </div>
+
+      {/* IP PATIENTS */}
+      <SecL>Inpatients  {thisMonth}</SecL>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}}>
+        {[{l:'Active now',v:activeIP,c:'#2563eb'},{l:'Admitted',v:admittedTM,c:'#16a34a'},{l:'Discharged',v:dischargedTM,c:'#6b7280'}].map((m,i)=>(
+          <div key={i} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:12,padding:'12px',textAlign:'center'}}>
+            <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
+            <div style={{fontSize:26,fontWeight:900,color:m.c}}>{m.v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* INCOME BY TYPE */}
+      <SecL>Income breakdown  {thisMonth}</SecL>
+      <Card>
+        {typeList.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#ccc',fontSize:13}}>No income this month yet</div>}
+        {typeList.map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);const pct=Math.round((v.total/tmTotal)*100)||0;return(
+          <div key={tk} style={{marginBottom:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+              <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:600}}><TypeTag t={tk}/>{it?.full||tk}</span>
+              <div style={{textAlign:'right'}}>
+                <span style={{fontSize:13,fontWeight:700}}>{fmt(v.total)}</span>
+                {v.comm>0&&<span style={{fontSize:10,color:'#d97706',marginLeft:6}}>-{fmt(v.comm)}</span>}
+                <span style={{fontSize:10,color:'#94a3b8',marginLeft:6}}>{pct}%</span>
+              </div>
+            </div>
+            <div style={{height:5,background:'#f1f5f9',borderRadius:3,overflow:'hidden'}}>
+              <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#16a34a,#22c55e)',borderRadius:3,transition:'width .5s'}}/>
+            </div>
+          </div>
+        )}
+      )}
+      </Card>
+
+      {/* TOP REFERRAL DOCTORS */}
+      {topRefs.length>0&&<div>
+        <SecL>Top referral doctors - {thisMonth}</SecL>
+        <Card>{topRefs.map((doc,i)=><div key={doc.name} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<topRefs.length-1?'1px solid #f1f5f9':'none'}}><div style={{width:26,height:26,borderRadius:'50%',background:['#dbeafe','#dcfce7','#fef3c7','#fce7f3','#ede9fe'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:['#1d4ed8','#16a34a','#b45309','#9d174d','#6d28d9'][i],flexShrink:0}}>{i+1}</div><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Dr. {doc.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{doc.count} visit{doc.count!==1?'s':''}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(doc.income)}</div>{doc.comm>0&&<div style={{fontSize:10,color:'#d97706'}}>comm: {fmt(doc.comm)}</div>}</div></div>)}</Card>
+      </div>}
+
+      {/* YEAR SUMMARY */}
+      <SecL>{thisYear} - Year to date</SecL>
+      <div style={{background:'linear-gradient(135deg,#0f172a,#1e3a5f)',borderRadius:16,padding:'16px',marginBottom:8,color:'#fff'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,textAlign:'center'}}>
+          {[{l:'Gross income',v:fmt(yrTotal),c:'#4ade80'},{l:'Total expenses',v:fmt(yrExp+yrComm),c:'#f87171'},{l:'Real profit',v:fmt(yrReal),c:'#34d399'}].map((m,i)=>(
+            <div key={i}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',fontWeight:700,marginBottom:6}}>{m.l}</div>
+              <div style={{fontSize:15,fontWeight:800,color:m.c}}>{m.v}</div>
+            </div>
+          ))}
+        </div>
+        {tmCredit>0&&<div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(255,255,255,0.1)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span style={{fontSize:11,color:'rgba(255,255,255,0.5)'}}>Outstanding credit (this month)</span>
+          <span style={{fontSize:13,fontWeight:700,color:'#f87171'}}>{fmt(tmCredit)}</span>
+        </div>}
       </div>
     </div>
   )
