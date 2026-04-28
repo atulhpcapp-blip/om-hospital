@@ -1175,7 +1175,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               <span style={{background:'#eff6ff',border:'1px solid #bfdbfe',color:'#1d4ed8',fontSize:12,fontWeight:700,padding:'5px 14px',borderRadius:100}}>Area: {doc.area}</span>
             </div>}
             <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#92400e'}}>
-              <strong>Dr. {doc.name}</strong> commission rates: IP {doc.ip_pct}% · IP-Pharmacy {doc.ip_r_pct}% · IP-Lab {doc.ip_l_pct}%{pF.patient_type==='Package'?' · Package '+doc.ip_pct+'%':''}
+              <strong>Dr. {doc.name}</strong> commission rates: IP {doc.ip_pct}%  IP-Pharmacy {doc.ip_r_pct}%  IP-Lab {doc.ip_l_pct}%{pF.patient_type==='Package'?'  Package '+doc.ip_pct+'%':''}
             </div>
           </div>)})()}
         </div>
@@ -2041,7 +2041,7 @@ export default function App(){
             </div>
             <div>
               <div style={{fontWeight:800,fontSize:14,color:'#0f172a',letterSpacing:'-0.3px'}}>{hospital?.name||'EasyMedical'}</div>
-              {profile&&<div style={{fontSize:10,color:'#94a3b8',marginTop:1,fontWeight:500}}>{profile.name||'Staff'} · {profile.role||'staff'}</div>}
+              {profile&&<div style={{fontSize:10,color:'#94a3b8',marginTop:1,fontWeight:500}}>{profile.name||'Staff'}  {profile.role||'staff'}</div>}
             </div>
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -2340,8 +2340,8 @@ const PaymentPage=({onBack=null})=>{
           {busy?'Opening payment...':'Pay Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+' & Activate'}
         </button>
         <div style={{textAlign:'center',marginTop:14,fontSize:11,color:'rgba(255,255,255,0.25)'}}>
-          Secured by Razorpay &nbsp;·&nbsp; UPI, Cards, NetBanking, Wallets
-          <br/>support@easymedicalsolutions.in &nbsp;·&nbsp; 7013211742
+          Secured by Razorpay &nbsp;&nbsp; UPI, Cards, NetBanking, Wallets
+          <br/>support@easymedicalsolutions.in &nbsp;&nbsp; 7013211742
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:14}}>
           {onBack&&<button onClick={onBack} style={{fontSize:11,color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',fontWeight:600}}>Back to app</button>}
@@ -2543,7 +2543,7 @@ const AnalyticsDash=({db})=>{
       <div style={{borderRadius:20,overflow:'hidden',marginBottom:8}}>
         {/* Header */}
         <div style={{background:'linear-gradient(135deg,#16a34a 0%,#059669 100%)',padding:'20px 20px 0'}}>
-          <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em',color:'rgba(255,255,255,0.65)',marginBottom:6}}>Actual income — this month</div>
+          <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em',color:'rgba(255,255,255,0.65)',marginBottom:6}}>Actual income  this month</div>
           <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:16}}>After referral commissions and all expenses</div>
           <div style={{fontSize:36,fontWeight:900,color:'#fff',letterSpacing:'-1px',lineHeight:1,marginBottom:4}}>{fmt(tmReal-tmExpTotal)}</div>
           <div style={{display:'flex',alignItems:'center',gap:8,paddingBottom:20}}>
