@@ -334,7 +334,7 @@ const SuperAdminDashboard=()=>{
     <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div><div style={{fontWeight:700,fontSize:15}}> {sel.name}</div><div style={{fontSize:11,color:'#9ca3af'}}>{sel.city} - Super Admin</div></div>
-        <button onClick={()=>setView('list')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>< Back</button>
+        <button onClick={()=>setView('list')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}> Back</button>
       </div>
       <div style={{padding:'16px 16px 60px'}}>
         <Card><Row left="City" right={sel.city||'-'}/><Row left="Phone" right={sel.phone||'-'}/><Row left="Plan" right={<span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:(planClr[sel.plan]||planClr.trial)[0],color:(planClr[sel.plan]||planClr.trial)[1],fontWeight:700}}>{sel.plan}</span>}/><Row left="Plan end" right={fmtD(sel.plan_end)}/><Row left="Status" right={sel.is_active?<span style={{color:'#16a34a',fontWeight:600}}> Active</span>:<span style={{color:'#ef4444',fontWeight:600}}> Suspended</span>}/></Card>
@@ -431,7 +431,7 @@ const HospitalOnboarding=({onBack})=>{
           <div style={{fontSize:13,fontWeight:700,color:'#15803d',marginBottom:10}}>Save your login details:</div>
           <div style={{fontSize:14,color:'#111',lineHeight:2.2}}> Username: <strong>{done.u}</strong><br/> Password: <strong>{done.p}</strong><br/> Trial expires: <strong>{fmtD(done.t)}</strong></div>
         </Card>
-        <PBtn onClick={()=>window.location.reload()} style={{marginTop:14}}>Login to your hospital ></PBtn>
+        <PBtn onClick={()=>window.location.reload()} style={{marginTop:14}}>Login to your hospital</PBtn>
       </div>
     </div>
   )
@@ -450,7 +450,7 @@ const HospitalOnboarding=({onBack})=>{
           <FInp label="City" type="text" placeholder="Your city" value={hF.city} onChange={e=>setHF({...hF,city:e.target.value})}/>
           <FInp label="Phone" type="tel" placeholder="9999999999" value={hF.phone} onChange={e=>setHF({...hF,phone:e.target.value})}/>
           {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:8}}>{err}</div>}
-          <PBtn onClick={()=>{if(!hF.name.trim()){setErr('Hospital name required');return};setErr('');setStep(2)}}>Next ></PBtn>
+          <PBtn onClick={()=>{if(!hF.name.trim()){setErr('Hospital name required');return};setErr('');setStep(2)}}>Next</PBtn>
         </Card>)}
         {step===2&&(<Card>
           <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Step 2 - Your admin account</div>
@@ -459,9 +459,9 @@ const HospitalOnboarding=({onBack})=>{
           <FInp label="Password *" type="password" placeholder="Min 6 characters" value={aF.pass} onChange={e=>setAF({...aF,pass:e.target.value})}/>
           <FInp label="Confirm password *" type="password" placeholder="Repeat password" value={aF.confirm} onChange={e=>setAF({...aF,confirm:e.target.value})}/>
           {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:8}}>{err}</div>}
-          <div style={{display:'flex',gap:8}}><GBtn onClick={()=>{setStep(1);setErr('')}} style={{flex:1}}>< Back</GBtn><button onClick={submit} disabled={busy} style={{flex:2,...S.pbtn,marginTop:0,opacity:busy?0.5:1}}>{busy?'Creating...':'Create account'}</button></div>
+          <div style={{display:'flex',gap:8}}><GBtn onClick={()=>{setStep(1);setErr('')}} style={{flex:1}}>Back</GBtn><button onClick={submit} disabled={busy} style={{flex:2,...S.pbtn,marginTop:0,opacity:busy?0.5:1}}>{busy?'Creating...':'Create account'}</button></div>
         </Card>)}
-        <div style={{textAlign:'center',marginTop:14}}><button onClick={onBack} style={{fontSize:13,color:'#aaa',background:'none',border:'none',cursor:'pointer'}}>Already have an account? Login ></button></div>
+        <div style={{textAlign:'center',marginTop:14}}><button onClick={onBack} style={{fontSize:13,color:'#aaa',background:'none',border:'none',cursor:'pointer'}}>Already have an account? Login</button></div>
       </div>
     </div>
   )
@@ -649,7 +649,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   return(
     <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
-          <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>< Cancel</button>
+          <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}> Cancel</button>
           <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
           <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.5:1}}>{busy?'...':'Save'}</button>
       </div>
@@ -813,7 +813,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   if(editPatient)return(
     <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
-        <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>< Cancel</button>
+        <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
         <button onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}window.location.reload()}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
@@ -1344,15 +1344,16 @@ const PatientListReport=({db,gotoTimeline})=>{
         if(!pool.length)return null
         return(<><SecL>IP patients ({pool.length})</SecL>{pool.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);const cash=cashTotal(ents);const credit=credTotal(ents);const pkgPd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0)+(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<Card key={p.id} style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-        <div><button onClick={()=>gotoTimeline(p.id)} style={{fontSize:14,fontWeight:700,color:'#1d4ed8',background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>{p.name} -&gt;</button>{p.phone&&<div style={{fontSize:11,color:'#aaa'}}>Ph: {p.phone}</div>}{p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {p.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' to '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>{p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}</div>
+        <div><button onClick={()=>gotoTimeline(p.id)} style={{fontSize:14,fontWeight:700,color:'#1d4ed8',background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>{p.name}</button>{p.phone&&<div style={{fontSize:11,color:'#aaa'}}>Ph: {p.phone}</div>}{p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {p.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' to '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>{p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}</div>
         <div style={{textAlign:'right'}}>{p.patient_type&&p.patient_type!=='Regular'&&<div style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700,marginBottom:4}}>{p.patient_type}</div>}<div style={{fontSize:14,fontWeight:700}}>{fmt(total)}</div></div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
         {[{l:'Cash',v:fmt(cash),c:'#16a34a'},{l:'Credit',v:fmt(credit),c:credit>0?'#c2410c':'#aaa'},{l:'Pkg',v:fmt(pkgPd),c:'#1d4ed8'},{l:'Comm',v:fmt(comm),c:'#d97706'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'6px 8px',textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:600,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:11,fontWeight:700,color:m.c,marginTop:2}}>{m.v}</div></div>))}
       </div>
-    </Card>)})}</>)})()}</>)}
+    </Card>)})}</>)})()}
+    </>)}
     {(showType==='all'||showType==='op')&&(<>
-      {showType==='op'&&<div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}].map(v=>(<button key={v.k} onClick={()=>setOpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:opView===v.k?'none':'1px solid #e5e7eb',background:opView===v.k?'#1d4ed8':'none',color:opView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>)))}</div>}
+      {showType==='op'&&<div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}].map(v=>(<button key={v.k} onClick={()=>setOpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:opView===v.k?'none':'1px solid #e5e7eb',background:opView===v.k?'#1d4ed8':'none',color:opView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>}
       {showType==='op'&&opView==='ref'&&<FSel label="Filter by referral doctor" value={opRefFilter} onChange={e=>setOpRefFilter(e.target.value)}><option value="">- All referral doctors -</option>{[...new Set(opEnts.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
       {showType==='op'&&opView==='con'&&<FSel label="Filter by consultant" value={opConFilter} onChange={e=>setOpConFilter(e.target.value)}><option value="">- All consultants -</option>{[...new Set(opEnts.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
       {(()=>{
@@ -1379,8 +1380,8 @@ const PatientListReport=({db,gotoTimeline})=>{
       <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
         {(()=>{const byType={};pt.entries.forEach(e=>{if(!byType[e.type])byType[e.type]={inc:0,comm:0,credit:0,cash:0};byType[e.type].inc+=e.amount;byType[e.type].comm+=getComm(e);byType[e.type].credit+=isCredit(e)?e.amount:0;byType[e.type].cash+=isCredit(e)?0:e.amount});return Object.entries(byType).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(<div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid #f9f9f9'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span><div style={{textAlign:'right'}}><span style={{fontWeight:600,fontSize:13,color:'#111'}}>{fmt(v.inc)}</span>{v.comm>0&&<span style={{fontSize:11,color:'#d97706',marginLeft:8}}>-{fmt(v.comm)} comm</span>}{v.credit>0&&<span style={{fontSize:11,color:'#c2410c',marginLeft:8}}>{fmt(v.credit)} credit</span>}</div></div>)})})()}
       </div>
-    </Card>))})
-      })()}</>)}
+    </Card>))}</>):null})()}
+    </>)}
     {ipPats.length===0&&opPats.length===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No patients for this period</div>}
   </>)
 }
@@ -1744,7 +1745,7 @@ const ConsultantsTab=({db,actions})=>{
           <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#7e22ce',fontWeight:700}}>%</span>
         </div>
         <div style={{fontSize:11,color:'#9333ea',marginTop:6}}>Doctor takes this % of what is collected. Hospital keeps the rest.</div>
-        {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect Rs 700 > Dr. gets {fmt(700*form.fee_share_pct/100)} - Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
+        {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect Rs 700 - Dr. gets {fmt(700*form.fee_share_pct/100)} - Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
       </div>
       <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Commission on investigations ordered</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
