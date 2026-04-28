@@ -1628,7 +1628,7 @@ const RealIncomeReport=({db})=>{
 }
 
 /*  REPORTS TAB  */
-/* ── AREA-WISE REPORT ── */
+/*  AREA-WISE REPORT  */
 const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
   const [aPer,setAPer]=useState('month')
   const [aFrom,setAFrom]=useState(todayStr().slice(0,7)+'-01')
