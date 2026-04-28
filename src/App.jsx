@@ -498,32 +498,108 @@ const LoginPage=({onRegister=()=>{}})=>{
     if(error)setErr('Wrong username or password. Please try again.')
     setBusy(false)
   }
+  const logoSvg=<svg width="32" height="32" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(0,192,107,0.15)"/><rect x="16" y="6" width="8" height="28" rx="4" fill="#00c06b"/><rect x="6" y="16" width="28" height="8" rx="4" fill="#00c06b"/><circle cx="20" cy="20" r="5" fill="#00e87f"/></svg>
   return(
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#f0f9ff 0%,#f7f7f7 100%)',padding:20}}>
-      <div style={{width:'100%',maxWidth:380}}>
-        <div style={{textAlign:'center',marginBottom:32}}>
-          <div style={{fontSize:56,marginBottom:12}}></div>
-          <div style={{fontSize:26,fontWeight:800,color:'#111'}}>Om Hospital</div>
-          <div style={{fontSize:14,color:'#aaa',marginTop:6}}>Accounts & Finance System</div>
-        </div>
-        <Card style={{boxShadow:'0 4px 24px rgba(0,0,0,0.06)'}}>
-          <div style={{fontSize:16,fontWeight:700,color:'#111',marginBottom:16,textAlign:'center'}}>Staff Login</div>
-          <FInp label="Username" type="text" placeholder="Enter your username" value={username} onChange={e=>setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off"/>
-          <div style={{marginBottom:10}}>
-            <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>Password</label>
-            <div style={{position:'relative'}}>
-              <input style={{...S.inp,paddingRight:50}} type={show?'text':'password'} placeholder="Enter your password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/>
-              <button onClick={()=>setShow(!show)} style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#aaa'}}>{show?'':''}</button>
-            </div>
-          </div>
-          {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:10,padding:'8px 12px',borderRadius:8,background:'#fef2f2',textAlign:'center'}}>{err}</div>}
-          <PBtn onClick={go} disabled={busy||!username||!pass} style={{marginTop:8}}>{busy?'Logging in...':'Login'}</PBtn>
-        </Card>
+    <div style={{minHeight:'100vh',display:'flex',fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',position:'relative',overflow:'hidden',background:'#0a1628'}}>
+      {/* LEFT PANEL - branding */}
+      <div style={{display:'none',position:'relative',flex:1,background:'linear-gradient(160deg,#0a2818 0%,#0a1628 100%)',padding:'48px',flexDirection:'column',justifyContent:'space-between','@media(min-width:768px)':{display:'flex'}}}>
+        <div style={{position:'absolute',top:0,right:0,bottom:0,left:0,background:'radial-gradient(ellipse 80% 60% at 30% 40%,rgba(0,192,107,0.12),transparent)',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',bottom:-100,right:-100,width:400,height:400,background:'radial-gradient(circle,rgba(0,232,127,0.06),transparent 70%)',pointerEvents:'none'}}/>
       </div>
+      {/* MAIN - centered card */}
+      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 60%,#0a1628 100%)',position:'relative'}}>
+        {/* bg orbs */}
+        <div style={{position:'absolute',top:'-10%',right:'-5%',width:340,height:340,background:'radial-gradient(circle,rgba(0,192,107,0.1),transparent 70%)',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',bottom:'-8%',left:'-5%',width:280,height:280,background:'radial-gradient(circle,rgba(26,58,107,0.4),transparent 70%)',pointerEvents:'none'}}/>
+        {/* grid lines */}
+        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)',backgroundSize:'60px 60px',pointerEvents:'none'}}/>
+
+        <div style={{width:'100%',maxWidth:420,position:'relative',zIndex:1}}>
+          {/* LOGO + BRAND */}
+          <div style={{textAlign:'center',marginBottom:40}}>
+            <div style={{display:'inline-flex',alignItems:'center',gap:14,marginBottom:20,textDecoration:'none'}}>
+              <div style={{width:52,height:52,borderRadius:14,background:'rgba(0,192,107,0.12)',border:'1px solid rgba(0,192,107,0.3)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                {logoSvg}
+              </div>
+              <div style={{textAlign:'left'}}>
+                <div style={{fontSize:18,fontWeight:900,color:'#fff',lineHeight:1.1,letterSpacing:'-0.5px'}}>EasyMedical</div>
+                <div style={{fontSize:10,fontWeight:700,color:'rgba(0,192,107,0.8)',textTransform:'uppercase',letterSpacing:'.14em',marginTop:2}}>Solutions</div>
+              </div>
+            </div>
+            <div style={{height:'1px',background:'linear-gradient(90deg,transparent,rgba(0,192,107,0.3),transparent)',marginBottom:28}}/>
+            <div style={{fontSize:22,fontWeight:800,color:'#fff',letterSpacing:'-0.8px',marginBottom:8}}>Welcome back</div>
+            <div style={{fontSize:13,color:'rgba(255,255,255,0.4)',lineHeight:1.5}}>Sign in to your hospital account</div>
+          </div>
+
+          {/* CARD */}
+          <div style={{background:'rgba(255,255,255,0.04)',backdropFilter:'blur(24px)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:24,padding:'32px 28px',boxShadow:'0 32px 80px rgba(0,0,0,0.4)'}}>
+
+            {/* USERNAME */}
+            <div style={{marginBottom:16}}>
+              <label style={{display:'block',fontSize:11,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8,fontWeight:700}}>Username</label>
+              <div style={{position:'relative'}}>
+                <div style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="rgba(255,255,255,0.3)" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-linecap="round"/></svg>
+                </div>
+                <input type="text" placeholder="Enter your username" value={username} onChange={e=>setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" onKeyDown={e=>e.key==='Enter'&&go()} style={{width:'100%',padding:'13px 14px 13px 42px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,fontSize:15,color:'#fff',fontFamily:'inherit',outline:'none',boxSizing:'border-box',transition:'border-color .2s'}} onFocus={e=>e.target.style.borderColor='rgba(0,192,107,0.5)'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}/>
+              </div>
+            </div>
+
+            {/* PASSWORD */}
+            <div style={{marginBottom:20}}>
+              <label style={{display:'block',fontSize:11,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:8,fontWeight:700}}>Password</label>
+              <div style={{position:'relative'}}>
+                <div style={{position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="rgba(255,255,255,0.3)" stroke-width="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="rgba(255,255,255,0.3)" stroke-width="2"/></svg>
+                </div>
+                <input type={show?'text':'password'} placeholder="Enter your password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()} style={{width:'100%',padding:'13px 48px 13px 42px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,fontSize:15,color:'#fff',fontFamily:'inherit',outline:'none',boxSizing:'border-box',transition:'border-color .2s'}} onFocus={e=>e.target.style.borderColor='rgba(0,192,107,0.5)'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}/>
+                <button onClick={()=>setShow(!show)} style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,0.35)',padding:4,display:'flex'}}>
+                  {show?<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="1" x2="23" y2="23" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-linecap="round"/></svg>:<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="rgba(255,255,255,0.5)" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="rgba(255,255,255,0.5)" stroke-width="2"/></svg>}
+                </button>
+              </div>
+            </div>
+
+            {/* ERROR */}
+            {err&&<div style={{fontSize:13,color:'#fca5a5',marginBottom:16,padding:'10px 14px',borderRadius:10,background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.25)',textAlign:'center',display:'flex',alignItems:'center',gap:8,justifyContent:'center'}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#fca5a5" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="12" stroke="#fca5a5" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="#fca5a5" stroke-width="3" stroke-linecap="round"/></svg>
+              {err}
+            </div>}
+
+            {/* SIGN IN BUTTON */}
+            <button onClick={go} disabled={busy||!username||!pass} style={{width:'100%',padding:'14px',background:busy||!username||!pass?'rgba(0,192,107,0.3)':'linear-gradient(135deg,#00c06b,#00e87f)',color:busy||!username||!pass?'rgba(255,255,255,0.4)':'#0a1628',border:'none',borderRadius:12,fontSize:15,fontWeight:800,cursor:busy||!username||!pass?'not-allowed':'pointer',letterSpacing:'-0.2px',transition:'all .2s',boxShadow:busy||!username||!pass?'none':'0 8px 24px rgba(0,192,107,0.3)'}}>
+              {busy?<span style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{animation:'spin 1s linear infinite'}}><circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" stroke-width="3"/><path d="M12 2a10 10 0 0 1 10 10" stroke="#0a1628" stroke-width="3" stroke-linecap="round"/></svg>
+                Signing in...
+              </span>:'Sign in to EasyMedical'}
+            </button>
+          </div>
+
+          {/* REGISTER LINK */}
+          <div style={{textAlign:'center',marginTop:24}}>
+            <span style={{fontSize:13,color:'rgba(255,255,255,0.4)'}}>New hospital? </span>
+            <button onClick={onRegister} style={{fontSize:13,color:'#00c06b',background:'none',border:'none',cursor:'pointer',fontWeight:700,padding:0}}>Register for free trial</button>
+          </div>
+
+          {/* TRUST FOOTER */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:20,marginTop:28,paddingTop:20,borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'rgba(255,255,255,0.3)'}}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="rgba(0,192,107,0.5)" stroke-width="2"/></svg>
+              Secure login
+            </div>
+            <div style={{width:1,height:12,background:'rgba(255,255,255,0.1)'}}/>
+            <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'rgba(255,255,255,0.3)'}}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.9a16 16 0 0 0 6.09 6.09l.98-.98a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.02v.04z" stroke="rgba(0,192,107,0.5)" stroke-width="2"/></svg>
+              Support: 7013211742
+            </div>
+            <div style={{width:1,height:12,background:'rgba(255,255,255,0.1)'}}/>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.3)'}}>Made in India</div>
+          </div>
+        </div>
+      </div>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 }
-
 /*  ADMIN  */
 const AdminTab=({currentUser,hospital=null})=>{
   const [users,setUsers]=useState([])
