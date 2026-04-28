@@ -2461,8 +2461,55 @@ const AnalyticsDash=({db})=>{
           tmExp.forEach(e=>{if(!bycat[e.category])bycat[e.category]={total:0,count:0};bycat[e.category].total+=e.amount;bycat[e.category].count++})
           return Object.entries(bycat).sort((a,b)=>b[1].total-a[1].total).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f1f5f9'}}><div><div style={{fontSize:13,fontWeight:600,color:'#0f172a',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</div><div style={{fontSize:11,color:'#94a3b8'}}>{v.count} entr{v.count!==1?'ies':'y'}</div></div><div style={{fontSize:14,fontWeight:700,color:'#dc2626'}}>{fmt(v.total)}</div></div>))
         })()}
-        {tmExpTotal>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:10,marginTop:4,borderTop:'2px solid #0f172a'}}><span style={{fontSize:13,fontWeight:800}}>Total expenses</span><span style={{fontSize:15,fontWeight:800,color:'#dc2626'}}>{fmt(tmExpTotal)}</span></div>}
+        {tmExpTotal>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:10,marginTop:4,borderTop:'1px solid #e2e8f0'}}><span style={{fontSize:13,fontWeight:700,color:'#64748b'}}>Total expenses</span><span style={{fontSize:14,fontWeight:800,color:'#dc2626'}}>{fmt(tmExpTotal)}</span></div>}
       </Card>
+
+      {/* ACTUAL INCOME CARD */}
+      <div style={{borderRadius:20,overflow:'hidden',marginBottom:8}}>
+        {/* Header */}
+        <div style={{background:'linear-gradient(135deg,#16a34a 0%,#059669 100%)',padding:'20px 20px 0'}}>
+          <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em',color:'rgba(255,255,255,0.65)',marginBottom:6}}>Actual income — this month</div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:16}}>After referral commissions and all expenses</div>
+          <div style={{fontSize:36,fontWeight:900,color:'#fff',letterSpacing:'-1px',lineHeight:1,marginBottom:4}}>{fmt(tmReal-tmExpTotal)}</div>
+          <div style={{display:'flex',alignItems:'center',gap:8,paddingBottom:20}}>
+            {(()=>{const pct=lmReal>0?Math.round(((tmReal-tmExpTotal)-(lmReal-lmExpTotal))/(lmReal-lmExpTotal)*100):null;if(pct===null)return null;const up=pct>=0;return(<span style={{display:'inline-flex',alignItems:'center',gap:4,background:'rgba(255,255,255,0.15)',color:'#fff',fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:100}}>{up?'+ ':''}{pct}% vs last month</span>)})()}
+          </div>
+        </div>
+        {/* Breakdown */}
+        <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderTop:'none',padding:'16px 20px',borderRadius:'0 0 20px 20px'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:8,height:8,borderRadius:'50%',background:'#16a34a',flexShrink:0}}/>
+                <span style={{fontSize:12,color:'#374151'}}>Gross income</span>
+              </div>
+              <span style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(tmTotal)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:8,height:8,borderRadius:'50%',background:'#d97706',flexShrink:0}}/>
+                <span style={{fontSize:12,color:'#374151'}}>Ref commissions</span>
+              </div>
+              <span style={{fontSize:13,fontWeight:700,color:'#d97706'}}>- {fmt(tmComm)}</span>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:8,height:8,borderRadius:'50%',background:'#dc2626',flexShrink:0}}/>
+                <span style={{fontSize:12,color:'#374151'}}>Total expenses</span>
+              </div>
+              <span style={{fontSize:13,fontWeight:700,color:'#dc2626'}}>- {fmt(tmExpTotal)}</span>
+            </div>
+            <div style={{height:1,background:'#d1fae5',margin:'2px 0'}}/>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{width:10,height:10,borderRadius:'50%',background:'#059669',flexShrink:0}}/>
+                <span style={{fontSize:13,fontWeight:800,color:'#065f46'}}>Actual income</span>
+              </div>
+              <span style={{fontSize:15,fontWeight:900,color:'#059669'}}>{fmt(tmReal-tmExpTotal)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
