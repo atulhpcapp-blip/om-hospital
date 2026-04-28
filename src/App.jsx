@@ -1871,6 +1871,7 @@ export default function App(){
   const [hospital,setHospital]=useState(null)
   const [isSuperAdmin,setIsSuperAdmin]=useState(false)
   const [showRegister,setShowRegister]=useState(false)
+  const [showPayment,setShowPayment]=useState(false)
   const [loading,setLoading]=useState(true)
   const [db,setDb]=useState({income:[],expenses:[],ip_patients:[],ref_doctors:[],consultants:[]})
   const [dbLoading,setDbLoading]=useState(false)
@@ -1950,6 +1951,7 @@ export default function App(){
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin)return<SuperAdminDashboard/>
+  if(showPayment)return<PaymentPage onBack={()=>setShowPayment(false)}/>
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
     return <PaymentPage/>
   }
@@ -1969,7 +1971,10 @@ export default function App(){
               {profile&&<div style={{fontSize:10,color:'#94a3b8',marginTop:1,fontWeight:500}}>{profile.name||'Staff'} · {profile.role||'staff'}</div>}
             </div>
           </div>
-          <button onClick={()=>supabase.auth.signOut()} style={{fontSize:11,color:'#94a3b8',background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontWeight:600}}>Logout</button>
+          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+            {isAdmin&&<button onClick={()=>setShowPayment(true)} style={{fontSize:11,color:'#16a34a',background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontWeight:700}}>Upgrade</button>}
+            <button onClick={()=>supabase.auth.signOut()} style={{fontSize:11,color:'#94a3b8',background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontWeight:600}}>Logout</button>
+          </div>
         </div>
         {dbLoading&&<div style={{fontSize:11,color:'#3b82f6',marginBottom:6,textAlign:'center',fontWeight:600}}>Syncing...</div>}
         <div style={{display:'flex',overflowX:'auto',gap:4,marginBottom:-1,paddingBottom:0}}>
@@ -2154,7 +2159,7 @@ const ConsultantsTab=({db,actions})=>{
 }
 
 /*  PAYMENT PAGE  */
-const PaymentPage=()=>{
+const PaymentPage=({onBack=null})=>{
   const [plan,setPlan]=useState('pro')
   const [billing,setBilling]=useState('monthly')
   const [busy,setBusy]=useState(false)
@@ -2263,7 +2268,10 @@ const PaymentPage=()=>{
           Secured by Razorpay &nbsp;·&nbsp; UPI, Cards, NetBanking, Wallets
           <br/>support@easymedicalsolutions.in &nbsp;·&nbsp; 7013211742
         </div>
-        <button onClick={()=>supabase.auth.signOut()} style={{display:'block',margin:'14px auto 0',fontSize:11,color:'rgba(255,255,255,0.2)',background:'none',border:'none',cursor:'pointer'}}>Logout</button>
+        <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:14}}>
+          {onBack&&<button onClick={onBack} style={{fontSize:11,color:'rgba(255,255,255,0.4)',background:'none',border:'none',cursor:'pointer',fontWeight:600}}>Back to app</button>}
+          <button onClick={()=>supabase.auth.signOut()} style={{fontSize:11,color:'rgba(255,255,255,0.2)',background:'none',border:'none',cursor:'pointer'}}>Logout</button>
+        </div>
       </div>
     </div>
   )
