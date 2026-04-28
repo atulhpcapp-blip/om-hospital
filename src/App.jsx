@@ -1230,11 +1230,20 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
 const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs})=>{
   const [per,setPer]=useState('month')
   const [payDoc,setPayDoc]=useState(null)
+  const [subTab,setSubTab]=useState('commission')
+  const [selDoc,setSelDoc]=useState('')
   const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):income.filter(e=>e.date?.startsWith(ry))
   const docs=buildRef(fi)
   const tc=docs.reduce((a,r)=>a+r.total_commission,0)
   const totalPaid=allPaid.reduce((a,e)=>a+e.amount,0)
+  // All-time data for income & timeline tabs
+  const allDocs=buildRef(income)
+  const allRefDocs=[...new Set(income.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   return(<>
+    <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
+      {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1px solid #e5e7eb',background:subTab===v.k?'#d97706':'none',color:subTab===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+    </div>
+    {subTab==='commission'&&<>
     <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
       <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
       {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
@@ -1261,6 +1270,90 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs})=>{
           {balance<=0&&<div style={{marginTop:8,textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}
         </Card>
       )})}
+    </>)}
+    </>}
+
+    {subTab==='income'&&(<>
+      <div style={{fontSize:12,color:'#aaa',marginBottom:14}}>All-time income brought by each referral doctor</div>
+      {!allDocs.length&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No referral data yet</div>}
+      {allDocs.map(doc=>{
+        const paidAll=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0)
+        const realInc=doc.total_income-doc.total_commission
+        return(<Card key={doc.name} style={{marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+            <div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{Object.keys(doc.by_type).length} category{Object.keys(doc.by_type).length!==1?'s':''}</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:20,fontWeight:800,color:'#16a34a'}}>{fmt(doc.total_income)}</div><div style={{fontSize:11,color:'#aaa'}}>total income</div></div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:10}}>
+            {[{l:'Total income',v:fmt(doc.total_income),c:'#16a34a'},{l:'Commission paid',v:fmt(doc.total_commission),c:'#c2410c'},{l:'Real income',v:fmt(realInc),c:'#1d4ed8'}].map((m,i)=>(
+              <div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'8px',textAlign:'center'}}>
+                <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div>
+                <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
+            {Object.entries(doc.by_type).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(
+              <div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid #f9f9f9'}}>
+                <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span>
+                <div style={{textAlign:'right'}}>
+                  <span style={{fontWeight:600,fontSize:13}}>{fmt(v.income)}</span>
+                  <span style={{fontSize:11,color:'#c2410c',marginLeft:8}}>-{fmt(v.commission)} comm</span>
+                </div>
+              </div>
+            )})}
+          </div>
+        </Card>)
+      })}
+    </>)}
+
+    {subTab==='timeline'&&(<>
+      <FSel label="Select referral doctor" value={selDoc} onChange={e=>setSelDoc(e.target.value)}>
+        <option value="">-- Select a doctor --</option>
+        {allRefDocs.map(d=><option key={d} value={d}>Dr. {d}</option>)}
+      </FSel>
+      {!selDoc&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{allRefDocs.length?'Select a doctor above to see their patient timeline':'No referral data yet'}</div>}
+      {selDoc&&(()=>{
+        const docIncome=income.filter(e=>e.ref_doctor===selDoc).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+        const docIPPats=db.ip_patients.filter(p=>p.ref_doctor===selDoc).slice().sort((a,b)=>(a.admission_date||'').localeCompare(b.admission_date||''))
+        const totalInc=docIncome.reduce((a,e)=>a+e.amount,0)
+        const totalComm=docIncome.reduce((a,e)=>a+getComm(e),0)
+        const paidAll=allPaid.filter(e=>e.description===selDoc).reduce((a,e)=>a+e.amount,0)
+        const allEvents=[]
+        docIPPats.forEach(p=>{
+          allEvents.push({date:p.admission_date,label:'Admitted: '+p.name,sub:(p.patient_type||'Regular')+(p.is_package?' - Package':'')+' IP patient'+(p.discharge_date?' - Discharged '+fmtD(p.discharge_date):''),color:'#1d4ed8',type:'admit'})
+        })
+        docIncome.forEach(e=>{
+          const cr=isCredit(e);const comm=getComm(e);const it=ITYPES.find(t=>t.key===e.type)
+          allEvents.push({date:e.date,label:(e.patient_name||'Patient')+' - '+fmt(e.amount),sub:(it?.full||e.type)+(cr?' (credit)':' '+e.payment)+(comm>0?' - Comm: '+fmt(comm):''),color:cr?'#c2410c':'#16a34a',type:'income',amount:e.amount,comm})
+        })
+        allEvents.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+        return(<>
+          <div style={{background:'linear-gradient(135deg,#d97706 0%,#b45309 100%)',borderRadius:14,padding:'14px 16px',marginBottom:14,color:'#fff'}}>
+            <div style={{fontSize:12,color:'#fde68a',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Dr. {selDoc}</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:6}}>
+              {[{l:'Total income',v:fmt(totalInc)},{l:'Commission',v:fmt(totalComm)},{l:'Patients',v:docIPPats.length+' IP'}].map((m,i)=>(
+                <div key={i} style={{textAlign:'center'}}><div style={{fontSize:9,color:'#fde68a',fontWeight:700,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:16,fontWeight:800}}>{m.v}</div></div>
+              ))}
+            </div>
+          </div>
+          {!allEvents.length&&<div style={{textAlign:'center',padding:'24px',color:'#ccc',fontSize:13}}>No records found</div>}
+          <div style={{position:'relative',paddingLeft:32}}>
+            <div style={{position:'absolute',left:11,top:8,bottom:8,width:2,background:'#e5e7eb'}}/>
+            {allEvents.map((ev,i)=>(
+              <div key={i} style={{position:'relative',marginBottom:14}}>
+                <div style={{position:'absolute',left:-21,top:2,width:18,height:18,borderRadius:'50%',background:ev.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'#fff',fontWeight:700}}>{ev.type==='admit'?'IP':'Rs'}</div>
+                <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:10,padding:'10px 12px',borderLeft:'3px solid '+ev.color}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                    <div><div style={{fontSize:13,fontWeight:600}}>{ev.label}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{ev.sub}</div></div>
+                    <div style={{fontSize:11,color:'#aaa',flexShrink:0,marginLeft:8}}>{fmtD(ev.date)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>)
+      })()}
     </>)}
   </>)
 }
