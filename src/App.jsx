@@ -1864,9 +1864,34 @@ const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
 }
 
 
+const TimelinePatientList=({db,onSelect,search,setSearch})=>{
+  const all=db.ip_patients.slice().sort((a,b)=>(b.admission_date||'').localeCompare(a.admission_date||''))
+  const filtered=search.trim()?all.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.reg_no?.toLowerCase().includes(search.toLowerCase())||p.phone?.includes(search)):all
+  return(<div>
+    <div style={{position:'relative',marginBottom:12}}>
+      <svg style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}} width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="#94a3b8" strokeWidth="2"/><path d="m21 21-4.35-4.35" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>
+      <input style={{...S.inp,paddingLeft:36}} placeholder="Search patient by name, reg no, phone..." value={search} onChange={e=>setSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
+      {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:18,color:'#aaa',cursor:'pointer'}}>x</button>}
+    </div>
+    {search&&<div style={{fontSize:12,color:'#94a3b8',marginBottom:8}}>{filtered.length} result{filtered.length!==1?'s':''} for "{search}"</div>}
+    {filtered.length===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{search?'No patients found for "'+search+'"':'No patients yet'}</div>}
+    <Card>
+      {filtered.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);return(
+        <Row key={p.id}
+          onClick={()=>onSelect(p.id)}
+          left={<div><div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.name}{p.is_package&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}</div>{p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {p.reg_no}</div>}{p.phone&&<div style={{fontSize:11,color:'#94a3b8'}}>Ph: {p.phone}</div>}</div>}
+          sub={fmtD(p.admission_date)+(p.discharge_date?' to '+fmtD(p.discharge_date):' - Active')+(p.ref_doctor?' - Ref: '+p.ref_doctor:'')}
+          right={<div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{fmt(total)}</div>{p.ref_doctor&&<div style={{fontSize:10,color:'#d97706'}}>Ref: {p.ref_doctor}</div>}{!p.discharge_date&&<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>}
+        />
+      )})}
+    </Card>
+  </div>)
+}
+
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
+  const [timelineSearch,setTimelineSearch]=useState('')
   const [vcPer,setVcPer]=useState('month')
   const [customFrom,setCustomFrom]=useState(todayStr().slice(0,7)+'-01')
   const [customTo,setCustomTo]=useState(todayStr())
@@ -1902,7 +1927,9 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo);const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
       {rv==='patlist'&&(timelinePid?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>:<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>)}
-      {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>setTimelineSelPid('')}/>:<><div style={{fontSize:13,fontWeight:600,color:'#555',marginBottom:14}}>Select a patient to view timeline</div><Card>{db.ip_patients.length===0&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No patients yet</div>}{db.ip_patients.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);return(<Row key={p.id} left={<span style={{fontWeight:600}}>{p.name}{p.is_package&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}</span>} sub={fmtD(p.admission_date)+(p.discharge_date?' to '+fmtD(p.discharge_date):' - Active')+(p.reg_no?' - Reg:'+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:600}}>{fmt(total)}</div>{p.ref_doctor&&<div style={{fontSize:10,color:'#d97706'}}>Ref: {p.ref_doctor}</div>}</div>} onClick={()=>setTimelineSelPid(p.id)}/>)})}</Card></>)}
+      {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>{setTimelineSelPid('');setTimelineSearch('')}}/>:
+          <TimelinePatientList db={db} onSelect={pid=>setTimelineSelPid(pid)} search={timelineSearch} setSearch={setTimelineSearch}/>
+        )}
       {rv==='expenses'&&<ExpensesReport db={db}/>}
       {rv==='realincome'&&<RealIncomeReport db={db}/>}
       {rv==='area'&&<AreaReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
