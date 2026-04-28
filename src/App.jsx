@@ -2655,6 +2655,87 @@ const AnalyticsDash=({db})=>{
           </div>
         </div>
       </Card>
+
+      {/* LOST REFERRAL DOCTORS */}
+      <SecL>Referral doctors - activity tracker</SecL>
+      <Card>
+        {(()=>{
+          const months=[]
+          for(let i=1;i<=7;i++){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7))}
+          // Build doctor activity map - which months each doctor sent patients
+          const docActivity={}
+          inc.forEach(e=>{
+            if(!e.ref_doctor||!e.ref_doctor.trim())return
+            const m=e.date&&e.date.slice(0,7)
+            if(!m)return
+            if(!docActivity[e.ref_doctor])docActivity[e.ref_doctor]={name:e.ref_doctor,byMonth:{},timeline:[]}
+            if(!docActivity[e.ref_doctor].byMonth[m])docActivity[e.ref_doctor].byMonth[m]=[]
+            docActivity[e.ref_doctor].byMonth[m].push(e)
+            docActivity[e.ref_doctor].timeline.push(e)
+          })
+          // Find doctors who sent patients in past 7 months but NOT this month
+          const lostDocs=Object.values(docActivity).filter(d=>{
+            const hasThisMonth=!!(d.byMonth[thisMonth]&&d.byMonth[thisMonth].length)
+            const hasPast=months.some(m=>d.byMonth[m]&&d.byMonth[m].length)
+            return hasPast&&!hasThisMonth
+          })
+          // Group by how many months ago they last sent
+          const groups={}
+          lostDocs.forEach(d=>{
+            let lastActive=null
+            for(let i=1;i<=7;i++){
+              const m=months[i-1]
+              if(d.byMonth[m]&&d.byMonth[m].length){lastActive=i;break}
+            }
+            if(lastActive){
+              if(!groups[lastActive])groups[lastActive]=[]
+              groups[lastActive].push({...d,lastActive})
+            }
+          })
+          if(!lostDocs.length)return(<div style={{textAlign:'center',padding:'20px 0',color:'#94a3b8',fontSize:13}}>All your referral doctors are active this month!</div>)
+          return(<div>
+            <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 12px',background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:10,marginBottom:16}}>
+              <div style={{fontSize:'1.1rem'}}>A</div>
+              <div style={{fontSize:12,color:'#92400e'}}><strong>{lostDocs.length} referral doctor{lostDocs.length!==1?'s':''}</strong> sent patients recently but not this month. Time to reconnect!</div>
+            </div>
+            {[1,2,3,4,5,6,7].map(n=>{
+              const grp=groups[n]||[]
+              if(!grp.length)return null
+              const d2=new Date(today);d2.setDate(1);d2.setMonth(d2.getMonth()-n)
+              const mLabel=d2.toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+              const urgency=n===1?{bg:'#fef2f2',border:'#fecaca',dot:'#ef4444',tx:'#991b1b',label:'Last month - follow up now'}:n<=3?{bg:'#fff7ed',border:'#fed7aa',dot:'#f97316',tx:'#9a3412',label:`${n} months ago - needs attention`}:{bg:'#f8fafc',border:'#e2e8f0',dot:'#94a3b8',tx:'#475569',label:`${n} months ago`}
+              return(<div key={n} style={{marginBottom:16}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                  <div style={{width:10,height:10,borderRadius:'50%',background:urgency.dot,flexShrink:0}}/>
+                  <div style={{fontSize:12,fontWeight:700,color:urgency.tx}}>{mLabel}</div>
+                  <div style={{fontSize:11,color:'#94a3b8'}}>{urgency.label}</div>
+                  <div style={{marginLeft:'auto',fontSize:11,fontWeight:700,color:urgency.tx}}>{grp.length} doctor{grp.length!==1?'s':''}</div>
+                </div>
+                {grp.map(doc=>{
+                  const lastMonthEntries=doc.byMonth[months[n-1]]||[]
+                  const allRecent=doc.timeline.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5)
+                  const totalInc=doc.timeline.reduce((a,e)=>a+e.amount,0)
+                  const [open,setOpen]=React.useState(false)
+                  return(<div key={doc.name} style={{background:urgency.bg,border:'1px solid '+urgency.border,borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer'}} onClick={()=>setOpen(!open)}>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Dr. {doc.name}</div>
+                        <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>Last active: {mLabel} - {lastMonthEntries.length} patient{lastMonthEntries.length!==1?'s':''} - Total: {fmt(totalInc)}</div>
+                      </div>
+                      <div style={{fontSize:18,color:'#94a3b8',fontWeight:300}}>{open?'-':'+'}</div>
+                    </div>
+                    {open&&<div style={{marginTop:10,paddingTop:10,borderTop:'1px solid '+urgency.border}}>
+                      <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em',marginBottom:8}}>Recent activity (last 5 entries)</div>
+                      {allRecent.map((e,i)=>{const it=ITYPES.find(t=>t.key===e.type);return(<div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid rgba(0,0,0,0.05)'}}><div style={{fontSize:11,color:'#64748b',flexShrink:0,minWidth:72}}>{fmtD(e.date)}</div><div style={{flex:1,fontSize:11,color:'#0f172a',fontWeight:500}}>{e.patient_name||'Patient'}</div><TypeTag t={e.type}/><div style={{fontSize:11,fontWeight:700,color:'#16a34a',flexShrink:0}}>{fmt(e.amount)}</div></div>)})}
+                      <div style={{marginTop:8,fontSize:11,color:'#475569'}}>Total over lifetime: <strong style={{color:'#0f172a'}}>{doc.timeline.length} entries - {fmt(totalInc)}</strong></div>
+                    </div>}
+                  </div>)
+                })}
+              </div>)
+            })}
+          </div>)
+        })()}
+      </Card>
     </div>
   )
 }
