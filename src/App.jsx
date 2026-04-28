@@ -959,13 +959,85 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   )
   const active=db.ip_patients.filter(p=>!p.discharge_date)
   const disc=db.ip_patients.filter(p=>p.discharge_date)
+  const allIP=[...active,...disc.slice().reverse()]
   const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const p=db.ip_patients.find(pt=>pt.id===pid);const cr=credTotal(en);const balance=p?.is_package?0:cr;return{total:t,balance,credit:cr}}
+  const [ipSearch,setIpSearch]=useState('')
+  const [ipView,setIpView]=useState('all')
+  const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
+  const [ipRefFilter,setIpRefFilter]=useState('')
+  const ipRefDocs=[...new Set(db.ip_patients.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort()
+  const IPRow=({p})=>{const b=qb(p.id);const pt=p.patient_type||'Regular';const disc2=!!p.discharge_date;return(<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{disc2&&<Pill label="Discharged"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(disc2?' → '+fmtD(p.discharge_date):'  Active')+(p.reg_no?' · Reg: '+p.reg_no:'')+(p.phone?' · '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>)}
+  const IPVIEWS=[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'date',l:'By Month'},{k:'ref',l:'By Ref Doctor'}]
   return(
     <div>
-      <PBtn onClick={()=>setIpv('add')} style={{marginBottom:16}}>+ Admit new patient</PBtn>
-      {active.length>0&&(<><SecL>Active inpatients ({active.length})</SecL><Card>{active.map(p=>{const b=qb(p.id);const pt=p.patient_type||'Regular';return<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{pt==='VC'&&<Pill label="VC" bg="#f0fdf4" tx="#065f46"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(p.reg_no?' - Reg: '+p.reg_no:'')+(p.phone?' - Ph: '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>})}</Card></>)}
-      {disc.length>0&&(<><SecL>Discharged patients</SecL><Card>{disc.slice().reverse().map(p=>{const b=qb(p.id);return<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span>{p.name}<Pill label="Discharged"/></span>} sub={fmtD(p.admission_date)+' to '+fmtD(p.discharge_date)} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.balance>0&&<div style={{fontSize:11,color:'#ef4444'}}>due {fmt(b.balance)}</div>}</div>}/>})}</Card></>)}
-      {!db.ip_patients.length&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No inpatients yet</div>}
+      <PBtn onClick={()=>setIpv('add')} style={{marginBottom:12}}>+ Admit new patient</PBtn>
+      <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
+        {IPVIEWS.map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+      </div>
+
+      {(ipView==='all'||ipView==='active'||ipView==='discharged')&&(<>
+        <div style={{position:'relative',marginBottom:12}}>
+          <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
+          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>
+          {ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}
+        </div>
+        {(()=>{
+          const pool=ipView==='active'?active:ipView==='discharged'?disc.slice().reverse():allIP
+          const filtered=ipSearch.trim()?pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch)):pool
+          if(!filtered.length)return <div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{ipSearch?'No results for "'+ipSearch+'"':'No patients yet'}</div>
+          return(<>
+            {ipSearch&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{filtered.length} result{filtered.length!==1?'s':''} for "{ipSearch}"</div>}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              {[{l:'Active',v:ipView==='discharged'?0:filtered.filter(p=>!p.discharge_date).length,c:'#16a34a'},{l:'Discharged',v:ipView==='active'?0:filtered.filter(p=>p.discharge_date).length,c:'#6b7280'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:10,padding:'8px 12px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:20,fontWeight:700,color:m.c}}>{m.v}</div></div>))}
+            </div>
+            <Card>{filtered.map(p=><IPRow key={p.id} p={p}/>)}</Card>
+          </>)
+        })()}
+      </>)}
+
+      {ipView==='date'&&(<>
+        <input style={{...S.inp,marginBottom:12}} type="month" value={ipMonth} onChange={e=>setIpMonth(e.target.value)}/>
+        {(()=>{
+          const [yr,mo]=ipMonth.split('-')
+          const monthStart=ipMonth+'-01'
+          const monthEnd=ipMonth+'-31'
+          const pool=db.ip_patients.filter(p=>{
+            const adm=p.admission_date||''
+            const dis=p.discharge_date||'9999-12-31'
+            return adm.startsWith(ipMonth)||(adm<=monthEnd&&dis>=monthStart)
+          }).sort((a,b)=>b.admission_date?.localeCompare(a.admission_date||'')||0)
+          if(!pool.length)return <div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No patients for {ipMonth}</div>
+          const totalBilled=pool.reduce((a,p)=>a+qb(p.id).total,0)
+          return(<>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              <div style={{background:'#dcfce7',borderRadius:10,padding:'10px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Patients</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{pool.length}</div></div>
+              <div style={{background:'#f0fdf4',borderRadius:10,padding:'10px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Total billed</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalBilled)}</div></div>
+            </div>
+            <Card>{pool.map(p=><IPRow key={p.id} p={p}/>)}</Card>
+          </>)
+        })()}
+      </>)}
+
+      {ipView==='ref'&&(<>
+        <FSel label="Select referral doctor" value={ipRefFilter} onChange={e=>setIpRefFilter(e.target.value)}>
+          <option value="">— Select doctor —</option>
+          {ipRefDocs.map(d=><option key={d} value={d}>Dr. {d}</option>)}
+        </FSel>
+        {!ipRefFilter&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{ipRefDocs.length?'Select a referral doctor above':'No referral doctors yet'}</div>}
+        {ipRefFilter&&(()=>{
+          const pool=db.ip_patients.filter(p=>p.ref_doctor===ipRefFilter).sort((a,b)=>b.admission_date?.localeCompare(a.admission_date||'')||0)
+          const totalBilled=pool.reduce((a,p)=>a+qb(p.id).total,0)
+          const totalComm=db.income.filter(e=>pool.some(p=>p.id===e.patient_id)).reduce((a,e)=>a+getComm(e),0)
+          return(<>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+              <div style={{background:'#fff7ed',borderRadius:10,padding:'10px'}}><div style={{fontSize:9,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Patients</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{pool.length}</div></div>
+              <div style={{background:'#f0fdf4',borderRadius:10,padding:'10px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Total</div><div style={{fontSize:20,fontWeight:700,color:'#15803d'}}>{fmt(totalBilled)}</div></div>
+              <div style={{background:'#fff7ed',borderRadius:10,padding:'10px'}}><div style={{fontSize:9,color:'#b45309',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#d97706'}}>{fmt(totalComm)}</div></div>
+            </div>
+            <Card>{pool.map(p=><IPRow key={p.id} p={p}/>)}</Card>
+          </>)
+        })()}
+      </>)}
     </div>
   )
 }
@@ -1019,21 +1091,105 @@ const OPTab=({db,actions})=>{
     </div>
     )
   }
+  const [view,setView]=useState('patients')
+  const [filterDate,setFilterDate]=useState(todayStr().slice(0,7))
+  const [filterRef,setFilterRef]=useState('')
+  const [filterCon,setFilterCon]=useState('')
+  // All referral doctors and consultants who appear in OP income
+  const opRefDocs=[...new Set(opIncome.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
+  const opConsultants=[...new Set(opIncome.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort()
+  const PatCard=({pat})=>(<Card style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat(pat.name)}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''} · Last: {fmtD(pat.lastDate)}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref comm: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}>›</span></div></div></Card>)
+  const VIEWS=[{k:'patients',l:'All Patients'},{k:'date',l:'By Date'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}]
   return(
     <div>
       <div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:16,padding:'16px',marginBottom:12,color:'#fff'}}>
         <div style={{fontSize:12,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP patients</div>
         <div style={{fontSize:32,fontWeight:800}}>{allPatients.length}</div>
-        <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>Total: {fmt(allPatients.reduce((a,p)=>a+p.total,0))} - Ref comm: {fmt(allPatients.reduce((a,p)=>a+p.totalComm,0))}</div>
+        <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>Total: {fmt(allPatients.reduce((a,p)=>a+p.total,0))} · Ref comm: {fmt(allPatients.reduce((a,p)=>a+p.totalComm,0))}</div>
       </div>
-      <div style={{position:'relative',marginBottom:12}}>
-        <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name or reg no..." value={search} onChange={e=>setSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
-        <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>
-        {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}
+      <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
+        {VIEWS.map(v=>(<button key={v.k} onClick={()=>setView(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:view===v.k?'none':'1px solid #e5e7eb',background:view===v.k?'#1d4ed8':'none',color:view===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
       </div>
-      {search&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{patients.length} result{patients.length!==1?'s':''} for "{search}"</div>}
-      {patients.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No OP patients yet.<br/>Enter patient name when adding OP income.</div>}
-      {patients.map(pat=>(<Card key={pat.name} style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat(pat.name)}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Referral commission: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}>›</span></div></div></Card>))}
+
+      {view==='patients'&&(<>
+        <div style={{position:'relative',marginBottom:12}}>
+          <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name or reg no..." value={search} onChange={e=>setSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
+          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>
+          {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}
+        </div>
+        {search&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{patients.length} result{patients.length!==1?'s':''} for "{search}"</div>}
+        {patients.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No OP patients yet.</div>}
+        {patients.map(pat=><PatCard key={pat.name} pat={pat}/>)}
+      </>)}
+
+      {view==='date'&&(()=>{
+        const dateIncome=opIncome.filter(e=>e.date?.startsWith(filterDate))
+        const datePats={}
+        dateIncome.forEach(e=>{const k=e.patient_name;if(!datePats[k])datePats[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};datePats[k].entries.push(e);datePats[k].total+=e.amount;datePats[k].totalComm+=getComm(e);datePats[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>datePats[k].lastDate)datePats[k].lastDate=e.date})
+        const datePatList=Object.values(datePats).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
+        return(<>
+          <input style={{...S.inp,marginBottom:12}} type="month" value={filterDate} onChange={e=>setFilterDate(e.target.value)}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            <div style={{background:'#dbeafe',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Patients</div><div style={{fontSize:22,fontWeight:700,color:'#1d4ed8'}}>{datePatList.length}</div></div>
+            <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Total</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(dateIncome.reduce((a,e)=>a+e.amount,0))}</div></div>
+          </div>
+          {datePatList.length===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No OP patients in this month</div>}
+          {datePatList.map(pat=><PatCard key={pat.name} pat={pat}/>)}
+        </>)
+      })()}
+
+      {view==='ref'&&(()=>{
+        const refList=opRefDocs.length?opRefDocs:['(none)']
+        return(<>
+          <FSel label="Select referral doctor" value={filterRef} onChange={e=>setFilterRef(e.target.value)}>
+            <option value="">— Select doctor —</option>
+            {opRefDocs.map(d=><option key={d} value={d}>Dr. {d}</option>)}
+          </FSel>
+          {!filterRef&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{opRefDocs.length?'Select a referral doctor above':'No referral data yet'}</div>}
+          {filterRef&&(()=>{
+            const refIncome=opIncome.filter(e=>e.ref_doctor===filterRef)
+            const refPats={}
+            refIncome.forEach(e=>{const k=e.patient_name;if(!refPats[k])refPats[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};refPats[k].entries.push(e);refPats[k].total+=e.amount;refPats[k].totalComm+=getComm(e);refPats[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>refPats[k].lastDate)refPats[k].lastDate=e.date})
+            const refPatList=Object.values(refPats).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
+            const totalComm=refIncome.reduce((a,e)=>a+getComm(e),0)
+            return(<>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+                <div style={{background:'#fff7ed',borderRadius:12,padding:'10px'}}><div style={{fontSize:9,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Patients</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{refPatList.length}</div></div>
+                <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Total</div><div style={{fontSize:20,fontWeight:700,color:'#15803d'}}>{fmt(refIncome.reduce((a,e)=>a+e.amount,0))}</div></div>
+                <div style={{background:'#fff7ed',borderRadius:12,padding:'10px'}}><div style={{fontSize:9,color:'#b45309',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#d97706'}}>{fmt(totalComm)}</div></div>
+              </div>
+              {refPatList.map(pat=><PatCard key={pat.name} pat={pat}/>)}
+            </>)
+          })()}
+        </>)
+      })()}
+
+      {view==='con'&&(()=>{
+        return(<>
+          <FSel label="Select visiting consultant" value={filterCon} onChange={e=>setFilterCon(e.target.value)}>
+            <option value="">— Select consultant —</option>
+            {opConsultants.map(d=><option key={d} value={d}>Dr. {d}</option>)}
+          </FSel>
+          {!filterCon&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{opConsultants.length?'Select a consultant above':'No consultant records yet'}</div>}
+          {filterCon&&(()=>{
+            const conIncome=opIncome.filter(e=>e.consultant_name===filterCon)
+            const conPats={}
+            conIncome.forEach(e=>{const k=e.patient_name;if(!conPats[k])conPats[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};conPats[k].entries.push(e);conPats[k].total+=e.amount;conPats[k].totalComm+=getComm(e);conPats[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>conPats[k].lastDate)conPats[k].lastDate=e.date})
+            const conPatList=Object.values(conPats).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
+            const con=db.consultants.find(d=>d.name===filterCon)
+            const totalFee=conIncome.reduce((a,e)=>a+(e.consultant_fee||0),0)
+            const totalCollected=conIncome.reduce((a,e)=>a+e.amount,0)
+            return(<>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+                <div style={{background:'#f3e8ff',borderRadius:12,padding:'10px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Patients</div><div style={{fontSize:20,fontWeight:700,color:'#7e22ce'}}>{conPatList.length}</div></div>
+                <div style={{background:'#f3e8ff',borderRadius:12,padding:'10px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Dr. fee</div><div style={{fontSize:20,fontWeight:700,color:'#7e22ce'}}>{fmt(totalFee)}</div></div>
+                <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Hospital</div><div style={{fontSize:20,fontWeight:700,color:'#15803d'}}>{fmt(totalCollected-totalFee)}</div></div>
+              </div>
+              {conPatList.map(pat=><PatCard key={pat.name} pat={pat}/>)}
+            </>)
+          })()}
+        </>)
+      })()}
     </div>
   )
 }
@@ -1148,12 +1304,18 @@ const PatientListReport=({db,gotoTimeline})=>{
   const [from,setFrom]=useState(todayStr().slice(0,7)+'-01')
   const [to,setTo]=useState(todayStr())
   const [showType,setShowType]=useState('all')
+  const [opView,setOpView]=useState('all')
+  const [opRefFilter,setOpRefFilter]=useState('')
+  const [opConFilter,setOpConFilter]=useState('')
+  const [ipView,setIpView]=useState('all')
+  const [ipSearch,setIpSearch]=useState('')
+  const [ipRefFilter2,setIpRefFilter2]=useState('')
   const yrs=[...new Set(db.ip_patients.map(e=>e.admission_date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry2))yrs.unshift(ry2)
   const ipPats=db.ip_patients.filter(p=>{const adm=p.admission_date||'';const dis=p.discharge_date||'9999-12-31';if(per==='month')return adm.startsWith(rm2)||(adm<=rm2+'-31'&&dis>=rm2+'-01');if(per==='year')return adm.startsWith(ry2)||(adm<=ry2+'-12-31'&&dis>=ry2+'-01-01');return adm<=to&&(dis>=from||!p.discharge_date)})
   const periodInc=per==='month'?db.income.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.income.filter(e=>e.date?.startsWith(ry2)):db.income.filter(e=>e.date>=from&&e.date<=to)
   const opEnts=periodInc.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
-  const opByPat={};opEnts.forEach(e=>{const k=e.patient_name;if(!opByPat[k])opByPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,cash:0,credit:0,comm:0,ref_doctor:'',entries:[],lastDate:''};opByPat[k].total+=e.amount;opByPat[k].cash+=isCredit(e)?0:e.amount;opByPat[k].credit+=isCredit(e)?e.amount:0;opByPat[k].comm+=getComm(e);if(e.ref_doctor&&!opByPat[k].ref_doctor)opByPat[k].ref_doctor=e.ref_doctor;opByPat[k].entries.push(e);if(e.date>opByPat[k].lastDate)opByPat[k].lastDate=e.date})
+  const opByPat={};opEnts.forEach(e=>{const k=e.patient_name;if(!opByPat[k])opByPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,cash:0,credit:0,comm:0,ref_doctor:'',entries:[],lastDate:''};opByPat[k].total+=e.amount;opByPat[k].cash+=isCredit(e)?0:e.amount;opByPat[k].credit+=isCredit(e)?e.amount:0;opByPat[k].comm+=getComm(e);if(e.ref_doctor&&!opByPat[k].ref_doctor)opByPat[k].ref_doctor=e.ref_doctor;opByPat[k].entries.push(e);if(e.date>opByPat[k].lastDate)opByPat[k].lastDate=e.date;if(e.consultant_name&&!opByPat[k].consultant_name)opByPat[k].consultant_name=e.consultant_name})
   const opPats=Object.values(opByPat).sort((a,b)=>(b.lastDate||'').localeCompare(a.lastDate||''))
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
@@ -1165,7 +1327,22 @@ const PatientListReport=({db,gotoTimeline})=>{
       <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>IP patients</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{ipPats.length}</div></div>
       <div style={{background:'#dbeafe',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP patients</div><div style={{fontSize:22,fontWeight:700,color:'#1d4ed8'}}>{opPats.length}</div></div>
     </div>
-    {(showType==='all'||showType==='ip')&&ipPats.length>0&&(<><SecL>IP patients ({ipPats.length})</SecL>{ipPats.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);const cash=cashTotal(ents);const credit=credTotal(ents);const pkgPd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0)+(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<Card key={p.id} style={{marginBottom:10}}>
+    {(showType==='all'||showType==='ip')&&(<>
+      {showType==='ip'&&<>
+        <div style={{display:'flex',gap:6,marginBottom:10,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'ref',l:'By Ref Doctor'}].map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
+        {ipView!=='ref'&&<div style={{position:'relative',marginBottom:10}}><input style={{...S.inp,paddingLeft:36}} placeholder="Search name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/><span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>{ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}</div>}
+        {ipView==='ref'&&<FSel label="Select referral doctor" value={ipRefFilter2} onChange={e=>setIpRefFilter2(e.target.value)}><option value="">— Select doctor —</option>{[...new Set(ipPats.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
+      </>}
+      {(()=>{
+        let pool=ipPats
+        if(showType==='ip'){
+          if(ipView==='active')pool=ipPats.filter(p=>!p.discharge_date)
+          if(ipView==='discharged')pool=ipPats.filter(p=>p.discharge_date)
+          if(ipView==='ref'&&ipRefFilter2)pool=ipPats.filter(p=>p.ref_doctor===ipRefFilter2)
+          if(ipSearch.trim()&&ipView!=='ref')pool=pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch))
+        }
+        if(!pool.length)return null
+        return(<><SecL>IP patients ({pool.length})</SecL>{pool.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);const cash=cashTotal(ents);const credit=credTotal(ents);const pkgPd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0)+(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<Card key={p.id} style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div><button onClick={()=>gotoTimeline(p.id)} style={{fontSize:14,fontWeight:700,color:'#1d4ed8',background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>{p.name} -&gt;</button>{p.phone&&<div style={{fontSize:11,color:'#aaa'}}>Ph: {p.phone}</div>}{p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {p.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' to '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>{p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}</div>
         <div style={{textAlign:'right'}}>{p.patient_type&&p.patient_type!=='Regular'&&<div style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700,marginBottom:4}}>{p.patient_type}</div>}<div style={{fontSize:14,fontWeight:700}}>{fmt(total)}</div></div>
@@ -1173,8 +1350,16 @@ const PatientListReport=({db,gotoTimeline})=>{
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
         {[{l:'Cash',v:fmt(cash),c:'#16a34a'},{l:'Credit',v:fmt(credit),c:credit>0?'#c2410c':'#aaa'},{l:'Pkg',v:fmt(pkgPd),c:'#1d4ed8'},{l:'Comm',v:fmt(comm),c:'#d97706'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'6px 8px',textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:600,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:11,fontWeight:700,color:m.c,marginTop:2}}>{m.v}</div></div>))}
       </div>
-    </Card>)})})</>)}
-    {(showType==='all'||showType==='op')&&opPats.length>0&&(<><SecL>OP patients ({opPats.length})</SecL>{opPats.map(pt=>(<Card key={pt.name} style={{marginBottom:10}}>
+    </Card>)})}</>)})()}</>)}
+    {(showType==='all'||showType==='op')&&(<>
+      {showType==='op'&&<div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}].map(v=>(<button key={v.k} onClick={()=>setOpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:opView===v.k?'none':'1px solid #e5e7eb',background:opView===v.k?'#1d4ed8':'none',color:opView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>)))}</div>}
+      {showType==='op'&&opView==='ref'&&<FSel label="Filter by referral doctor" value={opRefFilter} onChange={e=>setOpRefFilter(e.target.value)}><option value="">— All referral doctors —</option>{[...new Set(opEnts.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
+      {showType==='op'&&opView==='con'&&<FSel label="Filter by consultant" value={opConFilter} onChange={e=>setOpConFilter(e.target.value)}><option value="">— All consultants —</option>{[...new Set(opEnts.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
+      {(()=>{
+        let filtered=opPats
+        if(showType==='op'&&opView==='ref'&&opRefFilter)filtered=opPats.filter(p=>p.entries.some(e=>e.ref_doctor===opRefFilter))
+        if(showType==='op'&&opView==='con'&&opConFilter)filtered=opPats.filter(p=>p.entries.some(e=>e.consultant_name===opConFilter))
+        return filtered.length>0?(<><SecL>OP patients ({filtered.length})</SecL>{opPats.map(pt=>(<Card key={pt.name} style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
           <div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pt.name}</div>
@@ -1194,7 +1379,8 @@ const PatientListReport=({db,gotoTimeline})=>{
       <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
         {(()=>{const byType={};pt.entries.forEach(e=>{if(!byType[e.type])byType[e.type]={inc:0,comm:0,credit:0,cash:0};byType[e.type].inc+=e.amount;byType[e.type].comm+=getComm(e);byType[e.type].credit+=isCredit(e)?e.amount:0;byType[e.type].cash+=isCredit(e)?0:e.amount});return Object.entries(byType).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(<div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid #f9f9f9'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span><div style={{textAlign:'right'}}><span style={{fontWeight:600,fontSize:13,color:'#111'}}>{fmt(v.inc)}</span>{v.comm>0&&<span style={{fontSize:11,color:'#d97706',marginLeft:8}}>-{fmt(v.comm)} comm</span>}{v.credit>0&&<span style={{fontSize:11,color:'#c2410c',marginLeft:8}}>{fmt(v.credit)} credit</span>}</div></div>)})})()}
       </div>
-    </Card>))}</>)}
+    </Card>))})
+      })()}</>)}
     {ipPats.length===0&&opPats.length===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No patients for this period</div>}
   </>)
 }
