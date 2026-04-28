@@ -975,10 +975,12 @@ const OPTab=({db,actions})=>{
   const [selPat,setSelPat]=useState(null)
   const [payDoc,setPayDoc]=useState(null)
   const [editEntry,setEditEntry]=useState(null)
+  const [search,setSearch]=useState('')
   const opIncome=db.income.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
   const byPat={}
-  opIncome.forEach(e=>{const k=e.patient_name;if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0})
-  const patients=Object.values(byPat).sort((a,b)=>b.total-a.total)
+  opIncome.forEach(e=>{const k=e.patient_name;if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>byPat[k].lastDate)byPat[k].lastDate=e.date})
+  const allPatients=Object.values(byPat).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
+  const patients=search.trim()?allPatients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.reg_no.toLowerCase().includes(search.toLowerCase())):allPatients
   const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
   if(editEntry)return(<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/> )
   if(selPat){
@@ -1019,11 +1021,17 @@ const OPTab=({db,actions})=>{
   }
   return(
     <div>
-      <div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:16,padding:'16px',marginBottom:16,color:'#fff'}}>
+      <div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:16,padding:'16px',marginBottom:12,color:'#fff'}}>
         <div style={{fontSize:12,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP patients</div>
-        <div style={{fontSize:32,fontWeight:800}}>{patients.length}</div>
-        <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>Total: {fmt(patients.reduce((a,p)=>a+p.total,0))} - Ref comm: {fmt(patients.reduce((a,p)=>a+p.totalComm,0))}</div>
+        <div style={{fontSize:32,fontWeight:800}}>{allPatients.length}</div>
+        <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>Total: {fmt(allPatients.reduce((a,p)=>a+p.total,0))} - Ref comm: {fmt(allPatients.reduce((a,p)=>a+p.totalComm,0))}</div>
       </div>
+      <div style={{position:'relative',marginBottom:12}}>
+        <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name or reg no..." value={search} onChange={e=>setSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
+        <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>
+        {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}
+      </div>
+      {search&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{patients.length} result{patients.length!==1?'s':''} for "{search}"</div>}
       {patients.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No OP patients yet.<br/>Enter patient name when adding OP income.</div>}
       {patients.map(pat=>(<Card key={pat.name} style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat(pat.name)}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Referral commission: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}>›</span></div></div></Card>))}
     </div>
@@ -1145,8 +1153,8 @@ const PatientListReport=({db,gotoTimeline})=>{
   const ipPats=db.ip_patients.filter(p=>{const adm=p.admission_date||'';const dis=p.discharge_date||'9999-12-31';if(per==='month')return adm.startsWith(rm2)||(adm<=rm2+'-31'&&dis>=rm2+'-01');if(per==='year')return adm.startsWith(ry2)||(adm<=ry2+'-12-31'&&dis>=ry2+'-01-01');return adm<=to&&(dis>=from||!p.discharge_date)})
   const periodInc=per==='month'?db.income.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.income.filter(e=>e.date?.startsWith(ry2)):db.income.filter(e=>e.date>=from&&e.date<=to)
   const opEnts=periodInc.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
-  const opByPat={};opEnts.forEach(e=>{const k=e.patient_name;if(!opByPat[k])opByPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,cash:0,credit:0,comm:0,ref_doctor:'',entries:[]};opByPat[k].total+=e.amount;opByPat[k].cash+=isCredit(e)?0:e.amount;opByPat[k].credit+=isCredit(e)?e.amount:0;opByPat[k].comm+=getComm(e);if(e.ref_doctor&&!opByPat[k].ref_doctor)opByPat[k].ref_doctor=e.ref_doctor;opByPat[k].entries.push(e)})
-  const opPats=Object.values(opByPat).sort((a,b)=>b.total-a.total)
+  const opByPat={};opEnts.forEach(e=>{const k=e.patient_name;if(!opByPat[k])opByPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,cash:0,credit:0,comm:0,ref_doctor:'',entries:[],lastDate:''};opByPat[k].total+=e.amount;opByPat[k].cash+=isCredit(e)?0:e.amount;opByPat[k].credit+=isCredit(e)?e.amount:0;opByPat[k].comm+=getComm(e);if(e.ref_doctor&&!opByPat[k].ref_doctor)opByPat[k].ref_doctor=e.ref_doctor;opByPat[k].entries.push(e);if(e.date>opByPat[k].lastDate)opByPat[k].lastDate=e.date})
+  const opPats=Object.values(opByPat).sort((a,b)=>(b.lastDate||'').localeCompare(a.lastDate||''))
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
     {per==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm2} onChange={e=>setRm2(e.target.value)}/>}
