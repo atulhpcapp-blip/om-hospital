@@ -2189,7 +2189,7 @@ const PaymentPage=({onBack=null})=>{
     const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',hid).single()
     const res=await fetch(SUPABASE_URL+'/functions/v1/create-order',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
       body:JSON.stringify({hospital_id:hid,plan,billing})
     })
     const order=await res.json()
@@ -2205,7 +2205,7 @@ const PaymentPage=({onBack=null})=>{
       handler:async(response)=>{
         const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-payment',{
           method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
           body:JSON.stringify({...response,hospital_id:hid,plan,billing})
         })
         const vdata=await vres.json()
