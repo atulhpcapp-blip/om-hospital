@@ -40,13 +40,13 @@ const getPkgPayments=(pats,datePrefix)=>{
 const buildRef=income=>{const docs={};income.forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim()||!comm)return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=comm;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
 
 const S={
-  inp:{width:'100%',padding:'11px 14px',border:'1px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'},
-  sel:{width:'100%',padding:'11px 14px',border:'1px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'},
-  card:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px 16px',marginBottom:12},
-  sec:{fontSize:10,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.06em',marginTop:16,marginBottom:8},
-  pbtn:{width:'100%',padding:'13px',background:'#111',color:'#fff',border:'none',borderRadius:12,fontSize:15,fontWeight:700,cursor:'pointer',marginTop:4},
-  gbtn:{padding:'9px 14px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:14,color:'#555',cursor:'pointer'},
-  dbtn:{padding:'4px 10px',background:'none',border:'1px solid #fca5a5',borderRadius:6,fontSize:12,color:'#ef4444',cursor:'pointer'},
+  inp:{width:'100%',padding:'12px 14px',border:'2px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none',transition:'border-color .15s'},
+  sel:{width:'100%',padding:'12px 14px',border:'2px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'},
+  card:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'},
+  sec:{fontSize:10,fontWeight:800,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'.1em',marginTop:20,marginBottom:10},
+  pbtn:{width:'100%',padding:'14px',background:'linear-gradient(135deg,#16a34a,#22c55e)',color:'#fff',border:'none',borderRadius:14,fontSize:15,fontWeight:800,cursor:'pointer',marginTop:4,boxShadow:'0 4px 16px rgba(22,163,74,0.3)',letterSpacing:'-0.2px'},
+  gbtn:{padding:'9px 16px',background:'#f8fafc',border:'2px solid #e2e8f0',borderRadius:10,fontSize:13,color:'#475569',cursor:'pointer',fontWeight:600},
+  dbtn:{padding:'5px 10px',background:'#fff1f2',border:'1.5px solid #fecdd3',borderRadius:8,fontSize:12,color:'#e11d48',cursor:'pointer',fontWeight:600},
 }
 const Card=({children,style={}})=><div style={{...S.card,...style}}>{children}</div>
 const SecL=({children})=><div style={S.sec}>{children}</div>
@@ -56,23 +56,23 @@ const DBtn=({children,onClick})=><button style={S.dbtn} onClick={onClick}>{child
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
 const Row=({left,sub,right,onClick})=>(
-  <div onClick={onClick} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5',cursor:onClick?'pointer':'default'}}>
+  <div onClick={onClick} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 0',borderBottom:'1px solid #f1f5f9',cursor:onClick?'pointer':'default'}}>
     <div style={{flex:1,minWidth:0,paddingRight:8}}>
-      <div style={{fontSize:13,fontWeight:500,color:'#111'}}>{left}</div>
-      {sub&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{sub}</div>}
+      <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{left}</div>
+      {sub&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{sub}</div>}
     </div>
     <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>{right}</div>
   </div>
 )
 const MetGrid=({items})=>(
-  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-    {items.map((m,i)=>(
-      <div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}>
-        <div style={{fontSize:10,color:'#aaa',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:600}}>{m.label}</div>
-        <div style={{fontSize:18,fontWeight:700,color:m.color||'#111'}}>{m.value}</div>
-        {m.sub&&<div style={{fontSize:10,color:'#aaa',marginTop:2}}>{m.sub}</div>}
+  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+    {items.map((m,i)=>{const bg=m.color==='#16a34a'?'linear-gradient(135deg,#f0fdf4,#dcfce7)':m.color==='#c2410c'||m.color==='#ef4444'?'linear-gradient(135deg,#fff1f2,#ffe4e6)':m.color==='#1d4ed8'||m.color==='#2563eb'?'linear-gradient(135deg,#eff6ff,#dbeafe)':m.color==='#d97706'||m.color==='#b45309'?'linear-gradient(135deg,#fffbeb,#fef3c7)':'linear-gradient(135deg,#f8fafc,#f1f5f9)';return(
+      <div key={i} style={{background:bg,borderRadius:14,padding:'12px 14px',border:'1px solid rgba(0,0,0,0.05)'}}>
+        <div style={{fontSize:9,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:5,fontWeight:700}}>{m.label}</div>
+        <div style={{fontSize:20,fontWeight:800,color:m.color||'#0f172a',letterSpacing:'-0.5px'}}>{m.value}</div>
+        {m.sub&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{m.sub}</div>}
       </div>
-    ))}
+    )})}
   </div>
 )
 const FInp=({label,value,onChange,...rest})=>(
@@ -346,7 +346,7 @@ const SuperAdminDashboard=()=>{
     load();setBusy(false)
   }
   if(view==='detail'&&sel)return(
-    <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
+    <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div><div style={{fontWeight:700,fontSize:15}}> {sel.name}</div><div style={{fontSize:11,color:'#9ca3af'}}>{sel.city} - Super Admin</div></div>
         <button onClick={()=>setView('list')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}> Back</button>
@@ -362,7 +362,7 @@ const SuperAdminDashboard=()=>{
     </div>
   )
   return(
-    <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
+    <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px 0',position:'sticky',top:0,zIndex:10}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <div><div style={{fontWeight:700,fontSize:15}}> Super Admin</div><div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>All hospitals</div></div>
@@ -790,7 +790,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
     setBusy(false)
   }
   return(
-    <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
+    <div style={{background:'#f8fafc',minHeight:'100vh',padding:'0 0 80px'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
           <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}> Cancel</button>
           <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
@@ -847,7 +847,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
       <SecL>Select income type</SecL>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}}>
         {ITYPES.filter(t=>t.key!=='vc').map(t=>{const [bg,tx]=TC[t.key];const on=itype===t.key;return(
-          <button key={t.key} onClick={()=>setItype(t.key)} style={{padding:'10px 4px',border:on?`2px solid ${tx}`:'1px solid #e5e7eb',borderRadius:12,background:on?bg:'#fafafa',cursor:'pointer',textAlign:'center'}}>
+          <button key={t.key} onClick={()=>setItype(t.key)} style={{padding:'10px 4px',border:on?`2.5px solid ${tx}`:'1.5px solid #e2e8f0',borderRadius:12,background:on?bg:'#fff',cursor:'pointer',textAlign:'center',boxShadow:on?'0 4px 12px rgba(0,0,0,0.08)':'0 1px 3px rgba(0,0,0,0.04)',transition:'all .15s'}}>
             <div style={{fontSize:12,fontWeight:700,color:on?tx:'#555'}}>{t.label}</div>
             <div style={{fontSize:9,color:on?tx:'#aaa',marginTop:2}}>{t.full}</div>
             {COMM[t.key]>0&&<div style={{fontSize:9,color:on?tx:'#ccc',marginTop:1}}>Ref: {CLBL[t.key]}</div>}
@@ -956,7 +956,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
   if(editPatient)return(
-    <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
+    <div style={{background:'#f8fafc',minHeight:'100vh',padding:'0 0 80px'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
         <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
@@ -1130,7 +1130,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     <div>
       <PBtn onClick={()=>setIpv('add')} style={{marginBottom:12}}>+ Admit new patient</PBtn>
       <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
-        {IPVIEWS.map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+        {IPVIEWS.map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:ipView===v.k?'none':'1.5px solid #e2e8f0',background:ipView===v.k?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:ipView===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:ipView===v.k?'0 4px 12px rgba(22,163,74,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
 
       {(ipView==='all'||ipView==='active'||ipView==='discharged')&&(<>
@@ -1268,7 +1268,7 @@ const OPTab=({db,actions})=>{
         <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>Total: {fmt(allPatients.reduce((a,p)=>a+p.total,0))} - Ref comm: {fmt(allPatients.reduce((a,p)=>a+p.totalComm,0))}</div>
       </div>
       <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
-        {VIEWS.map(v=>(<button key={v.k} onClick={()=>setView(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:view===v.k?'none':'1px solid #e5e7eb',background:view===v.k?'#1d4ed8':'none',color:view===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+        {VIEWS.map(v=>(<button key={v.k} onClick={()=>setView(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:view===v.k?'none':'1.5px solid #e2e8f0',background:view===v.k?'linear-gradient(135deg,#4f46e5,#7c3aed)':'#fff',color:view===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:view===v.k?'0 4px 12px rgba(79,70,229,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
 
       {view==='patients'&&(<>
@@ -1401,7 +1401,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs})=>{
   const allRefDocs=[...new Set(income.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
-      {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1px solid #e5e7eb',background:subTab===v.k?'#d97706':'none',color:subTab===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+      {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
     </div>
     {subTab==='commission'&&<>
     <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
@@ -1811,7 +1811,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   return(
     <div>
       <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
-        {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1px solid #e5e7eb',background:rv===v.k?'#111':'none',color:rv===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+        {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
       {rv==='daily'&&(()=>{const dI=db.income.filter(e=>e.date===rd);const exp=sumExp(db.expenses.filter(e=>e.date===rd));const rc=totalRef(dI);const pkg=getPkgPayments(db.ip_patients,rd);return(<><div style={{display:'flex',gap:8,marginBottom:14}}><input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/><GBtn onClick={()=>setRd(todayStr())}>Today</GBtn></div><PLCards incList={dI} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={dI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Doctor referrals</SecL><ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
       {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm));const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
@@ -1917,19 +1917,26 @@ export default function App(){
     return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f7f7f7',padding:20}}><div style={{maxWidth:360,width:'100%',textAlign:'center'}}><div style={{fontSize:20,fontWeight:700,color:'#111',marginBottom:8}}>Trial expired</div><div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your 30-day free trial has ended. Contact support to continue.</div><Card><div style={{fontSize:13,color:'#555',lineHeight:2}}>Hospital: <strong>{hospital?.name}</strong><br/>Contact: support@easymedicalsolutions.in</div></Card><button onClick={()=>supabase.auth.signOut()} style={{marginTop:14,padding:'10px 20px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Logout</button></div></div>)
   }
 
+  const TAB_COLORS={entry:{active:'#16a34a',bg:'#f0fdf4'},ip:{active:'#2563eb',bg:'#eff6ff'},op:{active:'#7c3aed',bg:'#f5f3ff'},exp:{active:'#dc2626',bg:'#fff1f2'},rep:{active:'#d97706',bg:'#fffbeb'},credit:{active:'#c2410c',bg:'#fff7ed'},refdrs:{active:'#0891b2',bg:'#ecfeff'},consult:{active:'#7c3aed',bg:'#f5f3ff'},admin:{active:'#475569',bg:'#f8fafc'}}
+  const tc=TAB_COLORS[tab]||{active:'#16a34a',bg:'#f0fdf4'}
   return(
-    <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
-      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'12px 16px 0',position:'sticky',top:0,zIndex:10}}>
+    <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
+      <div style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:10,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-          <div>
-            <div style={{fontWeight:700,fontSize:15,color:'#111'}}>{hospital?.name||'Hospital'}</div>
-            {profile&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{profile.name||'Staff'} - {profile.role||'staff'}{hospital?.plan&&hospital.plan!=='pro'?' - '+hospital.plan:''}</div>}
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:34,height:34,borderRadius:10,background:tc.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <svg width="18" height="18" viewBox="0 0 40 40" fill="none"><rect x="16" y="6" width="8" height="28" rx="4" fill={tc.active}/><rect x="6" y="16" width="28" height="8" rx="4" fill={tc.active}/><circle cx="20" cy="20" r="5" fill={tc.active} opacity="0.7"/></svg>
+            </div>
+            <div>
+              <div style={{fontWeight:800,fontSize:14,color:'#0f172a',letterSpacing:'-0.3px'}}>{hospital?.name||'EasyMedical'}</div>
+              {profile&&<div style={{fontSize:10,color:'#94a3b8',marginTop:1,fontWeight:500}}>{profile.name||'Staff'} · {profile.role||'staff'}</div>}
+            </div>
           </div>
-          <button onClick={()=>supabase.auth.signOut()} style={{fontSize:12,color:'#aaa',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>Logout</button>
+          <button onClick={()=>supabase.auth.signOut()} style={{fontSize:11,color:'#94a3b8',background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontWeight:600}}>Logout</button>
         </div>
-        {dbLoading&&<div style={{fontSize:11,color:'#3b82f6',marginBottom:6,textAlign:'center'}}>Syncing...</div>}
-        <div style={{display:'flex',overflowX:'auto',gap:0,marginBottom:-1}}>
-          {TABS.map(t=>(<button key={t.k} onClick={()=>setTab(t.k)} style={{flexShrink:0,padding:'9px 10px',fontSize:12,fontWeight:600,border:'none',background:'none',color:tab===t.k?'#111':'#bbb',borderBottom:tab===t.k?'2.5px solid #111':'2.5px solid transparent',cursor:'pointer',whiteSpace:'nowrap'}}>{t.l}</button>))}
+        {dbLoading&&<div style={{fontSize:11,color:'#3b82f6',marginBottom:6,textAlign:'center',fontWeight:600}}>Syncing...</div>}
+        <div style={{display:'flex',overflowX:'auto',gap:4,marginBottom:-1,paddingBottom:0}}>
+          {TABS.map(t=>{const tcolor=TAB_COLORS[t.k]||{active:'#16a34a',bg:'#f0fdf4'};const on=tab===t.k;return(<button key={t.k} onClick={()=>setTab(t.k)} style={{flexShrink:0,padding:'9px 12px',fontSize:11,fontWeight:700,border:'none',background:on?tcolor.bg:'transparent',color:on?tcolor.active:'#94a3b8',borderBottom:on?'2.5px solid '+tcolor.active:'2.5px solid transparent',cursor:'pointer',whiteSpace:'nowrap',borderRadius:'8px 8px 0 0',transition:'all .15s'}}>{t.l}</button>)})}
         </div>
       </div>
       <div style={{padding:'16px 16px 80px'}}>
