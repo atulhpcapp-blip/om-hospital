@@ -182,320 +182,6 @@ const DonutChart=({segments,title,centerLabel})=>{
           ))}
         </div>
       </div>
-
-      {/* MONTHLY COMPARISON CHART */}
-      <SecL>Actual income - month comparison</SecL>
-      <Card>
-        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
-        {/* Month selector */}
-        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
-          {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
-        </div>
-        {/* Bar chart */}
-        {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
-        {chartMonths.length>0&&(()=>{
-          const bars=chartMonths.map(m=>{
-            const mInc=inc.filter(e=>e.date?.startsWith(m))
-            const mExp=exp.filter(e=>e.date?.startsWith(m))
-            const gross=sum(mInc)
-            const comms=comm(mInc)
-            const exps=sum(mExp)
-            const actual=gross-comms-exps
-            const d=new Date(m+'-01')
-            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
-          })
-          const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
-          return(<>
-            {/* Bars */}
-            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
-              {bars.map(b=>{
-                const grossH=Math.round((b.gross/maxVal)*130)
-                const actualH=Math.round((b.actual/maxVal)*130)
-                const isThisMonth=b.m===thisMonth
-                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
-                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
-                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                  </div>
-                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
-                </div>)
-              })}
-            </div>
-            {/* Legend */}
-            <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
-            </div>
-            {/* Data table */}
-            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
-                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
-                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
-              </div>
-              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
-            </div>
-          </>)
-        })()}
-      </Card>
-
-      {/* SEGMENT BREAKDOWN CARDS */}
-      <SecL>This month — segment breakdown</SecL>
-
-      {(()=>{
-        // Clinical segment: OP + OP-R + IP + IP-R income
-        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
-        const clinGross=sum(clinInc)
-        const clinComm=comm(clinInc)
-        // Clinical expenses = all expenses EXCEPT lab_to_lab
-        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
-        const clinActual=clinGross-clinComm-clinExp
-        const clinExpCats={}
-        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
-
-        // Lab segment: OP-L + IP-L income
-        const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
-        const labGross=sum(labInc)
-        const labComm=comm(labInc)
-        // Lab expenses = lab_to_lab + ref_commissions paid on lab
-        const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
-        const labActual=labGross-labComm-labToLab
-
-        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
-          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
-                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
-              </div>
-              <div style={{marginLeft:'auto',textAlign:'right'}}>
-                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
-                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
-              </div>
-            </div>
-            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
-              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
-                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
-              ))}
-              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
-            </div>
-          </div>
-        )
-
-        return(<>
-          <SegCard
-            title="Clinical & Pharmacy"
-            color="#0891b2"
-            bg="#ecfeff"
-            icon="H"
-            gross={clinGross}
-            commAmt={clinComm}
-            expAmt={clinExp}
-            expBreakdown={clinExpCats}
-            actual={clinActual}
-            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
-          />
-          <SegCard
-            title="Laboratory"
-            color="#7c3aed"
-            bg="#f5f3ff"
-            icon="L"
-            gross={labGross}
-            commAmt={labComm}
-            expAmt={labToLab}
-            expBreakdown={{'Lab to lab':labToLab}}
-            actual={labActual}
-            incTypes="OP-Lab + IP-Lab"
-          />
-        </>)
-      })()}
-
-      {/* MEDICAL SUPPLIES CARD */}
-      <SecL>Medical supplies ordered — this month</SecL>
-      <Card>
-        {(()=>{
-          const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
-          const totalSupplies=sum(supplies)
-          return(<>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
-              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
-              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
-            </div>
-            {supplies.map((e,i)=>(
-              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
-                <div style={{flex:1,paddingRight:12}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
-                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
-                </div>
-                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
-              </div>
-            ))}
-          </>)
-        })()}
-      </Card>
-
-      {/* AREA-WISE PIE CHART */}
-      <SecL>Area-wise patients — this month</SecL>
-      <Card>
-        {(()=>{
-          const areaMap={}
-          db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
-          const areaData={}
-          tmInc.forEach(e=>{
-            if(!e.ref_doctor||!e.ref_doctor.trim())return
-            const area=areaMap[e.ref_doctor]||'No area'
-            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
-            if(e.patient_name)areaData[area].patients.add(e.patient_name)
-            areaData[area].doctors.add(e.ref_doctor)
-            areaData[area].income+=e.amount
-            areaData[area].count++
-          })
-          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
-          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
-          const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
-          const totalInc=areas.reduce((a,r)=>a+r.income,0)
-          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
-          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
-          let startAngle=0
-          const slices=areas.map((a,i)=>{
-            const pct=a.patients/totalPats
-            const angle=pct*2*Math.PI
-            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
-            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
-            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
-            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
-            const large=angle>Math.PI?1:0
-            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
-            startAngle+=angle
-            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
-          })
-          return(<>
-            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
-              <div style={{flexShrink:0}}>
-                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
-                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
-                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
-                </svg>
-              </div>
-              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
-                {slices.map((s,i)=>(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
-                    </div>
-                    <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
-              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
-                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
-                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
-                </div>
-              ))}
-            </div>
-          </>)
-        })()}
-      </Card>
-
-      {/* SELF vs REFERRAL PATIENTS */}
-      <SecL>Self vs referral patients — this month</SecL>
-      <Card>
-        {(()=>{
-          const allPats=new Set(tmInc.filter(e=>e.patient_name).map(e=>e.patient_name.trim().toLowerCase()))
-          const refPats=new Set(tmInc.filter(e=>e.patient_name&&e.ref_doctor&&e.ref_doctor.trim()).map(e=>e.patient_name.trim().toLowerCase()))
-          const selfPats=new Set([...allPats].filter(p=>!refPats.has(p)))
-          const total=allPats.size||1
-          const refInc=sum(tmInc.filter(e=>e.ref_doctor&&e.ref_doctor.trim()))
-          const selfInc=sum(tmInc.filter(e=>!e.ref_doctor||!e.ref_doctor.trim()))
-          const refPct=Math.round((refPats.size/total)*100)
-          const selfPct=100-refPct
-          const refComm=comm(tmInc.filter(e=>e.ref_doctor&&e.ref_doctor.trim()))
-          return(<>
-            {/* Visual split bar */}
-            <div style={{marginBottom:20}}>
-              <div style={{display:'flex',borderRadius:12,overflow:'hidden',height:28,marginBottom:8}}>
-                <div style={{width:selfPct+'%',background:'linear-gradient(90deg,#3b82f6,#60a5fa)',display:'flex',alignItems:'center',justifyContent:'center',minWidth:selfPct>8?'auto':0,transition:'width .5s'}}>
-                  {selfPct>12&&<span style={{fontSize:11,fontWeight:800,color:'#fff'}}>{selfPct}%</span>}
-                </div>
-                <div style={{flex:1,background:'linear-gradient(90deg,#16a34a,#22c55e)',display:'flex',alignItems:'center',justifyContent:'center',transition:'width .5s'}}>
-                  {refPct>12&&<span style={{fontSize:11,fontWeight:800,color:'#fff'}}>{refPct}%</span>}
-                </div>
-              </div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>
-                <span>Self patients</span>
-                <span>Referral patients</span>
-              </div>
-            </div>
-
-            {/* Two big stat blocks */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-              {/* SELF */}
-              <div style={{background:'linear-gradient(160deg,#eff6ff,#dbeafe)',border:'1px solid #bfdbfe',borderRadius:14,padding:'16px 14px'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-                  <div style={{width:36,height:36,borderRadius:10,background:'#3b82f6',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="white" strokeWidth="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
-                  </div>
-                  <div>
-                    <div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em'}}>Self patients</div>
-                    <div style={{fontSize:10,color:'#93c5fd'}}>Walk-in / Direct</div>
-                  </div>
-                </div>
-                <div style={{fontSize:32,fontWeight:900,color:'#1d4ed8',lineHeight:1,marginBottom:6}}>{selfPats.size}</div>
-                <div style={{fontSize:11,color:'#3b82f6',fontWeight:600,marginBottom:4}}>{selfPct}% of all patients</div>
-                <div style={{height:1,background:'#bfdbfe',marginBottom:8}}/>
-                <div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Income: {fmt(selfInc)}</div>
-                <div style={{fontSize:10,color:'#93c5fd',marginTop:2}}>No commission payable</div>
-              </div>
-
-              {/* REFERRAL */}
-              <div style={{background:'linear-gradient(160deg,#f0fdf4,#dcfce7)',border:'1px solid #bbf7d0',borderRadius:14,padding:'16px 14px'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
-                  <div style={{width:36,height:36,borderRadius:10,background:'#16a34a',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="9" cy="7" r="4" stroke="white" strokeWidth="2"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
-                  </div>
-                  <div>
-                    <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em'}}>Referral patients</div>
-                    <div style={{fontSize:10,color:'#86efac'}}>Via doctors</div>
-                  </div>
-                </div>
-                <div style={{fontSize:32,fontWeight:900,color:'#15803d',lineHeight:1,marginBottom:6}}>{refPats.size}</div>
-                <div style={{fontSize:11,color:'#16a34a',fontWeight:600,marginBottom:4}}>{refPct}% of all patients</div>
-                <div style={{height:1,background:'#bbf7d0',marginBottom:8}}/>
-                <div style={{fontSize:11,color:'#15803d',fontWeight:600}}>Income: {fmt(refInc)}</div>
-                <div style={{fontSize:10,color:'#86efac',marginTop:2}}>Commission: {fmt(refComm)}</div>
-              </div>
-            </div>
-
-            {/* Insight row */}
-            <div style={{background:'#f8fafc',borderRadius:10,padding:'12px 14px',display:'flex',alignItems:'flex-start',gap:12}}>
-              <div style={{width:36,height:36,borderRadius:10,background:refPct>50?'#f0fdf4':'#eff6ff',border:'1.5px solid '+( refPct>50?'#bbf7d0':'#bfdbfe'),display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2"/><path d="M12 8v4l3 3" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </div>
-              <div style={{fontSize:12,color:'#475569',lineHeight:1.7}}>
-                {refPct>60&&<span><strong style={{color:'#15803d'}}>Referral-heavy hospital.</strong> Over 60% of your patients come from referral doctors. Keep those relationships strong - commissions are a growth investment.</span>}
-                {refPct>30&&refPct<=60&&<span><strong style={{color:'#1d4ed8'}}>Good balance.</strong> You have a healthy mix of self and referred patients. Growing either channel will help.</span>}
-                {refPct<=30&&<span><strong style={{color:'#1d4ed8'}}>Self-driven practice.</strong> Most patients come directly to you. Adding more referral doctors could grow income significantly.</span>}
-              </div>
-            </div>
-          </>)
-        })()}
-      </Card>
     </div>
   )
 }
@@ -1112,240 +798,9 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
           <PBtn onClick={go} disabled={busy} style={{flex:2,marginTop:0,background:'#16a34a'}}>{busy?'Saving...':'Mark as collected'}</PBtn>
         </div>
       </div>
-
-      {/* MONTHLY COMPARISON CHART */}
-      <SecL>Actual income - month comparison</SecL>
-      <Card>
-        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
-        {/* Month selector */}
-        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
-          {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
-        </div>
-        {/* Bar chart */}
-        {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
-        {chartMonths.length>0&&(()=>{
-          const bars=chartMonths.map(m=>{
-            const mInc=inc.filter(e=>e.date?.startsWith(m))
-            const mExp=exp.filter(e=>e.date?.startsWith(m))
-            const gross=sum(mInc)
-            const comms=comm(mInc)
-            const exps=sum(mExp)
-            const actual=gross-comms-exps
-            const d=new Date(m+'-01')
-            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
-          })
-          const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
-          return(<>
-            {/* Bars */}
-            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
-              {bars.map(b=>{
-                const grossH=Math.round((b.gross/maxVal)*130)
-                const actualH=Math.round((b.actual/maxVal)*130)
-                const isThisMonth=b.m===thisMonth
-                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
-                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
-                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                  </div>
-                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
-                </div>)
-              })}
-            </div>
-            {/* Legend */}
-            <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
-            </div>
-            {/* Data table */}
-            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
-                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
-                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
-              </div>
-              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
-            </div>
-          </>)
-        })()}
-      </Card>
-
-      {/* SEGMENT BREAKDOWN CARDS */}
-      <SecL>This month — segment breakdown</SecL>
-
-      {(()=>{
-        // Clinical segment: OP + OP-R + IP + IP-R income
-        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
-        const clinGross=sum(clinInc)
-        const clinComm=comm(clinInc)
-        // Clinical expenses = all expenses EXCEPT lab_to_lab
-        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
-        const clinActual=clinGross-clinComm-clinExp
-        const clinExpCats={}
-        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
-
-        // Lab segment: OP-L + IP-L income
-        const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
-        const labGross=sum(labInc)
-        const labComm=comm(labInc)
-        // Lab expenses = lab_to_lab + ref_commissions paid on lab
-        const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
-        const labActual=labGross-labComm-labToLab
-
-        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
-          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
-                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
-              </div>
-              <div style={{marginLeft:'auto',textAlign:'right'}}>
-                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
-                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
-              </div>
-            </div>
-            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
-              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
-                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
-              ))}
-              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
-            </div>
-          </div>
-        )
-
-        return(<>
-          <SegCard
-            title="Clinical & Pharmacy"
-            color="#0891b2"
-            bg="#ecfeff"
-            icon="H"
-            gross={clinGross}
-            commAmt={clinComm}
-            expAmt={clinExp}
-            expBreakdown={clinExpCats}
-            actual={clinActual}
-            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
-          />
-          <SegCard
-            title="Laboratory"
-            color="#7c3aed"
-            bg="#f5f3ff"
-            icon="L"
-            gross={labGross}
-            commAmt={labComm}
-            expAmt={labToLab}
-            expBreakdown={{'Lab to lab':labToLab}}
-            actual={labActual}
-            incTypes="OP-Lab + IP-Lab"
-          />
-        </>)
-      })()}
-
-      {/* MEDICAL SUPPLIES CARD */}
-      <SecL>Medical supplies ordered — this month</SecL>
-      <Card>
-        {(()=>{
-          const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
-          const totalSupplies=sum(supplies)
-          return(<>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
-              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
-              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
-            </div>
-            {supplies.map((e,i)=>(
-              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
-                <div style={{flex:1,paddingRight:12}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
-                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
-                </div>
-                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
-              </div>
-            ))}
-          </>)
-        })()}
-      </Card>
-
-      {/* AREA-WISE PIE CHART */}
-      <SecL>Area-wise patients — this month</SecL>
-      <Card>
-        {(()=>{
-          const areaMap={}
-          db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
-          const areaData={}
-          tmInc.forEach(e=>{
-            if(!e.ref_doctor||!e.ref_doctor.trim())return
-            const area=areaMap[e.ref_doctor]||'No area'
-            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
-            if(e.patient_name)areaData[area].patients.add(e.patient_name)
-            areaData[area].doctors.add(e.ref_doctor)
-            areaData[area].income+=e.amount
-            areaData[area].count++
-          })
-          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
-          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
-          const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
-          const totalInc=areas.reduce((a,r)=>a+r.income,0)
-          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
-          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
-          let startAngle=0
-          const slices=areas.map((a,i)=>{
-            const pct=a.patients/totalPats
-            const angle=pct*2*Math.PI
-            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
-            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
-            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
-            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
-            const large=angle>Math.PI?1:0
-            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
-            startAngle+=angle
-            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
-          })
-          return(<>
-            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
-              <div style={{flexShrink:0}}>
-                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
-                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
-                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
-                </svg>
-              </div>
-              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
-                {slices.map((s,i)=>(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
-                    </div>
-                    <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
-              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
-                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
-                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
-                </div>
-              ))}
-            </div>
-          </>)
-        })()}
-      </Card>
     </div>
   )
 }
-
 
 /*  EDIT ENTRY FORM  */
 const EditEntryForm=({entry,db,onSave,onCancel})=>{
@@ -2828,236 +2283,6 @@ const PaymentPage=({onBack=null})=>{
           <button onClick={()=>supabase.auth.signOut()} style={{fontSize:11,color:'rgba(255,255,255,0.2)',background:'none',border:'none',cursor:'pointer'}}>Logout</button>
         </div>
       </div>
-
-      {/* MONTHLY COMPARISON CHART */}
-      <SecL>Actual income - month comparison</SecL>
-      <Card>
-        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
-        {/* Month selector */}
-        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
-          {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
-        </div>
-        {/* Bar chart */}
-        {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
-        {chartMonths.length>0&&(()=>{
-          const bars=chartMonths.map(m=>{
-            const mInc=inc.filter(e=>e.date?.startsWith(m))
-            const mExp=exp.filter(e=>e.date?.startsWith(m))
-            const gross=sum(mInc)
-            const comms=comm(mInc)
-            const exps=sum(mExp)
-            const actual=gross-comms-exps
-            const d=new Date(m+'-01')
-            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
-          })
-          const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
-          return(<>
-            {/* Bars */}
-            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
-              {bars.map(b=>{
-                const grossH=Math.round((b.gross/maxVal)*130)
-                const actualH=Math.round((b.actual/maxVal)*130)
-                const isThisMonth=b.m===thisMonth
-                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
-                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
-                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                  </div>
-                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
-                </div>)
-              })}
-            </div>
-            {/* Legend */}
-            <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
-              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
-            </div>
-            {/* Data table */}
-            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
-                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
-                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
-              </div>
-              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
-            </div>
-          </>)
-        })()}
-      </Card>
-
-      {/* SEGMENT BREAKDOWN CARDS */}
-      <SecL>This month — segment breakdown</SecL>
-
-      {(()=>{
-        // Clinical segment: OP + OP-R + IP + IP-R income
-        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
-        const clinGross=sum(clinInc)
-        const clinComm=comm(clinInc)
-        // Clinical expenses = all expenses EXCEPT lab_to_lab
-        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
-        const clinActual=clinGross-clinComm-clinExp
-        const clinExpCats={}
-        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
-
-        // Lab segment: OP-L + IP-L income
-        const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
-        const labGross=sum(labInc)
-        const labComm=comm(labInc)
-        // Lab expenses = lab_to_lab + ref_commissions paid on lab
-        const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
-        const labActual=labGross-labComm-labToLab
-
-        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
-          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
-                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
-              </div>
-              <div style={{marginLeft:'auto',textAlign:'right'}}>
-                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
-                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
-              </div>
-            </div>
-            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
-              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
-                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
-              ))}
-              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
-            </div>
-          </div>
-        )
-
-        return(<>
-          <SegCard
-            title="Clinical & Pharmacy"
-            color="#0891b2"
-            bg="#ecfeff"
-            icon="H"
-            gross={clinGross}
-            commAmt={clinComm}
-            expAmt={clinExp}
-            expBreakdown={clinExpCats}
-            actual={clinActual}
-            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
-          />
-          <SegCard
-            title="Laboratory"
-            color="#7c3aed"
-            bg="#f5f3ff"
-            icon="L"
-            gross={labGross}
-            commAmt={labComm}
-            expAmt={labToLab}
-            expBreakdown={{'Lab to lab':labToLab}}
-            actual={labActual}
-            incTypes="OP-Lab + IP-Lab"
-          />
-        </>)
-      })()}
-
-      {/* MEDICAL SUPPLIES CARD */}
-      <SecL>Medical supplies ordered — this month</SecL>
-      <Card>
-        {(()=>{
-          const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
-          const totalSupplies=sum(supplies)
-          return(<>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
-              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
-              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
-            </div>
-            {supplies.map((e,i)=>(
-              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
-                <div style={{flex:1,paddingRight:12}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
-                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
-                </div>
-                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
-              </div>
-            ))}
-          </>)
-        })()}
-      </Card>
-
-      {/* AREA-WISE PIE CHART */}
-      <SecL>Area-wise patients — this month</SecL>
-      <Card>
-        {(()=>{
-          const areaMap={}
-          db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
-          const areaData={}
-          tmInc.forEach(e=>{
-            if(!e.ref_doctor||!e.ref_doctor.trim())return
-            const area=areaMap[e.ref_doctor]||'No area'
-            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
-            if(e.patient_name)areaData[area].patients.add(e.patient_name)
-            areaData[area].doctors.add(e.ref_doctor)
-            areaData[area].income+=e.amount
-            areaData[area].count++
-          })
-          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
-          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
-          const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
-          const totalInc=areas.reduce((a,r)=>a+r.income,0)
-          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
-          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
-          let startAngle=0
-          const slices=areas.map((a,i)=>{
-            const pct=a.patients/totalPats
-            const angle=pct*2*Math.PI
-            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
-            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
-            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
-            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
-            const large=angle>Math.PI?1:0
-            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
-            startAngle+=angle
-            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
-          })
-          return(<>
-            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
-              <div style={{flexShrink:0}}>
-                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
-                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
-                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
-                </svg>
-              </div>
-              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
-                {slices.map((s,i)=>(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
-                    </div>
-                    <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
-              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
-                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
-                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
-                </div>
-              ))}
-            </div>
-          </>)
-        })()}
-      </Card>
     </div>
   )
 }
@@ -3112,6 +2337,16 @@ const AnalyticsDash=({db})=>{
   const topRefs=Object.values(refMap).sort((a,b)=>b.income-a.income).slice(0,5)
 
   // Last 7 days trend
+  const svAllPats=[...new Set(tmInc.filter(e=>e.patient_name).map(e=>e.patient_name.trim().toLowerCase()))]
+  const svRefPats=[...new Set(tmInc.filter(e=>e.patient_name&&e.ref_doctor&&e.ref_doctor.trim()).map(e=>e.patient_name.trim().toLowerCase()))]
+  const svSelfCount=svAllPats.filter(p=>!svRefPats.includes(p)).length
+  const svRefCount=svRefPats.length
+  const svTotal=svAllPats.length||1
+  const svRefPct=Math.round((svRefCount/svTotal)*100)
+  const svSelfPct=100-svRefPct
+  const svRefInc=sum(tmInc.filter(e=>e.ref_doctor&&e.ref_doctor.trim()))
+  const svSelfInc=sum(tmInc.filter(e=>!e.ref_doctor||!e.ref_doctor.trim()))
+  const svRefComm=comm(tmInc.filter(e=>e.ref_doctor&&e.ref_doctor.trim()))
   const [chartMonths,setChartMonths]=useState(()=>{const months=[];for(let i=5;i>=0;i--){const d=new Date(today);d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7))}return months})
   const last7=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-6+i);const ds=d.toISOString().slice(0,10);const dayInc=inc.filter(e=>e.date===ds);return{date:ds,label:d.toLocaleDateString('en-IN',{weekday:'short'}),total:sum(dayInc),credit:credit(dayInc)}})
   const maxDay=Math.max(...last7.map(d=>d.total),1)
@@ -3285,235 +2520,128 @@ const AnalyticsDash=({db})=>{
           </div>
         </div>
       </div>
-
       {/* MONTHLY COMPARISON CHART */}
-      <SecL>Actual income - month comparison</SecL>
+      <SecL>Monthly actual income comparison</SecL>
       <Card>
-        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
-        {/* Month selector */}
+        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off</div>
         <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
           {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
         </div>
-        {/* Bar chart */}
         {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
         {chartMonths.length>0&&(()=>{
-          const bars=chartMonths.map(m=>{
-            const mInc=inc.filter(e=>e.date?.startsWith(m))
-            const mExp=exp.filter(e=>e.date?.startsWith(m))
-            const gross=sum(mInc)
-            const comms=comm(mInc)
-            const exps=sum(mExp)
-            const actual=gross-comms-exps
-            const d=new Date(m+'-01')
-            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
-          })
+          const bars=chartMonths.map(m=>{const mInc=inc.filter(e=>e.date&&e.date.startsWith(m));const mExp=exp.filter(e=>e.date&&e.date.startsWith(m));const gross=sum(mInc);const comms=comm(mInc);const exps=sum(mExp);const actual=gross-comms-exps;const d=new Date(m+'-01');return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}})
           const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
-          return(<>
-            {/* Bars */}
+          return(<div>
             <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
-              {bars.map(b=>{
-                const grossH=Math.round((b.gross/maxVal)*130)
-                const actualH=Math.round((b.actual/maxVal)*130)
-                const isThisMonth=b.m===thisMonth
-                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
-                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
-                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
-                  </div>
-                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
-                </div>)
-              })}
+              {bars.map(b=>{const grossH=Math.max(2,Math.round((b.gross/maxVal)*130));const actualH=Math.max(2,Math.round((Math.max(0,b.actual)/maxVal)*130));const cur=b.m===thisMonth;return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}><div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div><div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}><div style={{flex:1,height:grossH,background:cur?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0'}}/><div style={{flex:1,height:actualH,background:cur?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0'}}/></div><div style={{fontSize:9,color:cur?'#16a34a':'#94a3b8',fontWeight:cur?800:500,textAlign:'center'}}>{b.label}</div></div>)})}
             </div>
-            {/* Legend */}
             <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
               <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
               <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
             </div>
-            {/* Data table */}
             <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
                 <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
-                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
-                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textAlign:'right',minWidth:60}}>Gross</div>
+                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textAlign:'right',minWidth:60}}>Deduct</div>
+                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textAlign:'right',minWidth:60}}>Actual</div>
               </div>
-              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
+              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' (now)':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
             </div>
-          </>)
+          </div>)
         })()}
       </Card>
 
-      {/* SEGMENT BREAKDOWN CARDS */}
-      <SecL>This month — segment breakdown</SecL>
-
+      {/* SEGMENT BREAKDOWN */}
+      <SecL>This month - segment breakdown</SecL>
       {(()=>{
-        // Clinical segment: OP + OP-R + IP + IP-R income
         const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
-        const clinGross=sum(clinInc)
-        const clinComm=comm(clinInc)
-        // Clinical expenses = all expenses EXCEPT lab_to_lab
+        const clinGross=sum(clinInc);const clinComm=comm(clinInc)
         const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
         const clinActual=clinGross-clinComm-clinExp
         const clinExpCats={}
         tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
-
-        // Lab segment: OP-L + IP-L income
         const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
-        const labGross=sum(labInc)
-        const labComm=comm(labInc)
-        // Lab expenses = lab_to_lab + ref_commissions paid on lab
+        const labGross=sum(labInc);const labComm=comm(labInc)
         const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
         const labActual=labGross-labComm-labToLab
-
-        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
-          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
-              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
-              <div>
-                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
-                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
-              </div>
-              <div style={{marginLeft:'auto',textAlign:'right'}}>
-                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
-                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
-              </div>
-            </div>
-            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
-              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
-                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
-              ))}
-              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
-            </div>
-          </div>
-        )
-
-        return(<>
-          <SegCard
-            title="Clinical & Pharmacy"
-            color="#0891b2"
-            bg="#ecfeff"
-            icon="H"
-            gross={clinGross}
-            commAmt={clinComm}
-            expAmt={clinExp}
-            expBreakdown={clinExpCats}
-            actual={clinActual}
-            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
-          />
-          <SegCard
-            title="Laboratory"
-            color="#7c3aed"
-            bg="#f5f3ff"
-            icon="L"
-            gross={labGross}
-            commAmt={labComm}
-            expAmt={labToLab}
-            expBreakdown={{'Lab to lab':labToLab}}
-            actual={labActual}
-            incTypes="OP-Lab + IP-Lab"
-          />
-        </>)
+        const SegCard=({title,color,bg,gross,commAmt,expBreakdown,actual,incTypes})=>(<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}><div><div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{title}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{incTypes}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div></div></div><div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}><div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>{Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}<div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/><div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div></div></div>)
+        return(<><SegCard title="Clinical and Pharmacy" color="#0891b2" bg="#ecfeff" gross={clinGross} commAmt={clinComm} expBreakdown={clinExpCats} actual={clinActual} incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"/><SegCard title="Laboratory" color="#7c3aed" bg="#f5f3ff" gross={labGross} commAmt={labComm} expBreakdown={{'Lab to lab':labToLab}} actual={labActual} incTypes="OP-Lab + IP-Lab"/></>)
       })()}
 
-      {/* MEDICAL SUPPLIES CARD */}
-      <SecL>Medical supplies ordered — this month</SecL>
+      {/* MEDICAL SUPPLIES */}
+      <SecL>Medical supplies ordered - this month</SecL>
       <Card>
         {(()=>{
           const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
           const totalSupplies=sum(supplies)
-          return(<>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
-              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
-              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
-            </div>
-            {supplies.map((e,i)=>(
-              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
-                <div style={{flex:1,paddingRight:12}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
-                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
-                </div>
-                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
-              </div>
-            ))}
-          </>)
+          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
+          return(<div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}><span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span><span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span></div>{supplies.map((e,i)=>(<div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}><div style={{flex:1,paddingRight:12}}><div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div><div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} - {e.payment||'cash'}</div></div><div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div></div>))}</div>)
         })()}
       </Card>
 
-      {/* AREA-WISE PIE CHART */}
-      <SecL>Area-wise patients — this month</SecL>
+      {/* AREA PIE CHART */}
+      <SecL>Area-wise patients - this month</SecL>
       <Card>
         {(()=>{
           const areaMap={}
           db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
           const areaData={}
-          tmInc.forEach(e=>{
-            if(!e.ref_doctor||!e.ref_doctor.trim())return
-            const area=areaMap[e.ref_doctor]||'No area'
-            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
-            if(e.patient_name)areaData[area].patients.add(e.patient_name)
-            areaData[area].doctors.add(e.ref_doctor)
-            areaData[area].income+=e.amount
-            areaData[area].count++
-          })
-          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
-          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
+          tmInc.forEach(e=>{if(!e.ref_doctor||!e.ref_doctor.trim())return;const area=areaMap[e.ref_doctor]||'No area';if(!areaData[area])areaData[area]={area,pats:new Set(),docs:new Set(),income:0};if(e.patient_name)areaData[area].pats.add(e.patient_name.trim().toLowerCase());areaData[area].docs.add(e.ref_doctor);areaData[area].income+=e.amount})
+          const areas=Object.values(areaData).map(a=>({...a,patients:a.pats.size,doctors:a.docs.size})).sort((a,b)=>b.patients-a.patients)
+          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month. Add area to doctors in Ref Doctors tab.</div>)
           const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
-          const totalInc=areas.reduce((a,r)=>a+r.income,0)
-          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
-          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
+          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d']
+          const size=160;const cx=80;const cy=80;const r=68;const ir=36
           let startAngle=0
-          const slices=areas.map((a,i)=>{
-            const pct=a.patients/totalPats
-            const angle=pct*2*Math.PI
-            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
-            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
-            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
-            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
-            const large=angle>Math.PI?1:0
-            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
-            startAngle+=angle
-            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
-          })
-          return(<>
-            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
-              <div style={{flexShrink:0}}>
-                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
-                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
-                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
-                </svg>
-              </div>
-              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
-                {slices.map((s,i)=>(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
-                    </div>
-                    <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
-              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
-                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
-                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
-                </div>
-              ))}
-            </div>
-          </>)
+          const slices=areas.map((a,i)=>{const pct=a.patients/totalPats;const angle=pct*2*Math.PI;const x1=cx+r*Math.sin(startAngle);const y1=cy-r*Math.cos(startAngle);const x2=cx+r*Math.sin(startAngle+angle);const y2=cy-r*Math.cos(startAngle+angle);const ix1=cx+ir*Math.sin(startAngle);const iy1=cy-ir*Math.cos(startAngle);const ix2=cx+ir*Math.sin(startAngle+angle);const iy2=cy-ir*Math.cos(startAngle+angle);const large=angle>Math.PI?1:0;const path='M '+ix1+' '+iy1+' L '+x1+' '+y1+' A '+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' L '+ix2+' '+iy2+' A '+ir+' '+ir+' 0 '+large+' 0 '+ix1+' '+iy1+' Z';startAngle+=angle;return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}})
+          return(<div><div style={{display:'flex',alignItems:'center',gap:16,marginBottom:16}}><svg width={size} height={size} viewBox={'0 0 '+size+' '+size}>{slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}<text x={cx} y={cy-5} textAnchor="middle" style={{fontSize:'11px',fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text><text x={cx} y={cy+9} textAnchor="middle" style={{fontSize:'9px',fill:'#94a3b8'}}>patients</text></svg><div style={{flex:1}}>{slices.map((s,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}><div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/><div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div><div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} dr</div></div><div style={{textAlign:'right'}}><div style={{fontSize:12,fontWeight:700}}>{s.patients} pts</div><div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div></div></div>)}</div></div><div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{background:'#f8fafc',borderRadius:8,padding:'8px',textAlign:'center'}}><div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Total areas</div><div style={{fontSize:16,fontWeight:800,color:'#6366f1'}}>{areas.length}</div></div><div style={{background:'#f8fafc',borderRadius:8,padding:'8px',textAlign:'center'}}><div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Patients</div><div style={{fontSize:16,fontWeight:800,color:'#16a34a'}}>{totalPats}</div></div></div></div>)
         })()}
+      </Card>
+
+      {/* SELF vs REFERRAL */}
+      <SecL>Self vs referral patients - this month</SecL>
+      <Card>
+        <div style={{marginBottom:20}}>
+          <div style={{display:'flex',borderRadius:12,overflow:'hidden',height:28,marginBottom:8}}>
+            <div style={{width:svSelfPct+'%',background:'linear-gradient(90deg,#3b82f6,#60a5fa)',display:'flex',alignItems:'center',justifyContent:'center',minWidth:svSelfPct>10?'auto':0}}>
+              {svSelfPct>12&&<span style={{fontSize:11,fontWeight:800,color:'#fff'}}>{svSelfPct}%</span>}
+            </div>
+            <div style={{flex:1,background:'linear-gradient(90deg,#16a34a,#22c55e)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {svRefPct>12&&<span style={{fontSize:11,fontWeight:800,color:'#fff'}}>{svRefPct}%</span>}
+            </div>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>
+            <span>Self patients</span>
+            <span>Referral patients</span>
+          </div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+          <div style={{background:'linear-gradient(160deg,#eff6ff,#dbeafe)',border:'1px solid #bfdbfe',borderRadius:14,padding:'16px 14px'}}>
+            <div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Self patients</div>
+            <div style={{fontSize:32,fontWeight:900,color:'#1d4ed8',lineHeight:1,marginBottom:4}}>{svSelfCount}</div>
+            <div style={{fontSize:11,color:'#3b82f6',fontWeight:600,marginBottom:8}}>{svSelfPct}% of all</div>
+            <div style={{height:1,background:'#bfdbfe',marginBottom:8}}/>
+            <div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>{fmt(svSelfInc)}</div>
+            <div style={{fontSize:10,color:'#93c5fd',marginTop:2}}>No commission</div>
+          </div>
+          <div style={{background:'linear-gradient(160deg,#f0fdf4,#dcfce7)',border:'1px solid #bbf7d0',borderRadius:14,padding:'16px 14px'}}>
+            <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Referral patients</div>
+            <div style={{fontSize:32,fontWeight:900,color:'#15803d',lineHeight:1,marginBottom:4}}>{svRefCount}</div>
+            <div style={{fontSize:11,color:'#16a34a',fontWeight:600,marginBottom:8}}>{svRefPct}% of all</div>
+            <div style={{height:1,background:'#bbf7d0',marginBottom:8}}/>
+            <div style={{fontSize:11,color:'#15803d',fontWeight:600}}>{fmt(svRefInc)}</div>
+            <div style={{fontSize:10,color:'#86efac',marginTop:2}}>Commission: {fmt(svRefComm)}</div>
+          </div>
+        </div>
+        <div style={{background:'#f8fafc',borderRadius:10,padding:'12px 14px',display:'flex',alignItems:'flex-start',gap:12}}>
+          <div style={{width:32,height:32,borderRadius:8,background:svRefPct>50?'#f0fdf4':'#eff6ff',border:'1.5px solid '+(svRefPct>50?'#bbf7d0':'#bfdbfe'),display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:'1.1rem'}}>{svRefPct>50?'G':'B'}</div>
+          <div style={{fontSize:12,color:'#475569',lineHeight:1.7}}>
+            {svRefPct>60&&<span><strong style={{color:'#15803d'}}>Referral-heavy hospital.</strong> Over 60% patients come via referral doctors. Keep those relationships strong.</span>}
+            {svRefPct>30&&svRefPct<=60&&<span><strong style={{color:'#1d4ed8'}}>Good balance.</strong> Healthy mix of self and referred patients.</span>}
+            {svRefPct<=30&&<span><strong style={{color:'#1d4ed8'}}>Self-driven practice.</strong> Most patients come directly. Adding referral doctors could grow income.</span>}
+          </div>
+        </div>
       </Card>
     </div>
   )
