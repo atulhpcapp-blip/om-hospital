@@ -2429,22 +2429,40 @@ const AnalyticsDash=({db})=>{
         <Card>{topRefs.map((doc,i)=><div key={doc.name} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<topRefs.length-1?'1px solid #f1f5f9':'none'}}><div style={{width:26,height:26,borderRadius:'50%',background:['#dbeafe','#dcfce7','#fef3c7','#fce7f3','#ede9fe'][i],display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:['#1d4ed8','#16a34a','#b45309','#9d174d','#6d28d9'][i],flexShrink:0}}>{i+1}</div><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Dr. {doc.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{doc.count} visit{doc.count!==1?'s':''}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(doc.income)}</div>{doc.comm>0&&<div style={{fontSize:10,color:'#d97706'}}>comm: {fmt(doc.comm)}</div>}</div></div>)}</Card>
       </div>}
 
-      {/* YEAR SUMMARY */}
-      <SecL>{thisYear} - Year to date</SecL>
-      <div style={{background:'linear-gradient(135deg,#0f172a,#1e3a5f)',borderRadius:16,padding:'16px',marginBottom:8,color:'#fff'}}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,textAlign:'center'}}>
-          {[{l:'Gross income',v:fmt(yrTotal),c:'#4ade80'},{l:'Total expenses',v:fmt(yrExp+yrComm),c:'#f87171'},{l:'Real profit',v:fmt(yrReal),c:'#34d399'}].map((m,i)=>(
-            <div key={i}>
-              <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',fontWeight:700,marginBottom:6}}>{m.l}</div>
-              <div style={{fontSize:15,fontWeight:800,color:m.c}}>{m.v}</div>
-            </div>
-          ))}
+      {/* MONTH SUMMARY */}
+      <SecL>This month summary</SecL>
+      <div style={{background:'linear-gradient(135deg,#0f172a,#1e3a5f)',borderRadius:16,padding:'16px',marginBottom:12,color:'#fff'}}>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.08em',marginBottom:12}}>{new Date(thisMonth+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+          <div style={{background:'rgba(74,222,128,0.1)',borderRadius:10,padding:'10px 12px'}}>
+            <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Gross income</div>
+            <div style={{fontSize:18,fontWeight:900,color:'#4ade80'}}>{fmt(tmTotal)}</div>
+          </div>
+          <div style={{background:'rgba(52,211,153,0.1)',borderRadius:10,padding:'10px 12px'}}>
+            <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Real profit</div>
+            <div style={{fontSize:18,fontWeight:900,color:'#34d399'}}>{fmt(tmReal)}</div>
+          </div>
         </div>
-        {tmCredit>0&&<div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(255,255,255,0.1)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <span style={{fontSize:11,color:'rgba(255,255,255,0.5)'}}>Outstanding credit (this month)</span>
+        {tmCredit>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'rgba(248,113,113,0.1)',borderRadius:8,marginBottom:8}}>
+          <span style={{fontSize:11,color:'rgba(255,255,255,0.5)'}}>Credit outstanding</span>
           <span style={{fontSize:13,fontWeight:700,color:'#f87171'}}>{fmt(tmCredit)}</span>
         </div>}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'rgba(251,191,36,0.08)',borderRadius:8}}>
+          <span style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>Ref commissions</span>
+          <span style={{fontSize:13,fontWeight:700,color:'#fbbf24'}}>{fmt(tmComm)}</span>
+        </div>
       </div>
+
+      <SecL>Expenses this month</SecL>
+      <Card>
+        {tmExpTotal===0&&<div style={{textAlign:'center',padding:'12px 0',color:'#94a3b8',fontSize:13}}>No expenses recorded this month</div>}
+        {(()=>{
+          const bycat={}
+          tmExp.forEach(e=>{if(!bycat[e.category])bycat[e.category]={total:0,count:0};bycat[e.category].total+=e.amount;bycat[e.category].count++})
+          return Object.entries(bycat).sort((a,b)=>b[1].total-a[1].total).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f1f5f9'}}><div><div style={{fontSize:13,fontWeight:600,color:'#0f172a',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</div><div style={{fontSize:11,color:'#94a3b8'}}>{v.count} entr{v.count!==1?'ies':'y'}</div></div><div style={{fontSize:14,fontWeight:700,color:'#dc2626'}}>{fmt(v.total)}</div></div>))
+        })()}
+        {tmExpTotal>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:10,marginTop:4,borderTop:'2px solid #0f172a'}}><span style={{fontSize:13,fontWeight:800}}>Total expenses</span><span style={{fontSize:15,fontWeight:800,color:'#dc2626'}}>{fmt(tmExpTotal)}</span></div>}
+      </Card>
     </div>
   )
 }
