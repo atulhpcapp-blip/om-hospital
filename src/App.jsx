@@ -483,12 +483,14 @@ const DonutChart=({segments,title,centerLabel})=>{
             </div>
 
             {/* Insight row */}
-            <div style={{background:'#f8fafc',borderRadius:10,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
-              <div style={{fontSize:1.6+'rem',flexShrink:0}}>{refPct>60?'R':refPct>40?'B':'W'}{refPct>60?'':''}
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2"/><path d="M12 8v4l3 3" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2" strokeLinecap="round"/></svg>
+            <div style={{background:'#f8fafc',borderRadius:10,padding:'12px 14px',display:'flex',alignItems:'flex-start',gap:12}}>
+              <div style={{width:36,height:36,borderRadius:10,background:refPct>50?'#f0fdf4':'#eff6ff',border:'1.5px solid '+( refPct>50?'#bbf7d0':'#bfdbfe'),display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2"/><path d="M12 8v4l3 3" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </div>
-              <div style={{fontSize:12,color:'#475569',lineHeight:1.6}}>
-                {refPct>60?<span><strong style={{color:'#15803d'}}>Referral-heavy hospital.</strong> Over 60% of your patients come from referral doctors. Keep those relationships strong — commissions are a growth investment.</span>:refPct>30?<span><strong style={{color:'#1d4ed8'}}>Good balance.</strong> You have a healthy mix of self and referred patients. Growing either channel will help.</span>:<span><strong style={{color:'#1d4ed8'}}>Self-driven practice.</strong> Most patients come directly to you. Adding more referral doctors could grow income significantly.</span>}
+              <div style={{fontSize:12,color:'#475569',lineHeight:1.7}}>
+                {refPct>60&&<span><strong style={{color:'#15803d'}}>Referral-heavy hospital.</strong> Over 60% of your patients come from referral doctors. Keep those relationships strong - commissions are a growth investment.</span>}
+                {refPct>30&&refPct<=60&&<span><strong style={{color:'#1d4ed8'}}>Good balance.</strong> You have a healthy mix of self and referred patients. Growing either channel will help.</span>}
+                {refPct<=30&&<span><strong style={{color:'#1d4ed8'}}>Self-driven practice.</strong> Most patients come directly to you. Adding more referral doctors could grow income significantly.</span>}
               </div>
             </div>
           </>)
