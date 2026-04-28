@@ -1951,7 +1951,7 @@ export default function App(){
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin)return<SuperAdminDashboard/>
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
-    return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f7f7f7',padding:20}}><div style={{maxWidth:360,width:'100%',textAlign:'center'}}><div style={{fontSize:20,fontWeight:700,color:'#111',marginBottom:8}}>Trial expired</div><div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your 30-day free trial has ended. Contact support to continue.</div><Card><div style={{fontSize:13,color:'#555',lineHeight:2}}>Hospital: <strong>{hospital?.name}</strong><br/>Contact: support@easymedicalsolutions.in</div></Card><button onClick={()=>supabase.auth.signOut()} style={{marginTop:14,padding:'10px 20px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Logout</button></div></div>)
+    return <PaymentPage/>
   }
 
   const TAB_COLORS={entry:{active:'#16a34a',bg:'#f0fdf4'},ip:{active:'#2563eb',bg:'#eff6ff'},op:{active:'#7c3aed',bg:'#f5f3ff'},exp:{active:'#dc2626',bg:'#fff1f2'},rep:{active:'#d97706',bg:'#fffbeb'},credit:{active:'#c2410c',bg:'#fff7ed'},refdrs:{active:'#0891b2',bg:'#ecfeff'},consult:{active:'#7c3aed',bg:'#f5f3ff'},admin:{active:'#475569',bg:'#f8fafc'}}
@@ -2151,4 +2151,120 @@ const ConsultantsTab=({db,actions})=>{
       </div>
     </Card>))}
   </div>)
+}
+
+/*  PAYMENT PAGE  */
+const PaymentPage=()=>{
+  const [plan,setPlan]=useState('pro')
+  const [billing,setBilling]=useState('monthly')
+  const [busy,setBusy]=useState(false)
+  const [err,setErr]=useState('')
+  const SUPABASE_URL='https://wlgbhrmycequuiabpwqf.supabase.co'
+  const RZP_KEY='rzp_live_Siv0viAUFpkbJg'
+  const PLANS={
+    starter:{label:'Starter',monthly:600,yearly:6000,desc:'Unlimited patients, IP & OP, Referral commissions, 5 staff'},
+    pro:{label:'Pro',monthly:900,yearly:9000,desc:'Everything + Area reports, Consultant module, All reports, Unlimited staff',popular:true},
+    enterprise:{label:'Enterprise',monthly:1900,yearly:19000,desc:'Everything + Multi-hospital, Dedicated support, Phone support'},
+  }
+  const loadRazorpay=()=>new Promise(resolve=>{
+    if(window.Razorpay){resolve(true);return}
+    const s=document.createElement('script');s.src='https://checkout.razorpay.com/v1/checkout.js'
+    s.onload=()=>resolve(true);s.onerror=()=>resolve(false)
+    document.body.appendChild(s)
+  })
+  const pay=async()=>{
+    setBusy(true);setErr('')
+    const loaded=await loadRazorpay()
+    if(!loaded){setErr('Failed to load payment. Check internet.');setBusy(false);return}
+    const {data:{session}}=await supabase.auth.getSession()
+    if(!session){setErr('Session expired, please login again.');setBusy(false);return}
+    const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
+    const hid=prof?.hospital_id
+    if(!hid){setErr('Hospital not found.');setBusy(false);return}
+    const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',hid).single()
+    const res=await fetch(SUPABASE_URL+'/functions/v1/create-order',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({hospital_id:hid,plan,billing})
+    })
+    const order=await res.json()
+    if(!res.ok||order.error){setErr(order.error||'Order creation failed');setBusy(false);return}
+    const p=PLANS[plan]
+    const rzp=new window.Razorpay({
+      key:RZP_KEY,amount:order.amount,currency:'INR',
+      name:'Easy Medical Solutions',
+      description:p.label+' plan - '+billing,
+      order_id:order.order_id,
+      prefill:{name:hosp?.name||'',email:session.user.email||'',contact:'7013211742'},
+      theme:{color:'#16a34a'},
+      handler:async(response)=>{
+        const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-payment',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+          body:JSON.stringify({...response,hospital_id:hid,plan,billing})
+        })
+        const vdata=await vres.json()
+        if(vdata.success){alert('Payment successful! '+p.label+' plan active until '+vdata.plan_end+'. App will now reload.');window.location.reload()}
+        else{setErr('Verification failed. Contact support@easymedicalsolutions.in')}
+        setBusy(false)
+      },
+      modal:{ondismiss:()=>setBusy(false)}
+    })
+    rzp.open()
+  }
+  return(
+    <div style={{minHeight:'100vh',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif'}}>
+      <div style={{width:'100%',maxWidth:480}}>
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <div style={{display:'inline-flex',alignItems:'center',gap:10,marginBottom:16}}>
+            <div style={{width:40,height:40,borderRadius:12,background:'rgba(0,192,107,0.12)',border:'1px solid rgba(0,192,107,0.3)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <svg width="22" height="22" viewBox="0 0 40 40" fill="none"><rect x="16" y="6" width="8" height="28" rx="4" fill="#00c06b"/><rect x="6" y="16" width="28" height="8" rx="4" fill="#00c06b"/><circle cx="20" cy="20" r="5" fill="#00e87f"/></svg>
+            </div>
+            <div style={{textAlign:'left'}}>
+              <div style={{fontSize:15,fontWeight:900,color:'#fff',letterSpacing:'-0.5px'}}>EasyMedical</div>
+              <div style={{fontSize:9,fontWeight:700,color:'rgba(0,192,107,0.8)',textTransform:'uppercase',letterSpacing:'.15em'}}>Solutions</div>
+            </div>
+          </div>
+          <div style={{fontSize:22,fontWeight:900,color:'#fff',letterSpacing:'-0.8px',marginBottom:8}}>Choose your plan</div>
+          <div style={{fontSize:13,color:'rgba(255,255,255,0.4)'}}>Your free trial has ended. Activate to continue.</div>
+        </div>
+        <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+          <div style={{display:'flex',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:100,padding:4}}>
+            {['monthly','yearly'].map(b=>(<button key={b} onClick={()=>setBilling(b)} style={{padding:'8px 22px',borderRadius:100,border:'none',fontFamily:'inherit',fontSize:12,fontWeight:700,cursor:'pointer',background:billing===b?'linear-gradient(135deg,#16a34a,#22c55e)':'transparent',color:billing===b?'#0a1628':'rgba(255,255,255,0.5)',transition:'all .2s'}}>
+              {b==='monthly'?'Monthly':<span>Yearly <span style={{background:'rgba(0,192,107,0.2)',color:'#00e87f',fontSize:9,padding:'1px 6px',borderRadius:100,marginLeft:4}}>Save 17%</span></span>}
+            </button>))}
+          </div>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:20}}>
+          {Object.entries(PLANS).map(([k,pl])=>(
+            <div key={k} onClick={()=>setPlan(k)} style={{background:plan===k?'rgba(0,192,107,0.08)':'rgba(255,255,255,0.03)',border:plan===k?'2px solid rgba(0,192,107,0.5)':'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px',cursor:'pointer',transition:'all .2s',position:'relative'}}>
+              {pl.popular&&<div style={{position:'absolute',top:-10,right:16,background:'linear-gradient(135deg,#16a34a,#22c55e)',color:'#0a1628',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>POPULAR</div>}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{width:20,height:20,borderRadius:'50%',border:'2px solid',borderColor:plan===k?'#00c06b':'rgba(255,255,255,0.2)',background:plan===k?'#00c06b':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {plan===k&&<div style={{width:8,height:8,borderRadius:'50%',background:'#0a1628'}}/>}
+                  </div>
+                  <div style={{fontSize:15,fontWeight:800,color:'#fff'}}>{pl.label}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:22,fontWeight:900,color:plan===k?'#00c06b':'#fff'}}>Rs {(billing==='monthly'?pl.monthly:pl.yearly).toLocaleString('en-IN')}</div>
+                  <div style={{fontSize:10,color:'rgba(255,255,255,0.35)'}}>per {billing==='monthly'?'month':'year'}</div>
+                </div>
+              </div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',paddingLeft:30}}>{pl.desc}</div>
+            </div>
+          ))}
+        </div>
+        {err&&<div style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.25)',borderRadius:10,padding:'10px 14px',color:'#fca5a5',fontSize:13,textAlign:'center',marginBottom:12}}>{err}</div>}
+        <button onClick={pay} disabled={busy} style={{width:'100%',padding:'15px',background:busy?'rgba(0,192,107,0.3)':'linear-gradient(135deg,#00c06b,#00e87f)',color:busy?'rgba(255,255,255,0.4)':'#0a1628',border:'none',borderRadius:14,fontSize:16,fontWeight:800,cursor:busy?'not-allowed':'pointer',letterSpacing:'-0.3px',boxShadow:busy?'none':'0 8px 24px rgba(0,192,107,0.3)'}}>
+          {busy?'Opening payment...':'Pay Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+' & Activate'}
+        </button>
+        <div style={{textAlign:'center',marginTop:14,fontSize:11,color:'rgba(255,255,255,0.25)'}}>
+          Secured by Razorpay &nbsp;·&nbsp; UPI, Cards, NetBanking, Wallets
+          <br/>support@easymedicalsolutions.in &nbsp;·&nbsp; 7013211742
+        </div>
+        <button onClick={()=>supabase.auth.signOut()} style={{display:'block',margin:'14px auto 0',fontSize:11,color:'rgba(255,255,255,0.2)',background:'none',border:'none',cursor:'pointer'}}>Logout</button>
+      </div>
+    </div>
+  )
 }
