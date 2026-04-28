@@ -1250,14 +1250,14 @@ const OPTab=({db,actions})=>{
   const [filterCon,setFilterCon]=useState('')
   const opIncome=db.income.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
   const byPat={}
-  opIncome.forEach(e=>{const k=e.patient_name;if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>byPat[k].lastDate)byPat[k].lastDate=e.date})
+  opIncome.forEach(e=>{const k=(e.patient_name||'').trim().toLowerCase();if(!byPat[k])byPat[k]={name:e.patient_name,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>byPat[k].lastDate)byPat[k].lastDate=e.date})
   const allPatients=Object.values(byPat).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
   const patients=search.trim()?allPatients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.reg_no.toLowerCase().includes(search.toLowerCase())):allPatients
   const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editEntry)return(<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/> )
   if(selPat){
-    const pat=byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
+    const pat=byPat[selPat?.trim().toLowerCase()]||byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
     const ents=pat.entries
     const totalInc=ents.reduce((a,e)=>a+e.amount,0);const totalComm=ents.reduce((a,e)=>a+getComm(e),0);const totalCredit=credTotal(ents);const totalCash=cashTotal(ents)
     const byType={};ents.forEach(e=>{if(!byType[e.type])byType[e.type]={inc:0,comm:0};byType[e.type].inc+=e.amount;byType[e.type].comm+=getComm(e)})
@@ -1295,7 +1295,7 @@ const OPTab=({db,actions})=>{
   // All referral doctors and consultants who appear in OP income
   const opRefDocs=[...new Set(opIncome.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   const opConsultants=[...new Set(opIncome.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort()
-  const PatCard=({pat})=>(<Card style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat(pat.name)}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''} - Last: {fmtD(pat.lastDate)}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref comm: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}></span></div></div></Card>)
+  const PatCard=({pat})=>(<Card style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat((pat.name||'').trim().toLowerCase())}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''} - Last: {fmtD(pat.lastDate)}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref comm: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}></span></div></div></Card>)
   const VIEWS=[{k:'patients',l:'All Patients'},{k:'date',l:'By Date'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}]
   return(
     <div>
@@ -1605,7 +1605,7 @@ const PatientListReport=({db,gotoTimeline})=>{
   const ipPats=db.ip_patients.filter(p=>{const adm=p.admission_date||'';const dis=p.discharge_date||'9999-12-31';if(per==='month')return adm.startsWith(rm2)||(adm<=rm2+'-31'&&dis>=rm2+'-01');if(per==='year')return adm.startsWith(ry2)||(adm<=ry2+'-12-31'&&dis>=ry2+'-01-01');return adm<=to&&(dis>=from||!p.discharge_date)})
   const periodInc=per==='month'?db.income.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.income.filter(e=>e.date?.startsWith(ry2)):db.income.filter(e=>e.date>=from&&e.date<=to)
   const opEnts=periodInc.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
-  const opByPat={};opEnts.forEach(e=>{const k=e.patient_name;if(!opByPat[k])opByPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,cash:0,credit:0,comm:0,ref_doctor:'',entries:[],lastDate:''};opByPat[k].total+=e.amount;opByPat[k].cash+=isCredit(e)?0:e.amount;opByPat[k].credit+=isCredit(e)?e.amount:0;opByPat[k].comm+=getComm(e);if(e.ref_doctor&&!opByPat[k].ref_doctor)opByPat[k].ref_doctor=e.ref_doctor;opByPat[k].entries.push(e);if(e.date>opByPat[k].lastDate)opByPat[k].lastDate=e.date;if(e.consultant_name&&!opByPat[k].consultant_name)opByPat[k].consultant_name=e.consultant_name})
+  const opByPat={};opEnts.forEach(e=>{const k=(e.patient_name||'').trim().toLowerCase();if(!opByPat[k])opByPat[k]={name:e.patient_name,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,cash:0,credit:0,comm:0,ref_doctor:'',entries:[],lastDate:''};opByPat[k].total+=e.amount;opByPat[k].cash+=isCredit(e)?0:e.amount;opByPat[k].credit+=isCredit(e)?e.amount:0;opByPat[k].comm+=getComm(e);if(e.ref_doctor&&!opByPat[k].ref_doctor)opByPat[k].ref_doctor=e.ref_doctor;opByPat[k].entries.push(e);if(e.date>opByPat[k].lastDate)opByPat[k].lastDate=e.date;if(e.consultant_name&&!opByPat[k].consultant_name)opByPat[k].consultant_name=e.consultant_name})
   const opPats=Object.values(opByPat).sort((a,b)=>(b.lastDate||'').localeCompare(a.lastDate||''))
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
@@ -1650,7 +1650,7 @@ const PatientListReport=({db,gotoTimeline})=>{
         let filtered=opPats
         if(showType==='op'&&opView==='ref'&&opRefFilter)filtered=opPats.filter(p=>p.entries.some(e=>e.ref_doctor===opRefFilter))
         if(showType==='op'&&opView==='con'&&opConFilter)filtered=opPats.filter(p=>p.entries.some(e=>e.consultant_name===opConFilter))
-        return filtered.length>0?(<><SecL>OP patients ({filtered.length})</SecL>{opPats.map(pt=>(<Card key={pt.name} style={{marginBottom:10}}>
+        return filtered.length>0?(<><SecL>OP patients ({filtered.length})</SecL>{filtered.map(pt=>(<Card key={pt.name} style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
           <div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pt.name}</div>
