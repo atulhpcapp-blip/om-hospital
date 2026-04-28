@@ -236,9 +236,9 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
 const SettingsPanel=()=>{
   const [plans,setPlans]=useState({
     trial:{label:'Trial',days:30,price:0,yearly:0},
-    starter:{label:'Starter',price:300,yearly:3000,days:365},
-    pro:{label:'Pro',price:400,yearly:4000,days:365},
-    enterprise:{label:'Enterprise',price:600,yearly:6000,days:365},
+    starter:{label:'Starter',price:600,yearly:6000,days:365},
+    pro:{label:'Pro',price:900,yearly:9000,days:365},
+    enterprise:{label:'Enterprise',price:1900,yearly:19000,days:365},
   })
   const [appName,setAppName]=useState('EasyMedical')
   const [support,setSupport]=useState('support@easymedicalsolutions.in')
