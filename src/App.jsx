@@ -1682,7 +1682,9 @@ export default function App(){
   }
   const gotoIP=useCallback((pid)=>{setIpid(pid);setIpv('detail');setTab('ip')},[])
   const isAdmin=profile?.role==='admin'
-  const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'rep',l:'Reports'},{k:'credit',l:'Credit'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const isManagement=profile?.role==='management'
+  const canSeeReports=isAdmin||isManagement
+  const TABS=[{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading...</div>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
