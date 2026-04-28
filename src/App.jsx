@@ -412,6 +412,88 @@ const DonutChart=({segments,title,centerLabel})=>{
           </>)
         })()}
       </Card>
+
+      {/* SELF vs REFERRAL PATIENTS */}
+      <SecL>Self vs referral patients — this month</SecL>
+      <Card>
+        {(()=>{
+          const allPats=new Set(tmInc.filter(e=>e.patient_name).map(e=>e.patient_name.trim().toLowerCase()))
+          const refPats=new Set(tmInc.filter(e=>e.patient_name&&e.ref_doctor&&e.ref_doctor.trim()).map(e=>e.patient_name.trim().toLowerCase()))
+          const selfPats=new Set([...allPats].filter(p=>!refPats.has(p)))
+          const total=allPats.size||1
+          const refInc=sum(tmInc.filter(e=>e.ref_doctor&&e.ref_doctor.trim()))
+          const selfInc=sum(tmInc.filter(e=>!e.ref_doctor||!e.ref_doctor.trim()))
+          const refPct=Math.round((refPats.size/total)*100)
+          const selfPct=100-refPct
+          const refComm=comm(tmInc.filter(e=>e.ref_doctor&&e.ref_doctor.trim()))
+          return(<>
+            {/* Visual split bar */}
+            <div style={{marginBottom:20}}>
+              <div style={{display:'flex',borderRadius:12,overflow:'hidden',height:28,marginBottom:8}}>
+                <div style={{width:selfPct+'%',background:'linear-gradient(90deg,#3b82f6,#60a5fa)',display:'flex',alignItems:'center',justifyContent:'center',minWidth:selfPct>8?'auto':0,transition:'width .5s'}}>
+                  {selfPct>12&&<span style={{fontSize:11,fontWeight:800,color:'#fff'}}>{selfPct}%</span>}
+                </div>
+                <div style={{flex:1,background:'linear-gradient(90deg,#16a34a,#22c55e)',display:'flex',alignItems:'center',justifyContent:'center',transition:'width .5s'}}>
+                  {refPct>12&&<span style={{fontSize:11,fontWeight:800,color:'#fff'}}>{refPct}%</span>}
+                </div>
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase',letterSpacing:'.06em'}}>
+                <span>Self patients</span>
+                <span>Referral patients</span>
+              </div>
+            </div>
+
+            {/* Two big stat blocks */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+              {/* SELF */}
+              <div style={{background:'linear-gradient(160deg,#eff6ff,#dbeafe)',border:'1px solid #bfdbfe',borderRadius:14,padding:'16px 14px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:'#3b82f6',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="white" strokeWidth="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em'}}>Self patients</div>
+                    <div style={{fontSize:10,color:'#93c5fd'}}>Walk-in / Direct</div>
+                  </div>
+                </div>
+                <div style={{fontSize:32,fontWeight:900,color:'#1d4ed8',lineHeight:1,marginBottom:6}}>{selfPats.size}</div>
+                <div style={{fontSize:11,color:'#3b82f6',fontWeight:600,marginBottom:4}}>{selfPct}% of all patients</div>
+                <div style={{height:1,background:'#bfdbfe',marginBottom:8}}/>
+                <div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Income: {fmt(selfInc)}</div>
+                <div style={{fontSize:10,color:'#93c5fd',marginTop:2}}>No commission payable</div>
+              </div>
+
+              {/* REFERRAL */}
+              <div style={{background:'linear-gradient(160deg,#f0fdf4,#dcfce7)',border:'1px solid #bbf7d0',borderRadius:14,padding:'16px 14px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:'#16a34a',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="white" strokeWidth="2" strokeLinecap="round"/><circle cx="9" cy="7" r="4" stroke="white" strokeWidth="2"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+                  </div>
+                  <div>
+                    <div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',letterSpacing:'.06em'}}>Referral patients</div>
+                    <div style={{fontSize:10,color:'#86efac'}}>Via doctors</div>
+                  </div>
+                </div>
+                <div style={{fontSize:32,fontWeight:900,color:'#15803d',lineHeight:1,marginBottom:6}}>{refPats.size}</div>
+                <div style={{fontSize:11,color:'#16a34a',fontWeight:600,marginBottom:4}}>{refPct}% of all patients</div>
+                <div style={{height:1,background:'#bbf7d0',marginBottom:8}}/>
+                <div style={{fontSize:11,color:'#15803d',fontWeight:600}}>Income: {fmt(refInc)}</div>
+                <div style={{fontSize:10,color:'#86efac',marginTop:2}}>Commission: {fmt(refComm)}</div>
+              </div>
+            </div>
+
+            {/* Insight row */}
+            <div style={{background:'#f8fafc',borderRadius:10,padding:'12px 14px',display:'flex',alignItems:'center',gap:12}}>
+              <div style={{fontSize:1.6+'rem',flexShrink:0}}>{refPct>60?'R':refPct>40?'B':'W'}{refPct>60?'':''}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2"/><path d="M12 8v4l3 3" stroke={refPct>50?'#16a34a':'#3b82f6'} strokeWidth="2" strokeLinecap="round"/></svg>
+              </div>
+              <div style={{fontSize:12,color:'#475569',lineHeight:1.6}}>
+                {refPct>60?<span><strong style={{color:'#15803d'}}>Referral-heavy hospital.</strong> Over 60% of your patients come from referral doctors. Keep those relationships strong — commissions are a growth investment.</span>:refPct>30?<span><strong style={{color:'#1d4ed8'}}>Good balance.</strong> You have a healthy mix of self and referred patients. Growing either channel will help.</span>:<span><strong style={{color:'#1d4ed8'}}>Self-driven practice.</strong> Most patients come directly to you. Adding more referral doctors could grow income significantly.</span>}
+              </div>
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
