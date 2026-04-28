@@ -315,6 +315,103 @@ const DonutChart=({segments,title,centerLabel})=>{
           />
         </>)
       })()}
+
+      {/* MEDICAL SUPPLIES CARD */}
+      <SecL>Medical supplies ordered — this month</SecL>
+      <Card>
+        {(()=>{
+          const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
+          const totalSupplies=sum(supplies)
+          return(<>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
+              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
+              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
+            </div>
+            {supplies.map((e,i)=>(
+              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
+                <div style={{flex:1,paddingRight:12}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
+                </div>
+                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
+              </div>
+            ))}
+          </>)
+        })()}
+      </Card>
+
+      {/* AREA-WISE PIE CHART */}
+      <SecL>Area-wise patients — this month</SecL>
+      <Card>
+        {(()=>{
+          const areaMap={}
+          db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
+          const areaData={}
+          tmInc.forEach(e=>{
+            if(!e.ref_doctor||!e.ref_doctor.trim())return
+            const area=areaMap[e.ref_doctor]||'No area'
+            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
+            if(e.patient_name)areaData[area].patients.add(e.patient_name)
+            areaData[area].doctors.add(e.ref_doctor)
+            areaData[area].income+=e.amount
+            areaData[area].count++
+          })
+          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
+          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
+          const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
+          const totalInc=areas.reduce((a,r)=>a+r.income,0)
+          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
+          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
+          let startAngle=0
+          const slices=areas.map((a,i)=>{
+            const pct=a.patients/totalPats
+            const angle=pct*2*Math.PI
+            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
+            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
+            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
+            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
+            const large=angle>Math.PI?1:0
+            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
+            startAngle+=angle
+            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
+          })
+          return(<>
+            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
+              <div style={{flexShrink:0}}>
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
+                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
+                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
+                </svg>
+              </div>
+              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
+                {slices.map((s,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
+              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
+                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
+                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
@@ -1064,6 +1161,103 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
           />
         </>)
       })()}
+
+      {/* MEDICAL SUPPLIES CARD */}
+      <SecL>Medical supplies ordered — this month</SecL>
+      <Card>
+        {(()=>{
+          const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
+          const totalSupplies=sum(supplies)
+          return(<>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
+              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
+              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
+            </div>
+            {supplies.map((e,i)=>(
+              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
+                <div style={{flex:1,paddingRight:12}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
+                </div>
+                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
+              </div>
+            ))}
+          </>)
+        })()}
+      </Card>
+
+      {/* AREA-WISE PIE CHART */}
+      <SecL>Area-wise patients — this month</SecL>
+      <Card>
+        {(()=>{
+          const areaMap={}
+          db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
+          const areaData={}
+          tmInc.forEach(e=>{
+            if(!e.ref_doctor||!e.ref_doctor.trim())return
+            const area=areaMap[e.ref_doctor]||'No area'
+            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
+            if(e.patient_name)areaData[area].patients.add(e.patient_name)
+            areaData[area].doctors.add(e.ref_doctor)
+            areaData[area].income+=e.amount
+            areaData[area].count++
+          })
+          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
+          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
+          const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
+          const totalInc=areas.reduce((a,r)=>a+r.income,0)
+          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
+          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
+          let startAngle=0
+          const slices=areas.map((a,i)=>{
+            const pct=a.patients/totalPats
+            const angle=pct*2*Math.PI
+            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
+            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
+            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
+            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
+            const large=angle>Math.PI?1:0
+            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
+            startAngle+=angle
+            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
+          })
+          return(<>
+            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
+              <div style={{flexShrink:0}}>
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
+                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
+                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
+                </svg>
+              </div>
+              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
+                {slices.map((s,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
+              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
+                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
+                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
@@ -2683,6 +2877,103 @@ const PaymentPage=({onBack=null})=>{
           />
         </>)
       })()}
+
+      {/* MEDICAL SUPPLIES CARD */}
+      <SecL>Medical supplies ordered — this month</SecL>
+      <Card>
+        {(()=>{
+          const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
+          const totalSupplies=sum(supplies)
+          return(<>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
+              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
+              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
+            </div>
+            {supplies.map((e,i)=>(
+              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
+                <div style={{flex:1,paddingRight:12}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
+                </div>
+                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
+              </div>
+            ))}
+          </>)
+        })()}
+      </Card>
+
+      {/* AREA-WISE PIE CHART */}
+      <SecL>Area-wise patients — this month</SecL>
+      <Card>
+        {(()=>{
+          const areaMap={}
+          db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
+          const areaData={}
+          tmInc.forEach(e=>{
+            if(!e.ref_doctor||!e.ref_doctor.trim())return
+            const area=areaMap[e.ref_doctor]||'No area'
+            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
+            if(e.patient_name)areaData[area].patients.add(e.patient_name)
+            areaData[area].doctors.add(e.ref_doctor)
+            areaData[area].income+=e.amount
+            areaData[area].count++
+          })
+          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
+          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
+          const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
+          const totalInc=areas.reduce((a,r)=>a+r.income,0)
+          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
+          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
+          let startAngle=0
+          const slices=areas.map((a,i)=>{
+            const pct=a.patients/totalPats
+            const angle=pct*2*Math.PI
+            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
+            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
+            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
+            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
+            const large=angle>Math.PI?1:0
+            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
+            startAngle+=angle
+            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
+          })
+          return(<>
+            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
+              <div style={{flexShrink:0}}>
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
+                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
+                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
+                </svg>
+              </div>
+              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
+                {slices.map((s,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
+              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
+                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
+                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
@@ -3043,6 +3334,103 @@ const AnalyticsDash=({db})=>{
           />
         </>)
       })()}
+
+      {/* MEDICAL SUPPLIES CARD */}
+      <SecL>Medical supplies ordered — this month</SecL>
+      <Card>
+        {(()=>{
+          const supplies=tmExp.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+          if(!supplies.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No medical supplies recorded this month</div>)
+          const totalSupplies=sum(supplies)
+          return(<>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:10,borderBottom:'2px solid #f1f5f9'}}>
+              <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>{supplies.length} entr{supplies.length!==1?'ies':'y'}</span>
+              <span style={{fontSize:15,fontWeight:900,color:'#dc2626'}}>Total: {fmt(totalSupplies)}</span>
+            </div>
+            {supplies.map((e,i)=>(
+              <div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
+                <div style={{flex:1,paddingRight:12}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Medical supplies'}</div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)} · {e.payment||'cash'}</div>
+                </div>
+                <div style={{fontSize:14,fontWeight:700,color:'#dc2626',flexShrink:0}}>{fmt(e.amount)}</div>
+              </div>
+            ))}
+          </>)
+        })()}
+      </Card>
+
+      {/* AREA-WISE PIE CHART */}
+      <SecL>Area-wise patients — this month</SecL>
+      <Card>
+        {(()=>{
+          const areaMap={}
+          db.ref_doctors.forEach(d=>{areaMap[d.name]=d.area||'No area'})
+          const areaData={}
+          tmInc.forEach(e=>{
+            if(!e.ref_doctor||!e.ref_doctor.trim())return
+            const area=areaMap[e.ref_doctor]||'No area'
+            if(!areaData[area])areaData[area]={area,patients:new Set(),doctors:new Set(),income:0,count:0}
+            if(e.patient_name)areaData[area].patients.add(e.patient_name)
+            areaData[area].doctors.add(e.ref_doctor)
+            areaData[area].income+=e.amount
+            areaData[area].count++
+          })
+          const areas=Object.values(areaData).map(a=>({...a,patients:a.patients.size,doctors:a.doctors.size})).sort((a,b)=>b.patients-a.patients)
+          if(!areas.length)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No referral data this month.<br/>Add area to doctors in Ref Doctors tab.</div>)
+          const totalPats=areas.reduce((a,r)=>a+r.patients,0)||1
+          const totalInc=areas.reduce((a,r)=>a+r.income,0)
+          const COLORS=['#3b82f6','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#6366f1']
+          const size=160; const cx=size/2; const cy=size/2; const r=68; const ir=36
+          let startAngle=0
+          const slices=areas.map((a,i)=>{
+            const pct=a.patients/totalPats
+            const angle=pct*2*Math.PI
+            const x1=cx+r*Math.sin(startAngle); const y1=cy-r*Math.cos(startAngle)
+            const x2=cx+r*Math.sin(startAngle+angle); const y2=cy-r*Math.cos(startAngle+angle)
+            const ix1=cx+ir*Math.sin(startAngle); const iy1=cy-ir*Math.cos(startAngle)
+            const ix2=cx+ir*Math.sin(startAngle+angle); const iy2=cy-ir*Math.cos(startAngle+angle)
+            const large=angle>Math.PI?1:0
+            const path=`M ${ix1} ${iy1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${ir} ${ir} 0 ${large} 0 ${ix1} ${iy1} Z`
+            startAngle+=angle
+            return{...a,path,color:COLORS[i%COLORS.length],pct:Math.round(pct*100)}
+          })
+          return(<>
+            <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:16}}>
+              <div style={{flexShrink:0}}>
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                  {slices.map((s,i)=><path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="2"/>)}
+                  <text x={cx} y={cy-6} textAnchor="middle" style={{fontSize:10,fontWeight:'bold',fill:'#0f172a'}}>{totalPats}</text>
+                  <text x={cx} y={cy+8} textAnchor="middle" style={{fontSize:8,fill:'#94a3b8'}}>patients</text>
+                </svg>
+              </div>
+              <div style={{flex:1,display:'flex',flexDirection:'column',gap:8}}>
+                {slices.map((s,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.area}</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.doctors} doctor{s.doctors!==1?'s':''}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#0f172a'}}>{s.patients} pts</div>
+                      <div style={{fontSize:10,color:'#94a3b8'}}>{s.pct}%</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10,display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,textAlign:'center'}}>
+              {[{l:'Total areas',v:areas.length,c:'#6366f1'},{l:'Patients',v:totalPats,c:'#16a34a'},{l:'Income',v:fmt(totalInc),c:'#0891b2'}].map((m,i)=>(
+                <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 4px'}}>
+                  <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>{m.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
