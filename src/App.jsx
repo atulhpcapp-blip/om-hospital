@@ -12,7 +12,7 @@ const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b4
 const ROLES=['admin','management','accounts','staff']
 const OP_TYPES=['New OP','Review OP']
 const IP_PAT_TYPES=['Regular','Package','VC']
-const PLANS=[{key:'trial',label:'Trial (30 days)',price:0},{key:'starter',label:'Starter',price:999},{key:'pro',label:'Pro',price:1999},{key:'enterprise',label:'Enterprise',price:4999}]
+const PLANS=[{key:'trial',label:'Trial (7 days)',price:0},{key:'starter',label:'Starter',price:999},{key:'pro',label:'Pro',price:1999},{key:'enterprise',label:'Enterprise',price:4999}]
 const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@easymedicalsolutions.in`
 
 const todayStr=()=>new Date().toISOString().split('T')[0]
@@ -235,7 +235,7 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
 /*  SETTINGS PANEL  */
 const SettingsPanel=()=>{
   const [plans,setPlans]=useState({
-    trial:{label:'Trial',days:30,price:0,yearly:0},
+    trial:{label:'Trial',days:7,price:0,yearly:0},
     starter:{label:'Starter',price:600,yearly:6000,days:365},
     pro:{label:'Pro',price:900,yearly:9000,days:365},
     enterprise:{label:'Enterprise',price:1900,yearly:19000,days:365},
@@ -329,13 +329,13 @@ const SuperAdminDashboard=()=>{
   const load=async()=>{setLoading(true);const {data}=await supabase.from('hospitals').select('*').order('created_at',{ascending:false});setHospitals(data||[]);setLoading(false)}
   useEffect(()=>{load()},[])
   const openHosp=async h=>{setSel(h);setView('detail');const {data}=await supabase.from('profiles').select('*').eq('hospital_id',h.id);setSelUsers(data||[])}
-  const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+30*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
+  const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
     setBusy(true);setMsg(null)
-    const planEnd=nH.plan==='trial'?new Date(Date.now()+30*86400000).toISOString().split('T')[0]:'2099-12-31'
+    const planEnd=nH.plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31'
     const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:nH.name,city:nH.city,phone:nH.phone,plan:nH.plan,plan_end:planEnd}]).select().single()
     if(he){setMsg({ok:false,t:he.message});setBusy(false);return}
     const {data:au,error:ae}=await supabase.auth.signUp({email:toEmail(nH.adminUser),password:nH.adminPass,options:{data:{name:nH.adminName}}})
@@ -395,7 +395,7 @@ const SuperAdminDashboard=()=>{
               <FInp label="City" type="text" placeholder="Hyderabad" value={nH.city} onChange={e=>setNH({...nH,city:e.target.value})}/>
               <FInp label="Phone" type="tel" placeholder="9999999999" value={nH.phone} onChange={e=>setNH({...nH,phone:e.target.value})}/>
             </div>
-            <FSel label="Plan" value={nH.plan} onChange={e=>setNH({...nH,plan:e.target.value})}>{PLANS.map(p=><option key={p.key} value={p.key}>{p.label}{p.price>0?' - Rs '+p.price+'/mo':' - Free 30 days'}</option>)}</FSel>
+            <FSel label="Plan" value={nH.plan} onChange={e=>setNH({...nH,plan:e.target.value})}>{PLANS.map(p=><option key={p.key} value={p.key}>{p.label}{p.price>0?' - Rs '+p.price+'/mo':' - Free 7 days'}</option>)}</FSel>
             <SecL>Admin account</SecL>
             <FInp label="Admin full name *" type="text" placeholder="Admin name" value={nH.adminName} onChange={e=>setNH({...nH,adminName:e.target.value})}/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -428,7 +428,7 @@ const HospitalOnboarding=({onBack})=>{
     if(aF.pass.length<6){setErr('Password min 6 characters');return}
     if(aF.pass!==aF.confirm){setErr('Passwords do not match');return}
     setBusy(true);setErr('')
-    const trialEnd=new Date(Date.now()+30*86400000).toISOString().split('T')[0]
+    const trialEnd=new Date(Date.now()+7*86400000).toISOString().split('T')[0]
     const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:hF.name,city:hF.city,phone:hF.phone,plan:'trial',plan_end:trialEnd}]).select().single()
     if(he){setErr(he.message);setBusy(false);return}
     const {data:au,error:ae}=await supabase.auth.signUp({email:toEmail(aF.username),password:aF.pass,options:{data:{name:aF.name}}})
