@@ -18,7 +18,7 @@ const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@omhospital.app`
 const todayStr=()=>new Date().toISOString().split('T')[0]
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');return data||('REG'+Date.now().toString().slice(-5))}catch(e){return 'REG'+Date.now().toString().slice(-5)}}
-const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
+const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
 const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
@@ -50,7 +50,7 @@ const S={
 }
 const Card=({children,style={}})=><div style={{...S.card,...style}}>{children}</div>
 const SecL=({children})=><div style={S.sec}>{children}</div>
-const PBtn=({children,onClick,disabled,style={}})=><button style={{...S.pbtn,opacity:disabled?.5:1,...style}} onClick={onClick} disabled={disabled}>{children}</button>
+const PBtn=({children,onClick,disabled,style={}})=><button style={{...S.pbtn,opacity:disabled?0.5:1,...style}} onClick={onClick} disabled={disabled}>{children}</button>
 const GBtn=({children,onClick,style={}})=><button style={{...S.gbtn,...style}} onClick={onClick}>{children}</button>
 const DBtn=({children,onClick})=><button style={S.dbtn} onClick={onClick}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
@@ -205,7 +205,7 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
           <input style={S.inp} type="date" value={date} onChange={e=>setDate(e.target.value)}/>
         </div>
         <div>
-          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Amount (₹)</label>
+          <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4,fontWeight:700}}>Amount (Rs )</label>
           <input style={S.inp} type="number" inputMode="numeric" placeholder="0" value={amount} onChange={e=>setAmount(e.target.value)}/>
         </div>
       </div>
@@ -221,7 +221,7 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
       </div>
       <div style={{display:'flex',gap:8}}>
         <button onClick={onCancel} style={{flex:1,padding:'10px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Cancel</button>
-        <button onClick={go} disabled={busy} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',opacity:busy?.6:1}}>
+        <button onClick={go} disabled={busy} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',opacity:busy?0.6:1}}>
           {busy?'Saving...':'Save payment'}
         </button>
       </div>
@@ -270,7 +270,7 @@ const SettingsPanel=()=>{
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <div>
-              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Price (₹/month)</label>
+              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Price (Rs /month)</label>
               <input style={{...S.inp,background:key==='trial'?'#f9f9f9':'#fff'}} type="number" inputMode="numeric" value={plan.price} disabled={key==='trial'} onChange={e=>setPlans({...plans,[key]:{...plan,price:parseInt(e.target.value)||0}})}/>
             </div>
             <div>
@@ -279,7 +279,7 @@ const SettingsPanel=()=>{
             </div>
           </div>
           <div style={{fontSize:11,color:'#aaa',marginTop:4}}>
-            {key==='trial'?`Free for ${plan.days} days then requires upgrade`:`₹${plan.price}/month - Billed monthly`}
+            {key==='trial'?`Free for ${plan.days} days then requires upgrade`:`Rs ${plan.price}/month - Billed monthly`}
           </div>
         </Card>
       ))}
@@ -380,7 +380,7 @@ const SuperAdminDashboard=()=>{
               <FInp label="City" type="text" placeholder="Hyderabad" value={nH.city} onChange={e=>setNH({...nH,city:e.target.value})}/>
               <FInp label="Phone" type="tel" placeholder="9999999999" value={nH.phone} onChange={e=>setNH({...nH,phone:e.target.value})}/>
             </div>
-            <FSel label="Plan" value={nH.plan} onChange={e=>setNH({...nH,plan:e.target.value})}>{PLANS.map(p=><option key={p.key} value={p.key}>{p.label}{p.price>0?' - ₹'+p.price+'/mo':' - Free 30 days'}</option>)}</FSel>
+            <FSel label="Plan" value={nH.plan} onChange={e=>setNH({...nH,plan:e.target.value})}>{PLANS.map(p=><option key={p.key} value={p.key}>{p.label}{p.price>0?' - Rs '+p.price+'/mo':' - Free 30 days'}</option>)}</FSel>
             <SecL>Admin account</SecL>
             <FInp label="Admin full name *" type="text" placeholder="Admin name" value={nH.adminName} onChange={e=>setNH({...nH,adminName:e.target.value})}/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -459,7 +459,7 @@ const HospitalOnboarding=({onBack})=>{
           <FInp label="Password *" type="password" placeholder="Min 6 characters" value={aF.pass} onChange={e=>setAF({...aF,pass:e.target.value})}/>
           <FInp label="Confirm password *" type="password" placeholder="Repeat password" value={aF.confirm} onChange={e=>setAF({...aF,confirm:e.target.value})}/>
           {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:8}}>{err}</div>}
-          <div style={{display:'flex',gap:8}}><GBtn onClick={()=>{setStep(1);setErr('')}} style={{flex:1}}>< Back</GBtn><button onClick={submit} disabled={busy} style={{flex:2,...S.pbtn,marginTop:0,opacity:busy?.5:1}}>{busy?'Creating...':'Create account'}</button></div>
+          <div style={{display:'flex',gap:8}}><GBtn onClick={()=>{setStep(1);setErr('')}} style={{flex:1}}>< Back</GBtn><button onClick={submit} disabled={busy} style={{flex:2,...S.pbtn,marginTop:0,opacity:busy?0.5:1}}>{busy?'Creating...':'Create account'}</button></div>
         </Card>)}
         <div style={{textAlign:'center',marginTop:14}}><button onClick={onBack} style={{fontSize:13,color:'#aaa',background:'none',border:'none',cursor:'pointer'}}>Already have an account? Login ></button></div>
       </div>
@@ -651,7 +651,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
           <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>< Cancel</button>
           <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
-          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?.5:1}}>{busy?'...':'Save'}</button>
+          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.5:1}}>{busy?'...':'Save'}</button>
       </div>
       <div style={{padding:'16px'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,padding:'4px 0'}}>
@@ -712,7 +712,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
         )})}
       </div>
       <Card>
-        <FInp label="Amount (₹)" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
+        <FInp label="Amount (Rs )" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
         {prev>0&&iF.ref&&itype!=='op'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
         {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>setIF({...iF,pid:e.target.value})}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
           :<>
@@ -734,11 +734,11 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
             {!isIP&&(itype==='op_r'||itype==='op_l')&&iF.pname.trim()&&(()=>{const opEntry=db.income.find(e=>e.type==='op'&&e.patient_name===iF.pname.trim()&&e.ref_doctor);if(!opEntry)return null;const doc=db.ref_doctors.find(d=>d.name===opEntry.ref_doctor);const pctKey=itype==='op_r'?'op_r_pct':'op_l_pct';const pct=doc?doc[pctKey]:null;if(iF.ref!==opEntry.ref_doctor){setIF({...iF,ref:opEntry.ref_doctor,custom_commission:pct!=null?String(pct):''})}return(<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Ref doctor auto-filled: <strong>Dr. {opEntry.ref_doctor}</strong>{pct!=null?' ('+pct+'%)':''}</div>)})()}
             {itype==='vc'&&<>
               <FInp label="Consultant name" type="text" placeholder="e.g. Dr. Sharma (Neurologist)" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>
-              <FInp label="Consultant fee to pay (₹)" type="number" inputMode="numeric" placeholder="Amount you give to consultant" value={iF.consultant_fee||''} onChange={e=>setIF({...iF,consultant_fee:e.target.value})}/>
+              <FInp label="Consultant fee to pay (Rs )" type="number" inputMode="numeric" placeholder="Amount you give to consultant" value={iF.consultant_fee||''} onChange={e=>setIF({...iF,consultant_fee:e.target.value})}/>
               {iF.amount&&iF.consultant_fee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13}}>
                 <span style={{color:'#065f46',fontWeight:600}}>Your income: </span>
                 <span style={{color:'#16a34a',fontWeight:700,fontSize:15}}>{fmt(parseFloat(iF.amount||0)-parseFloat(iF.consultant_fee||0))}</span>
-                <span style={{color:'#888',fontSize:11,marginLeft:6}}>(₹{iF.amount} collected  ₹{iF.consultant_fee} to consultant)</span>
+                <span style={{color:'#888',fontSize:11,marginLeft:6}}>(Rs {iF.amount} collected  Rs {iF.consultant_fee} to consultant)</span>
               </div>}
             </>}
           </>}
@@ -1744,7 +1744,7 @@ const ConsultantsTab=({db,actions})=>{
           <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#7e22ce',fontWeight:700}}>%</span>
         </div>
         <div style={{fontSize:11,color:'#9333ea',marginTop:6}}>Doctor takes this % of what is collected. Hospital keeps the rest.</div>
-        {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect ₹700 > Dr. gets {fmt(700*form.fee_share_pct/100)} - Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
+        {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect Rs 700 > Dr. gets {fmt(700*form.fee_share_pct/100)} - Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
       </div>
       <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Commission on investigations ordered</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
