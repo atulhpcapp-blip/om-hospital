@@ -182,6 +182,64 @@ const DonutChart=({segments,title,centerLabel})=>{
           ))}
         </div>
       </div>
+
+      {/* MONTHLY COMPARISON CHART */}
+      <SecL>Actual income - month comparison</SecL>
+      <Card>
+        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
+        {/* Month selector */}
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
+          {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
+        </div>
+        {/* Bar chart */}
+        {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
+        {chartMonths.length>0&&(()=>{
+          const bars=chartMonths.map(m=>{
+            const mInc=inc.filter(e=>e.date?.startsWith(m))
+            const mExp=exp.filter(e=>e.date?.startsWith(m))
+            const gross=sum(mInc)
+            const comms=comm(mInc)
+            const exps=sum(mExp)
+            const actual=gross-comms-exps
+            const d=new Date(m+'-01')
+            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
+          })
+          const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
+          return(<>
+            {/* Bars */}
+            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
+              {bars.map(b=>{
+                const grossH=Math.round((b.gross/maxVal)*130)
+                const actualH=Math.round((b.actual/maxVal)*130)
+                const isThisMonth=b.m===thisMonth
+                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
+                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
+                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                  </div>
+                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
+                </div>)
+              })}
+            </div>
+            {/* Legend */}
+            <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
+            </div>
+            {/* Data table */}
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
+                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
+                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
+              </div>
+              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
@@ -798,6 +856,64 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
           <PBtn onClick={go} disabled={busy} style={{flex:2,marginTop:0,background:'#16a34a'}}>{busy?'Saving...':'Mark as collected'}</PBtn>
         </div>
       </div>
+
+      {/* MONTHLY COMPARISON CHART */}
+      <SecL>Actual income - month comparison</SecL>
+      <Card>
+        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
+        {/* Month selector */}
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
+          {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
+        </div>
+        {/* Bar chart */}
+        {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
+        {chartMonths.length>0&&(()=>{
+          const bars=chartMonths.map(m=>{
+            const mInc=inc.filter(e=>e.date?.startsWith(m))
+            const mExp=exp.filter(e=>e.date?.startsWith(m))
+            const gross=sum(mInc)
+            const comms=comm(mInc)
+            const exps=sum(mExp)
+            const actual=gross-comms-exps
+            const d=new Date(m+'-01')
+            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
+          })
+          const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
+          return(<>
+            {/* Bars */}
+            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
+              {bars.map(b=>{
+                const grossH=Math.round((b.gross/maxVal)*130)
+                const actualH=Math.round((b.actual/maxVal)*130)
+                const isThisMonth=b.m===thisMonth
+                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
+                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
+                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                  </div>
+                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
+                </div>)
+              })}
+            </div>
+            {/* Legend */}
+            <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
+            </div>
+            {/* Data table */}
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
+                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
+                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
+              </div>
+              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
@@ -2284,6 +2400,64 @@ const PaymentPage=({onBack=null})=>{
           <button onClick={()=>supabase.auth.signOut()} style={{fontSize:11,color:'rgba(255,255,255,0.2)',background:'none',border:'none',cursor:'pointer'}}>Logout</button>
         </div>
       </div>
+
+      {/* MONTHLY COMPARISON CHART */}
+      <SecL>Actual income - month comparison</SecL>
+      <Card>
+        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
+        {/* Month selector */}
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
+          {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
+        </div>
+        {/* Bar chart */}
+        {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
+        {chartMonths.length>0&&(()=>{
+          const bars=chartMonths.map(m=>{
+            const mInc=inc.filter(e=>e.date?.startsWith(m))
+            const mExp=exp.filter(e=>e.date?.startsWith(m))
+            const gross=sum(mInc)
+            const comms=comm(mInc)
+            const exps=sum(mExp)
+            const actual=gross-comms-exps
+            const d=new Date(m+'-01')
+            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
+          })
+          const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
+          return(<>
+            {/* Bars */}
+            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
+              {bars.map(b=>{
+                const grossH=Math.round((b.gross/maxVal)*130)
+                const actualH=Math.round((b.actual/maxVal)*130)
+                const isThisMonth=b.m===thisMonth
+                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
+                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
+                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                  </div>
+                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
+                </div>)
+              })}
+            </div>
+            {/* Legend */}
+            <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
+            </div>
+            {/* Data table */}
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
+                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
+                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
+              </div>
+              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
@@ -2338,6 +2512,7 @@ const AnalyticsDash=({db})=>{
   const topRefs=Object.values(refMap).sort((a,b)=>b.income-a.income).slice(0,5)
 
   // Last 7 days trend
+  const [chartMonths,setChartMonths]=useState(()=>{const months=[];for(let i=5;i>=0;i--){const d=new Date(today);d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7))}return months})
   const last7=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-6+i);const ds=d.toISOString().slice(0,10);const dayInc=inc.filter(e=>e.date===ds);return{date:ds,label:d.toLocaleDateString('en-IN',{weekday:'short'}),total:sum(dayInc),credit:credit(dayInc)}})
   const maxDay=Math.max(...last7.map(d=>d.total),1)
 
@@ -2510,6 +2685,64 @@ const AnalyticsDash=({db})=>{
           </div>
         </div>
       </div>
+
+      {/* MONTHLY COMPARISON CHART */}
+      <SecL>Actual income - month comparison</SecL>
+      <Card>
+        <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>Tap months to toggle on/off (up to 12)</div>
+        {/* Month selector */}
+        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
+          {(()=>{const opts=[];for(let i=11;i>=0;i--){const d=new Date(today);d.setDate(1);d.setMonth(d.getMonth()-i);const m=d.toISOString().slice(0,7);const on=chartMonths.includes(m);const label=d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'});opts.push(<button key={m} onClick={()=>setChartMonths(prev=>on?prev.filter(x=>x!==m):[...prev,m].sort())} style={{padding:'4px 10px',borderRadius:100,border:on?'none':'1.5px solid #e2e8f0',background:on?'linear-gradient(135deg,#16a34a,#22c55e)':'#fff',color:on?'#fff':'#94a3b8',fontSize:11,fontWeight:700,cursor:'pointer'}}>{label}</button>)};return opts})()}
+        </div>
+        {/* Bar chart */}
+        {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
+        {chartMonths.length>0&&(()=>{
+          const bars=chartMonths.map(m=>{
+            const mInc=inc.filter(e=>e.date?.startsWith(m))
+            const mExp=exp.filter(e=>e.date?.startsWith(m))
+            const gross=sum(mInc)
+            const comms=comm(mInc)
+            const exps=sum(mExp)
+            const actual=gross-comms-exps
+            const d=new Date(m+'-01')
+            return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}
+          })
+          const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
+          return(<>
+            {/* Bars */}
+            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
+              {bars.map(b=>{
+                const grossH=Math.round((b.gross/maxVal)*130)
+                const actualH=Math.round((b.actual/maxVal)*130)
+                const isThisMonth=b.m===thisMonth
+                return(<div key={b.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                  <div style={{fontSize:8,color:'#16a34a',fontWeight:700,textAlign:'center'}}>{b.actual>0?fmt(b.actual).replace('Rs ',''):''}</div>
+                  <div style={{width:'100%',position:'relative',display:'flex',gap:2,alignItems:'flex-end',height:130}}>
+                    <div style={{flex:1,height:grossH,background:isThisMonth?'linear-gradient(180deg,#93c5fd,#3b82f6)':'linear-gradient(180deg,#bfdbfe,#93c5fd)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                    <div style={{flex:1,height:actualH,background:isThisMonth?'linear-gradient(180deg,#4ade80,#16a34a)':'linear-gradient(180deg,#86efac,#4ade80)',borderRadius:'3px 3px 0 0',minHeight:2}}/>
+                  </div>
+                  <div style={{fontSize:9,color:isThisMonth?'#16a34a':'#94a3b8',fontWeight:isThisMonth?800:500,textAlign:'center'}}>{b.label}</div>
+                </div>)
+              })}
+            </div>
+            {/* Legend */}
+            <div style={{display:'flex',gap:16,justifyContent:'center',marginBottom:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#93c5fd'}}/> Gross</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'#64748b'}}><div style={{width:10,height:10,borderRadius:2,background:'#4ade80'}}/> Actual</div>
+            </div>
+            {/* Data table */}
+            <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Gross</div>
+                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Deduct</div>
+                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Actual</div>
+              </div>
+              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' *':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#374151'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
+            </div>
+          </>)
+        })()}
+      </Card>
     </div>
   )
 }
