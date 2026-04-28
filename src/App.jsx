@@ -19,7 +19,7 @@ const todayStr=()=>new Date().toISOString().split('T')[0]
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');return data||('REG'+Date.now().toString().slice(-5))}catch(e){return 'REG'+Date.now().toString().slice(-5)}}
 const fmt=n=>'₹'+(Math.round(n)||0).toLocaleString('en-IN')
-const fmtD=d=>{if(!d)return'—';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
+const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
 const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isCredit=e=>e.payment==='credit'
@@ -88,7 +88,7 @@ const FSel=({label,value,onChange,children})=>(
   </div>
 )
 
-/* ── CHART COMPONENTS ── */
+/*  CHART COMPONENTS  */
 const HBarChart=({data,title})=>{
   if(!data||!data.length)return null
   const max=Math.max(...data.map(d=>d.value),1)
@@ -186,7 +186,7 @@ const DonutChart=({segments,title,centerLabel})=>{
   )
 }
 
-/* ── COMMISSION PAYMENT FORM ── standalone to prevent keyboard close */
+/*  COMMISSION PAYMENT FORM  standalone to prevent keyboard close */
 const CommPayForm=({docName,balance,onSave,onCancel})=>{
   const [date,setDate]=useState(todayStr())
   const [amount,setAmount]=useState(String(Math.round(balance)))
@@ -222,17 +222,17 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
       <div style={{display:'flex',gap:8}}>
         <button onClick={onCancel} style={{flex:1,padding:'10px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Cancel</button>
         <button onClick={go} disabled={busy} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',opacity:busy?.6:1}}>
-          {busy?'Saving…':'✓ Save payment'}
+          {busy?'Saving...':'Save payment'}
         </button>
       </div>
     </div>
   )
 }
 
-/* ── LOGIN ── */
+/*  LOGIN  */
 
 
-/* ── SETTINGS PANEL ── */
+/*  SETTINGS PANEL  */
 const SettingsPanel=()=>{
   const [plans,setPlans]=useState({
     trial:{label:'Trial',days:30,price:0},
@@ -279,11 +279,11 @@ const SettingsPanel=()=>{
             </div>
           </div>
           <div style={{fontSize:11,color:'#aaa',marginTop:4}}>
-            {key==='trial'?`Free for ${plan.days} days then requires upgrade`:`₹${plan.price}/month · Billed monthly`}
+            {key==='trial'?`Free for ${plan.days} days then requires upgrade`:`₹${plan.price}/month - Billed monthly`}
           </div>
         </Card>
       ))}
-      {saved&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#16a34a',fontWeight:600}}>✅ Settings saved!</div>}
+      {saved&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#16a34a',fontWeight:600}}> Settings saved!</div>}
       <PBtn onClick={save}>Save settings</PBtn>
       <div style={{marginTop:16,background:'#f9f9f9',borderRadius:12,padding:'14px 16px'}}>
         <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',marginBottom:10}}>Current plan summary</div>
@@ -291,7 +291,7 @@ const SettingsPanel=()=>{
           <div key={key} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f0f0f0',fontSize:13}}>
             <span style={{fontWeight:600}}>{plan.label}</span>
             <span style={{color:key==='trial'?'#b45309':'#111',fontWeight:key==='pro'?700:400}}>
-              {key==='trial'?`Free · ${plan.days} days`:fmt(plan.price)+'/month'}
+              {key==='trial'?`Free - ${plan.days} days`:fmt(plan.price)+'/month'}
             </span>
           </div>
         ))}
@@ -300,7 +300,7 @@ const SettingsPanel=()=>{
   )
 }
 
-/* ── SUPER ADMIN DASHBOARD ── */
+/*  SUPER ADMIN DASHBOARD  */
 const SuperAdminDashboard=()=>{
   const [hospitals,setHospitals]=useState([])
   const [loading,setLoading]=useState(true)
@@ -333,16 +333,16 @@ const SuperAdminDashboard=()=>{
   if(view==='detail'&&sel)return(
     <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div><div style={{fontWeight:700,fontSize:15}}>🏥 {sel.name}</div><div style={{fontSize:11,color:'#9ca3af'}}>{sel.city} · Super Admin</div></div>
-        <button onClick={()=>setView('list')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>← Back</button>
+        <div><div style={{fontWeight:700,fontSize:15}}> {sel.name}</div><div style={{fontSize:11,color:'#9ca3af'}}>{sel.city} - Super Admin</div></div>
+        <button onClick={()=>setView('list')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>< Back</button>
       </div>
       <div style={{padding:'16px 16px 60px'}}>
-        <Card><Row left="City" right={sel.city||'—'}/><Row left="Phone" right={sel.phone||'—'}/><Row left="Plan" right={<span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:(planClr[sel.plan]||planClr.trial)[0],color:(planClr[sel.plan]||planClr.trial)[1],fontWeight:700}}>{sel.plan}</span>}/><Row left="Plan end" right={fmtD(sel.plan_end)}/><Row left="Status" right={sel.is_active?<span style={{color:'#16a34a',fontWeight:600}}>✅ Active</span>:<span style={{color:'#ef4444',fontWeight:600}}>❌ Suspended</span>}/></Card>
+        <Card><Row left="City" right={sel.city||'-'}/><Row left="Phone" right={sel.phone||'-'}/><Row left="Plan" right={<span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:(planClr[sel.plan]||planClr.trial)[0],color:(planClr[sel.plan]||planClr.trial)[1],fontWeight:700}}>{sel.plan}</span>}/><Row left="Plan end" right={fmtD(sel.plan_end)}/><Row left="Status" right={sel.is_active?<span style={{color:'#16a34a',fontWeight:600}}> Active</span>:<span style={{color:'#ef4444',fontWeight:600}}> Suspended</span>}/></Card>
         <SecL>Change plan</SecL>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>{PLANS.map(p=>(<button key={p.key} onClick={()=>updatePlan(sel.id,p.key)} style={{padding:'10px 8px',border:sel.plan===p.key?'2px solid #111':'1px solid #e5e7eb',borderRadius:12,background:sel.plan===p.key?'#111':'#fff',color:sel.plan===p.key?'#fff':'#555',cursor:'pointer',textAlign:'center'}}><div style={{fontSize:12,fontWeight:700}}>{p.label}</div>{p.price>0&&<div style={{fontSize:10,marginTop:2,opacity:.7}}>{fmt(p.price)}/mo</div>}</button>))}</div>
-        <button onClick={()=>toggleActive(sel.id,sel.is_active)} style={{width:'100%',padding:'12px',background:sel.is_active?'#fef2f2':'#f0fdf4',color:sel.is_active?'#dc2626':'#16a34a',border:`1px solid ${sel.is_active?'#fecaca':'#bbf7d0'}`,borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:14}}>{sel.is_active?'🚫 Suspend':'✅ Activate'}</button>
+        <button onClick={()=>toggleActive(sel.id,sel.is_active)} style={{width:'100%',padding:'12px',background:sel.is_active?'#fef2f2':'#f0fdf4',color:sel.is_active?'#dc2626':'#16a34a',border:`1px solid ${sel.is_active?'#fecaca':'#bbf7d0'}`,borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:14}}>{sel.is_active?' Suspend':' Activate'}</button>
         <SecL>Staff ({selUsers.length})</SecL>
-        <Card>{selUsers.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No staff</div>:selUsers.map(u=><Row key={u.id} left={u.name||'—'} sub={`@${u.username||'—'}`} right={<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#f0f0f0',color:'#555',fontWeight:600}}>{u.role}</span>}/>)}</Card>
+        <Card>{selUsers.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No staff</div>:selUsers.map(u=><Row key={u.id} left={u.name||'-'} sub={`@${u.username||'-'}`} right={<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#f0f0f0',color:'#555',fontWeight:600}}>{u.role}</span>}/>)}</Card>
       </div>
     </div>
   )
@@ -350,11 +350,11 @@ const SuperAdminDashboard=()=>{
     <div style={{maxWidth:520,margin:'0 auto',background:'#f7f7f7',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px 0',position:'sticky',top:0,zIndex:10}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-          <div><div style={{fontWeight:700,fontSize:15}}>⚡ Super Admin</div><div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>All hospitals</div></div>
+          <div><div style={{fontWeight:700,fontSize:15}}> Super Admin</div><div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>All hospitals</div></div>
           <button onClick={()=>supabase.auth.signOut()} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>Logout</button>
         </div>
         <div style={{display:'flex',gap:0,marginBottom:-1}}>
-          {[{k:'list',l:'Hospitals'},{k:'add',l:'+ Add'},{k:'settings',l:'⚙️ Settings'}].map(t=>(<button key={t.k} onClick={()=>{setView(t.k);setMsg(null)}} style={{padding:'9px 14px',fontSize:12,fontWeight:600,border:'none',background:'none',color:view===t.k?'#fff':'#6b7280',borderBottom:view===t.k?'2px solid #fff':'2px solid transparent',cursor:'pointer'}}>{t.l}</button>))}
+          {[{k:'list',l:'Hospitals'},{k:'add',l:'+ Add'},{k:'settings',l:' Settings'}].map(t=>(<button key={t.k} onClick={()=>{setView(t.k);setMsg(null)}} style={{padding:'9px 14px',fontSize:12,fontWeight:600,border:'none',background:'none',color:view===t.k?'#fff':'#6b7280',borderBottom:view===t.k?'2px solid #fff':'2px solid transparent',cursor:'pointer'}}>{t.l}</button>))}
         </div>
       </div>
       <div style={{padding:'16px 16px 60px'}}>
@@ -362,11 +362,11 @@ const SuperAdminDashboard=()=>{
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
             {[{label:'Total',value:hospitals.length},{label:'Active',value:hospitals.filter(h=>h.is_active).length,color:'#16a34a'},{label:'Trial',value:hospitals.filter(h=>h.plan==='trial').length,color:'#b45309'},{label:'Paid',value:hospitals.filter(h=>h.plan!=='trial'&&h.is_active).length,color:'#1d4ed8'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>{m.label}</div><div style={{fontSize:22,fontWeight:700,color:m.color||'#111'}}>{m.value}</div></div>))}
           </div>
-          {loading?<div style={{textAlign:'center',padding:32,color:'#ccc'}}>Loading…</div>:hospitals.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No hospitals yet</div>:hospitals.map(h=>(
+          {loading?<div style={{textAlign:'center',padding:32,color:'#ccc'}}>Loading...</div>:hospitals.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No hospitals yet</div>:hospitals.map(h=>(
             <Card key={h.id} style={{cursor:'pointer'}} >
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>openHosp(h)}>
-                <div><div style={{fontSize:14,fontWeight:700}}>{h.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{h.city||'—'} · {fmtD(h.created_at?.split('T')[0])}</div><div style={{marginTop:6,display:'flex',gap:6,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:(planClr[h.plan]||planClr.trial)[0],color:(planClr[h.plan]||planClr.trial)[1],fontWeight:700}}>{h.plan}</span>{!h.is_active&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>Suspended</span>}</div></div>
-                <span style={{fontSize:18,color:'#aaa'}}>›</span>
+                <div><div style={{fontSize:14,fontWeight:700}}>{h.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{h.city||'-'} - {fmtD(h.created_at?.split('T')[0])}</div><div style={{marginTop:6,display:'flex',gap:6,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:(planClr[h.plan]||planClr.trial)[0],color:(planClr[h.plan]||planClr.trial)[1],fontWeight:700}}>{h.plan}</span>{!h.is_active&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>Suspended</span>}</div></div>
+                <span style={{fontSize:18,color:'#aaa'}}></span>
               </div>
             </Card>
           ))}
@@ -380,7 +380,7 @@ const SuperAdminDashboard=()=>{
               <FInp label="City" type="text" placeholder="Hyderabad" value={nH.city} onChange={e=>setNH({...nH,city:e.target.value})}/>
               <FInp label="Phone" type="tel" placeholder="9999999999" value={nH.phone} onChange={e=>setNH({...nH,phone:e.target.value})}/>
             </div>
-            <FSel label="Plan" value={nH.plan} onChange={e=>setNH({...nH,plan:e.target.value})}>{PLANS.map(p=><option key={p.key} value={p.key}>{p.label}{p.price>0?' — ₹'+p.price+'/mo':' — Free 30 days'}</option>)}</FSel>
+            <FSel label="Plan" value={nH.plan} onChange={e=>setNH({...nH,plan:e.target.value})}>{PLANS.map(p=><option key={p.key} value={p.key}>{p.label}{p.price>0?' - ₹'+p.price+'/mo':' - Free 30 days'}</option>)}</FSel>
             <SecL>Admin account</SecL>
             <FInp label="Admin full name *" type="text" placeholder="Admin name" value={nH.adminName} onChange={e=>setNH({...nH,adminName:e.target.value})}/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -388,8 +388,8 @@ const SuperAdminDashboard=()=>{
               <FInp label="Password *" type="text" placeholder="min 6 chars" value={nH.adminPass} onChange={e=>setNH({...nH,adminPass:e.target.value})}/>
             </div>
             {msg&&<div style={{fontSize:13,color:msg.ok?'#16a34a':'#dc2626',marginBottom:10,padding:'10px 12px',borderRadius:8,background:msg.ok?'#f0fdf4':'#fef2f2'}}>{msg.t}</div>}
-            <PBtn onClick={create} disabled={busy}>{busy?'Creating…':'Create hospital & admin'}</PBtn>
-            {msg?.ok&&<div style={{marginTop:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'14px 16px',fontSize:13,lineHeight:2}}>🏥 {msg.h}<br/>👤 Username: <strong>{msg.u}</strong><br/>🔑 Password: <strong>{msg.p}</strong></div>}
+            <PBtn onClick={create} disabled={busy}>{busy?'Creating...':'Create hospital & admin'}</PBtn>
+            {msg?.ok&&<div style={{marginTop:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'14px 16px',fontSize:13,lineHeight:2}}> {msg.h}<br/> Username: <strong>{msg.u}</strong><br/> Password: <strong>{msg.p}</strong></div>}
           </Card>
         )}
         {view==='settings'&&(
@@ -400,7 +400,7 @@ const SuperAdminDashboard=()=>{
   )
 }
 
-/* ── HOSPITAL ONBOARDING (self-signup) ── */
+/*  HOSPITAL ONBOARDING (self-signup)  */
 const HospitalOnboarding=({onBack})=>{
   const [step,setStep]=useState(1)
   const [hF,setHF]=useState({name:'',city:'',phone:''})
@@ -424,14 +424,14 @@ const HospitalOnboarding=({onBack})=>{
   if(done)return(
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#f0f9ff 0%,#f7f7f7 100%)',padding:20}}>
       <div style={{width:'100%',maxWidth:400,textAlign:'center'}}>
-        <div style={{fontSize:48,marginBottom:12}}>🎉</div>
+        <div style={{fontSize:48,marginBottom:12}}></div>
         <div style={{fontSize:22,fontWeight:800,color:'#111',marginBottom:4}}>{done.h}</div>
         <div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your hospital is ready!</div>
         <Card style={{border:'1px solid #bbf7d0',background:'#f0fdf4',textAlign:'left'}}>
           <div style={{fontSize:13,fontWeight:700,color:'#15803d',marginBottom:10}}>Save your login details:</div>
-          <div style={{fontSize:14,color:'#111',lineHeight:2.2}}>👤 Username: <strong>{done.u}</strong><br/>🔑 Password: <strong>{done.p}</strong><br/>⏰ Trial expires: <strong>{fmtD(done.t)}</strong></div>
+          <div style={{fontSize:14,color:'#111',lineHeight:2.2}}> Username: <strong>{done.u}</strong><br/> Password: <strong>{done.p}</strong><br/> Trial expires: <strong>{fmtD(done.t)}</strong></div>
         </Card>
-        <PBtn onClick={()=>window.location.reload()} style={{marginTop:14}}>Login to your hospital →</PBtn>
+        <PBtn onClick={()=>window.location.reload()} style={{marginTop:14}}>Login to your hospital ></PBtn>
       </div>
     </div>
   )
@@ -439,29 +439,29 @@ const HospitalOnboarding=({onBack})=>{
     <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#f0f9ff 0%,#f7f7f7 100%)',padding:20}}>
       <div style={{maxWidth:420,margin:'0 auto'}}>
         <div style={{textAlign:'center',marginBottom:24}}>
-          <div style={{fontSize:40,marginBottom:8}}>🏥</div>
+          <div style={{fontSize:40,marginBottom:8}}></div>
           <div style={{fontSize:22,fontWeight:800,color:'#111'}}>Register your hospital</div>
-          <div style={{fontSize:13,color:'#aaa',marginTop:4}}>Free 30-day trial · No credit card</div>
+          <div style={{fontSize:13,color:'#aaa',marginTop:4}}>Free 30-day trial - No credit card</div>
         </div>
         <div style={{display:'flex',gap:8,marginBottom:20}}>{[1,2].map(s=>(<div key={s} style={{flex:1,height:4,borderRadius:2,background:step>=s?'#111':'#e5e7eb'}}/>))}</div>
         {step===1&&(<Card>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Step 1 — Hospital details</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Step 1 - Hospital details</div>
           <FInp label="Hospital / Clinic name *" type="text" placeholder="e.g. City Care Hospital" value={hF.name} onChange={e=>setHF({...hF,name:e.target.value})}/>
           <FInp label="City" type="text" placeholder="Your city" value={hF.city} onChange={e=>setHF({...hF,city:e.target.value})}/>
           <FInp label="Phone" type="tel" placeholder="9999999999" value={hF.phone} onChange={e=>setHF({...hF,phone:e.target.value})}/>
           {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:8}}>{err}</div>}
-          <PBtn onClick={()=>{if(!hF.name.trim()){setErr('Hospital name required');return};setErr('');setStep(2)}}>Next →</PBtn>
+          <PBtn onClick={()=>{if(!hF.name.trim()){setErr('Hospital name required');return};setErr('');setStep(2)}}>Next ></PBtn>
         </Card>)}
         {step===2&&(<Card>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Step 2 — Your admin account</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Step 2 - Your admin account</div>
           <FInp label="Your full name *" type="text" placeholder="Your name" value={aF.name} onChange={e=>setAF({...aF,name:e.target.value})}/>
           <FInp label="Username *" type="text" placeholder="e.g. admin" value={aF.username} onChange={e=>setAF({...aF,username:e.target.value.toLowerCase().replace(/\s+/g,'')})} autoCapitalize="none"/>
           <FInp label="Password *" type="password" placeholder="Min 6 characters" value={aF.pass} onChange={e=>setAF({...aF,pass:e.target.value})}/>
           <FInp label="Confirm password *" type="password" placeholder="Repeat password" value={aF.confirm} onChange={e=>setAF({...aF,confirm:e.target.value})}/>
           {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:8}}>{err}</div>}
-          <div style={{display:'flex',gap:8}}><GBtn onClick={()=>{setStep(1);setErr('')}} style={{flex:1}}>← Back</GBtn><button onClick={submit} disabled={busy} style={{flex:2,...S.pbtn,marginTop:0,opacity:busy?.5:1}}>{busy?'Creating…':'Create account'}</button></div>
+          <div style={{display:'flex',gap:8}}><GBtn onClick={()=>{setStep(1);setErr('')}} style={{flex:1}}>< Back</GBtn><button onClick={submit} disabled={busy} style={{flex:2,...S.pbtn,marginTop:0,opacity:busy?.5:1}}>{busy?'Creating...':'Create account'}</button></div>
         </Card>)}
-        <div style={{textAlign:'center',marginTop:14}}><button onClick={onBack} style={{fontSize:13,color:'#aaa',background:'none',border:'none',cursor:'pointer'}}>Already have an account? Login →</button></div>
+        <div style={{textAlign:'center',marginTop:14}}><button onClick={onBack} style={{fontSize:13,color:'#aaa',background:'none',border:'none',cursor:'pointer'}}>Already have an account? Login ></button></div>
       </div>
     </div>
   )
@@ -487,7 +487,7 @@ const LoginPage=({onRegister=()=>{}})=>{
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,#f0f9ff 0%,#f7f7f7 100%)',padding:20}}>
       <div style={{width:'100%',maxWidth:380}}>
         <div style={{textAlign:'center',marginBottom:32}}>
-          <div style={{fontSize:56,marginBottom:12}}>🏥</div>
+          <div style={{fontSize:56,marginBottom:12}}></div>
           <div style={{fontSize:26,fontWeight:800,color:'#111'}}>Om Hospital</div>
           <div style={{fontSize:14,color:'#aaa',marginTop:6}}>Accounts & Finance System</div>
         </div>
@@ -498,18 +498,18 @@ const LoginPage=({onRegister=()=>{}})=>{
             <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>Password</label>
             <div style={{position:'relative'}}>
               <input style={{...S.inp,paddingRight:50}} type={show?'text':'password'} placeholder="Enter your password" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/>
-              <button onClick={()=>setShow(!show)} style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#aaa'}}>{show?'🙈':'👁️'}</button>
+              <button onClick={()=>setShow(!show)} style={{position:'absolute',right:14,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:18,cursor:'pointer',color:'#aaa'}}>{show?'':''}</button>
             </div>
           </div>
           {err&&<div style={{fontSize:13,color:'#dc2626',marginBottom:10,padding:'8px 12px',borderRadius:8,background:'#fef2f2',textAlign:'center'}}>{err}</div>}
-          <PBtn onClick={go} disabled={busy||!username||!pass} style={{marginTop:8}}>{busy?'Logging in…':'Login'}</PBtn>
+          <PBtn onClick={go} disabled={busy||!username||!pass} style={{marginTop:8}}>{busy?'Logging in...':'Login'}</PBtn>
         </Card>
       </div>
     </div>
   )
 }
 
-/* ── ADMIN ── */
+/*  ADMIN  */
 const AdminTab=({currentUser,hospital=null})=>{
   const [users,setUsers]=useState([])
   const [loading,setLoading]=useState(true)
@@ -557,21 +557,21 @@ const AdminTab=({currentUser,hospital=null})=>{
           <FInp label="Password (min 6 chars)" type="text" placeholder="Set a password" value={nF.pass} onChange={e=>setNF({...nF,pass:e.target.value})}/>
           <FSel label="Role" value={nF.role} onChange={e=>setNF({...nF,role:e.target.value})}>{ROLES.map(r=><option key={r} value={r}>{r[0].toUpperCase()+r.slice(1)}</option>)}</FSel>
           {msg&&<div style={{fontSize:13,color:msg.ok?'#16a34a':'#dc2626',marginBottom:10,padding:'8px 12px',borderRadius:8,background:msg.ok?'#f0fdf4':'#fef2f2'}}>{msg.t}</div>}
-          <PBtn onClick={createUser} disabled={busy}>{busy?'Creating…':'Create account'}</PBtn>
+          <PBtn onClick={createUser} disabled={busy}>{busy?'Creating...':'Create account'}</PBtn>
           {msg?.ok&&<div style={{marginTop:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'12px 14px',fontSize:13,lineHeight:1.8}}>Share with staff:<br/>Username: <strong>{msg.user}</strong><br/>Password: <strong>{msg.pass}</strong></div>}
         </Card>
       )}
       <SecL>All staff ({users.length})</SecL>
-      {loading?<div style={{textAlign:'center',padding:24,color:'#ccc'}}>Loading…</div>:(
+      {loading?<div style={{textAlign:'center',padding:24,color:'#ccc'}}>Loading...</div>:(
         <Card>{users.map(u=>{const [bg,tx]=(RC[u.role]||RC.staff);return(
-          <Row key={u.id} left={<span style={{fontSize:14,fontWeight:600}}>{u.name||'—'}</span>} sub={`@${u.username||'—'}`} right={<span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{u.role||'staff'}</span>}/>
+          <Row key={u.id} left={<span style={{fontSize:14,fontWeight:600}}>{u.name||'-'}</span>} sub={`@${u.username||'-'}`} right={<span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{u.role||'staff'}</span>}/>
         )})}</Card>
       )}
     </div>
   )
 }
 
-/* ── CREDIT TAB ── */
+/*  CREDIT TAB  */
 const CreditTab=({db})=>{
   const allCredit=db.income.filter(e=>isCredit(e))
   const totalCred=allCredit.reduce((a,e)=>a+e.amount,0)
@@ -589,9 +589,9 @@ const CreditTab=({db})=>{
       <div style={{background:'linear-gradient(135deg,#c2410c 0%,#9a3412 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
         <div style={{fontSize:12,color:'#fed7aa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>Total credit outstanding</div>
         <div style={{fontSize:36,fontWeight:800}}>{fmt(totalCred)}</div>
-        <div style={{fontSize:13,color:'#fed7aa',marginTop:6}}>{pts.length} patient{pts.length!==1?'s':''} · {allCredit.length} entr{allCredit.length!==1?'ies':'y'}</div>
+        <div style={{fontSize:13,color:'#fed7aa',marginTop:6}}>{pts.length} patient{pts.length!==1?'s':''} - {allCredit.length} entr{allCredit.length!==1?'ies':'y'}</div>
       </div>
-      {totalCred===0&&<div style={{textAlign:'center',padding:'48px 20px',color:'#aaa'}}><div style={{fontSize:40,marginBottom:12}}>🎉</div><div style={{fontSize:16,fontWeight:600,color:'#555'}}>No outstanding credit!</div></div>}
+      {totalCred===0&&<div style={{textAlign:'center',padding:'48px 20px',color:'#aaa'}}><div style={{fontSize:40,marginBottom:12}}></div><div style={{fontSize:16,fontWeight:600,color:'#555'}}>No outstanding credit!</div></div>}
       {totalCred>0&&(<>
         <SecL>Category-wise total</SecL>
         <Card>
@@ -621,9 +621,9 @@ const CreditTab=({db})=>{
   )
 }
 
-/* ── DAILY ENTRY ── */
+/*  DAILY ENTRY  */
 
-/* ── EDIT ENTRY FORM ── */
+/*  EDIT ENTRY FORM  */
 const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [amount,setAmount]=useState(String(entry.amount))
   const [ref,setRef]=useState(entry.ref_doctor||'')
@@ -649,26 +649,26 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   return(
     <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
-          <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>← Cancel</button>
+          <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>< Cancel</button>
           <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
-          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?.5:1}}>{busy?'…':'Save'}</button>
+          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?.5:1}}>{busy?'...':'Save'}</button>
       </div>
       <div style={{padding:'16px'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,padding:'4px 0'}}>
           <TypeTag t={entry.type}/>
           <span style={{fontSize:13,color:'#555'}}>{ITYPES.find(t=>t.key===entry.type)?.full}</span>
-          {entry.patient_name&&<span style={{fontSize:12,color:'#aaa'}}>· {entry.patient_name}</span>}
+          {entry.patient_name&&<span style={{fontSize:12,color:'#aaa'}}>- {entry.patient_name}</span>}
         </div>
         <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
         <FInp label="Amount (Rs)" type="number" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/>
         {isOP&&<FSel label="OP type" value={opType} onChange={e=>setOpType(e.target.value)}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
         {showRefField&&<FInp label="Referring doctor (blank = self/no commission)" type="text" placeholder="Doctor name or leave blank" value={ref} onChange={e=>setRef(e.target.value)}/>}
-        {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%${isOP?' — enter % for OP ref':''})`} type="number" inputMode="numeric" placeholder={isOP?'e.g. 20':String(defaultCommPct)} value={custComm} onChange={e=>setCustComm(e.target.value)}/>}
+        {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%${isOP?' - enter % for OP ref':''})`} type="number" inputMode="numeric" placeholder={isOP?'e.g. 20':String(defaultCommPct)} value={custComm} onChange={e=>setCustComm(e.target.value)}/>}
         {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{ref}</strong>: <strong>{fmt(comm)}</strong> ({commPct}% of {fmt(parseFloat(amount||0))})</div>}
-        {showRefField&&ref.trim()===''&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>No commission — self/direct patient</div>}
+        {showRefField&&ref.trim()===''&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>No commission - self/direct patient</div>}
         <FSel label="Payment" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
         <FInp label="Notes" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
-        <PBtn onClick={go} disabled={busy} style={{marginTop:8}}>{busy?'Saving…':'Save changes'}</PBtn>
+        <PBtn onClick={go} disabled={busy} style={{marginTop:8}}>{busy?'Saving...':'Save changes'}</PBtn>
         <button onClick={onCancel} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
       </div>
     </div>
@@ -714,19 +714,19 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
       <Card>
         <FInp label="Amount (₹)" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
         {prev>0&&iF.ref&&itype!=='op'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
-        {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>setIF({...iF,pid:e.target.value})}><option value="">— select admitted patient —</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
+        {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>setIF({...iF,pid:e.target.value})}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
           :<>
             <FInp label="Patient name *" type="text" placeholder="Required" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>
             <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
             {!isIP&&itype==='op'&&(<>
               <FSel label="Visiting consultant (optional)" value={iF.consultant_name||''} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,consultant_name:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):0})}}>
-                <option value="">— No visiting consultant —</option>
+                <option value="">- No visiting consultant -</option>
                 {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name}</option>)}
               </FSel>
-              {iF.consultant_name&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} — fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
+              {iF.consultant_name&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
               <FSel label="Referring doctor (optional)" value={iF.ref} onChange={e=>{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?sel.op_pct:null;setIF({...iF,ref:e.target.value,custom_commission:pct!=null?String(pct):''})}}>
-                <option value="">— No referral doctor —</option>
+                <option value="">- No referral doctor -</option>
                 {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}</option>)}
               </FSel>
               {iF.ref&&iF.amount&&(()=>{const doc=db.ref_doctors.find(d=>d.name===iF.ref);if(!doc)return null;const comm=parseFloat(iF.amount||0)*(doc.op_pct/100);if(comm<=0)return null;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Referral commission Dr. {doc.name}: <strong>{fmt(comm)}</strong> ({doc.op_pct}%)</div>)})()}
@@ -738,7 +738,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
               {iF.amount&&iF.consultant_fee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13}}>
                 <span style={{color:'#065f46',fontWeight:600}}>Your income: </span>
                 <span style={{color:'#16a34a',fontWeight:700,fontSize:15}}>{fmt(parseFloat(iF.amount||0)-parseFloat(iF.consultant_fee||0))}</span>
-                <span style={{color:'#888',fontSize:11,marginLeft:6}}>(₹{iF.amount} collected − ₹{iF.consultant_fee} to consultant)</span>
+                <span style={{color:'#888',fontSize:11,marginLeft:6}}>(₹{iF.amount} collected  ₹{iF.consultant_fee} to consultant)</span>
               </div>}
             </>}
           </>}
@@ -746,7 +746,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
           <FSel label="Payment" value={iF.pay} onChange={e=>setIF({...iF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
           <FInp label="Notes" type="text" placeholder="Optional" value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})}/>
         </div>
-        {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit — not yet collected</div>}
+        {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit - not yet collected</div>}
         <PBtn onClick={go}>Save income entry</PBtn>
       </Card>
       {di.length>0&&(
@@ -761,25 +761,25 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
           </div>
         </div>
       )}
-      <SecL>Entries for {fmtD(eDate)} — {fmt(tot)}</SecL>
+      <SecL>Entries for {fmtD(eDate)} - {fmt(tot)}</SecL>
       {di.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#ccc',fontSize:13}}>No entries yet</div>}
       {ITYPES.map(t=>{
         const ents=di.filter(e=>e.type===t.key);if(!ents.length)return null
         return(<div key={t.key}>
-          <SecL>{t.full} — {fmt(tots[t.key])}</SecL>
+          <SecL>{t.full} - {fmt(tots[t.key])}</SecL>
           <Card>{ents.map(e=>{const doc=getRefDoc(e,db.ip_patients);const comm=getComm(e);const cr=isCredit(e);return(
             <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
               <div style={{flex:1,minWidth:0,paddingRight:8}}>
                 <div style={{fontSize:13,fontWeight:500,color:'#111',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                  <TypeTag t={t.key}/>{e.patient_name||'—'}
+                  <TypeTag t={t.key}/>{e.patient_name||'-'}
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' · Consultant: '+e.ref_doctor:doc?' · Ref: '+doc:''}{comm?' · Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' · Fee to consultant: '+fmt(e.consultant_fee)+' · Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' · '+e.notes:''}</div>
+                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
                 <button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
-                <DBtn onClick={()=>actions.delIncome(e.id)}>✕</DBtn>
+                <DBtn onClick={()=>actions.delIncome(e.id)}></DBtn>
               </div>
             </div>
           )})}</Card>
@@ -813,7 +813,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   if(editPatient)return(
     <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
-        <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>← Cancel</button>
+        <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>< Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
         <button onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}window.location.reload()}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
@@ -894,12 +894,12 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};const isVC=cF.type==='vc';const ok=await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:isVC?(cF.vcName||''):(p.ref_doctor||''),notes:cF.notes,custom_commission:(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct'}[cF.type];const isVC=cF.type==='vc';if(isVC)return null;if(doc&&pctKey)return doc[pctKey];if(p.custom_commission!=null)return p.custom_commission;return null})(),consultant_fee:isVC?parseFloat(cF.vcFee||0):0,reg_no:p.reg_no||''});if(ok!==false)setCF({...cF,amt:'',notes:'',vcName:'',vcFee:''})}}>Add charge</PBtn>
         </Card></>)}
         {!p.discharge_date&&p.is_package&&(<><SecL>Package payment received</SecL><Card style={{border:'1px solid #d1fae5',background:'#f0fdf4'}}>
-          <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>Package payment — commission: {p.custom_commission!=null?p.custom_commission+'%':'40% (default)'}. Referral commission auto-calculated.</div>
+          <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>Package payment - commission: {p.custom_commission!=null?p.custom_commission+'%':'40% (default)'}. Referral commission auto-calculated.</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Date" type="date" value={pyF.date} onChange={e=>setPyF({...pyF,date:e.target.value})}/>
             <FInp label="Package amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={pyF.amt} onChange={e=>setPyF({...pyF,amt:e.target.value})}/>
           </div>
-          {pyF.amt&&p.ref_doctor&&(()=>{const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const pkgComm=parseFloat(pyF.amt||0)*pkgRate;const pkgNet=parseFloat(pyF.amt||0)-pkgComm;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {p.ref_doctor}: <strong>{fmt(pkgComm)}</strong> ({Math.round(pkgRate*100)}%) — Net: <strong style={{color:'#16a34a'}}>{fmt(pkgNet)}</strong></div>)})()}
+          {pyF.amt&&p.ref_doctor&&(()=>{const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const pkgComm=parseFloat(pyF.amt||0)*pkgRate;const pkgNet=parseFloat(pyF.amt||0)-pkgComm;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {p.ref_doctor}: <strong>{fmt(pkgComm)}</strong> ({Math.round(pkgRate*100)}%) - Net: <strong style={{color:'#16a34a'}}>{fmt(pkgNet)}</strong></div>)})()}
           <FSel label="Payment mode" value={pyF.pay} onChange={e=>setPyF({...pyF,pay:e.target.value})}>
             {PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}
           </FSel>
@@ -911,6 +911,13 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     </div>
     )
   }
+  const active=db.ip_patients.filter(p=>!p.discharge_date)
+  const disc=db.ip_patients.filter(p=>p.discharge_date)
+  const allIP=[...active,...disc.slice().reverse()]
+  const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const p=db.ip_patients.find(pt=>pt.id===pid);const cr=credTotal(en);const balance=p?.is_package?0:cr;return{total:t,balance,credit:cr}}
+  const ipRefDocs=[...new Set(db.ip_patients.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort()
+  const IPRow=({p})=>{const b=qb(p.id);const pt=p.patient_type||'Regular';const disc2=!!p.discharge_date;return(<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{disc2&&<Pill label="Discharged"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(disc2?' to '+fmtD(p.discharge_date):' Active')+(p.reg_no?' - Reg: '+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>)}
+  const IPVIEWS=[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'date',l:'By Month'},{k:'ref',l:'By Ref Doctor'}]
   if(ipv==='add')return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
@@ -925,7 +932,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             const opNames=[...new Set(opInc.map(e=>e.patient_name))].slice(0,4)
             if(!opNames.length)return null
             return(<div style={{background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
-              <div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Existing OP patients with similar name — tap to link</div>
+              <div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Existing OP patients with similar name - tap to link</div>
               {opNames.map(name=>{const entries=opInc.filter(e=>e.patient_name===name);const reg=entries.find(e=>e.reg_no)?.reg_no||'';return(<button key={name} onClick={()=>setPF({...pF,name,linkedRegNo:reg,phone:entries.find(e=>e.patient_phone)?.patient_phone||pF.phone})} style={{display:'block',width:'100%',textAlign:'left',padding:'8px 10px',marginBottom:4,background:pF.name===name?'#1d4ed8':'#fff',color:pF.name===name?'#fff':'#111',border:'1px solid #bfdbfe',borderRadius:8,cursor:'pointer',fontSize:13}}><strong>{name}</strong>{reg&&<span style={{fontSize:11,marginLeft:8,opacity:.7}}>Reg: {reg}</span>}<span style={{fontSize:11,marginLeft:8,opacity:.7}}>{entries.length} OP visit{entries.length!==1?'s':''}</span></button>)})}
               {pF.linkedRegNo&&<div style={{fontSize:12,color:'#1d4ed8',fontWeight:600,marginTop:6}}>Will use same Reg No: {pF.linkedRegNo}</div>}
             </div>)
@@ -952,22 +959,15 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Referral details</div>
           <FSel label="Referring doctor (select from Ref Doctors)" value={pF.ref} onChange={e=>{setPF({...pF,ref:e.target.value,custom_commission:''})}}>
-            <option value="">— No referral / Self patient —</option>
+            <option value="">- No referral / Self patient -</option>
             {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}</option>)}
           </FSel>
-          {pF.ref&&(()=>{const doc=db.ref_doctors.find(d=>d.name===pF.ref);if(!doc)return null;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#92400e'}}><strong>Dr. {doc.name}</strong> commission rates: IP {doc.ip_pct}% · IP-Pharmacy {doc.ip_r_pct}% · IP-Lab {doc.ip_l_pct}%{pF.patient_type==='Package'?' · Package '+doc.ip_pct+'%':''}</div>)})()}
+          {pF.ref&&(()=>{const doc=db.ref_doctors.find(d=>d.name===pF.ref);if(!doc)return null;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#92400e'}}><strong>Dr. {doc.name}</strong> commission rates: IP {doc.ip_pct}% - IP-Pharmacy {doc.ip_r_pct}% - IP-Lab {doc.ip_l_pct}%{pF.patient_type==='Package'?' - Package '+doc.ip_pct+'%':''}</div>)})()}
         </div>
         <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn});setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',linkedRegNo:''})}}>Admit patient</PBtn>
       </Card>
     </div>
   )
-  const active=db.ip_patients.filter(p=>!p.discharge_date)
-  const disc=db.ip_patients.filter(p=>p.discharge_date)
-  const allIP=[...active,...disc.slice().reverse()]
-  const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const p=db.ip_patients.find(pt=>pt.id===pid);const cr=credTotal(en);const balance=p?.is_package?0:cr;return{total:t,balance,credit:cr}}
-  const ipRefDocs=[...new Set(db.ip_patients.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort()
-  const IPRow=({p})=>{const b=qb(p.id);const pt=p.patient_type||'Regular';const disc2=!!p.discharge_date;return(<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{disc2&&<Pill label="Discharged"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(disc2?' → '+fmtD(p.discharge_date):'  Active')+(p.reg_no?' · Reg: '+p.reg_no:'')+(p.phone?' · '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>)}
-  const IPVIEWS=[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'date',l:'By Month'},{k:'ref',l:'By Ref Doctor'}]
   return(
     <div>
       <PBtn onClick={()=>setIpv('add')} style={{marginBottom:12}}>+ Admit new patient</PBtn>
@@ -978,8 +978,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       {(ipView==='all'||ipView==='active'||ipView==='discharged')&&(<>
         <div style={{position:'relative',marginBottom:12}}>
           <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
-          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>
-          {ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}
+          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>
+          {ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}
         </div>
         {(()=>{
           const pool=ipView==='active'?active:ipView==='discharged'?disc.slice().reverse():allIP
@@ -1020,7 +1020,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
 
       {ipView==='ref'&&(<>
         <FSel label="Select referral doctor" value={ipRefFilter} onChange={e=>setIpRefFilter(e.target.value)}>
-          <option value="">— Select doctor —</option>
+          <option value="">- Select doctor -</option>
           {ipRefDocs.map(d=><option key={d} value={d}>Dr. {d}</option>)}
         </FSel>
         {!ipRefFilter&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{ipRefDocs.length?'Select a referral doctor above':'No referral doctors yet'}</div>}
@@ -1042,7 +1042,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   )
 }
 
-/* ── OP PATIENTS TAB ── */
+/*  OP PATIENTS TAB  */
 const OPTab=({db,actions})=>{
   const [selPat,setSelPat]=useState(null)
   const [payDoc,setPayDoc]=useState(null)
@@ -1098,14 +1098,14 @@ const OPTab=({db,actions})=>{
   // All referral doctors and consultants who appear in OP income
   const opRefDocs=[...new Set(opIncome.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   const opConsultants=[...new Set(opIncome.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort()
-  const PatCard=({pat})=>(<Card style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat(pat.name)}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''} · Last: {fmtD(pat.lastDate)}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref comm: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}>›</span></div></div></Card>)
+  const PatCard=({pat})=>(<Card style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat(pat.name)}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''} - Last: {fmtD(pat.lastDate)}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref comm: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}></span></div></div></Card>)
   const VIEWS=[{k:'patients',l:'All Patients'},{k:'date',l:'By Date'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}]
   return(
     <div>
       <div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:16,padding:'16px',marginBottom:12,color:'#fff'}}>
         <div style={{fontSize:12,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP patients</div>
         <div style={{fontSize:32,fontWeight:800}}>{allPatients.length}</div>
-        <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>Total: {fmt(allPatients.reduce((a,p)=>a+p.total,0))} · Ref comm: {fmt(allPatients.reduce((a,p)=>a+p.totalComm,0))}</div>
+        <div style={{fontSize:12,color:'#bfdbfe',marginTop:4}}>Total: {fmt(allPatients.reduce((a,p)=>a+p.total,0))} - Ref comm: {fmt(allPatients.reduce((a,p)=>a+p.totalComm,0))}</div>
       </div>
       <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
         {VIEWS.map(v=>(<button key={v.k} onClick={()=>setView(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:view===v.k?'none':'1px solid #e5e7eb',background:view===v.k?'#1d4ed8':'none',color:view===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
@@ -1114,8 +1114,8 @@ const OPTab=({db,actions})=>{
       {view==='patients'&&(<>
         <div style={{position:'relative',marginBottom:12}}>
           <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name or reg no..." value={search} onChange={e=>setSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
-          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>
-          {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}
+          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>
+          {search&&<button onClick={()=>setSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}
         </div>
         {search&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{patients.length} result{patients.length!==1?'s':''} for "{search}"</div>}
         {patients.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No OP patients yet.</div>}
@@ -1142,7 +1142,7 @@ const OPTab=({db,actions})=>{
         const refList=opRefDocs.length?opRefDocs:['(none)']
         return(<>
           <FSel label="Select referral doctor" value={filterRef} onChange={e=>setFilterRef(e.target.value)}>
-            <option value="">— Select doctor —</option>
+            <option value="">- Select doctor -</option>
             {opRefDocs.map(d=><option key={d} value={d}>Dr. {d}</option>)}
           </FSel>
           {!filterRef&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{opRefDocs.length?'Select a referral doctor above':'No referral data yet'}</div>}
@@ -1167,7 +1167,7 @@ const OPTab=({db,actions})=>{
       {view==='con'&&(()=>{
         return(<>
           <FSel label="Select visiting consultant" value={filterCon} onChange={e=>setFilterCon(e.target.value)}>
-            <option value="">— Select consultant —</option>
+            <option value="">- Select consultant -</option>
             {opConsultants.map(d=><option key={d} value={d}>Dr. {d}</option>)}
           </FSel>
           {!filterCon&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{opConsultants.length?'Select a consultant above':'No consultant records yet'}</div>}
@@ -1194,7 +1194,7 @@ const OPTab=({db,actions})=>{
   )
 }
 
-/* ── EXPENSES TAB ── */
+/*  EXPENSES TAB  */
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const exp=db.expenses.filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
   const go=async()=>{const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return};const ok=await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon});if(ok!==false)setExF({...exF,amt:'',desc:''})}
@@ -1226,7 +1226,7 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   )
 }
 
-/* ── REFERRALS REPORT ── */
+/*  REFERRALS REPORT  */
 const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs})=>{
   const [per,setPer]=useState('month')
   const [payDoc,setPayDoc]=useState(null)
@@ -1265,7 +1265,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs})=>{
   </>)
 }
 
-/* ── EXPENSES REPORT ── */
+/*  EXPENSES REPORT  */
 const ExpensesReport=({db})=>{
   const [per,setPer]=useState('month')
   const [rm2,setRm2]=useState(todayStr().slice(0,7))
@@ -1296,7 +1296,7 @@ const ExpensesReport=({db})=>{
   </>)
 }
 
-/* ── PATIENT LIST REPORT ── */
+/*  PATIENT LIST REPORT  */
 const PatientListReport=({db,gotoTimeline})=>{
   const [per,setPer]=useState('month')
   const [rm2,setRm2]=useState(todayStr().slice(0,7))
@@ -1330,8 +1330,8 @@ const PatientListReport=({db,gotoTimeline})=>{
     {(showType==='all'||showType==='ip')&&(<>
       {showType==='ip'&&<>
         <div style={{display:'flex',gap:6,marginBottom:10,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'ref',l:'By Ref Doctor'}].map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
-        {ipView!=='ref'&&<div style={{position:'relative',marginBottom:10}}><input style={{...S.inp,paddingLeft:36}} placeholder="Search name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/><span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}>🔍</span>{ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>✕</button>}</div>}
-        {ipView==='ref'&&<FSel label="Select referral doctor" value={ipRefFilter2} onChange={e=>setIpRefFilter2(e.target.value)}><option value="">— Select doctor —</option>{[...new Set(ipPats.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
+        {ipView!=='ref'&&<div style={{position:'relative',marginBottom:10}}><input style={{...S.inp,paddingLeft:36}} placeholder="Search name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/><span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>{ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}</div>}
+        {ipView==='ref'&&<FSel label="Select referral doctor" value={ipRefFilter2} onChange={e=>setIpRefFilter2(e.target.value)}><option value="">- Select doctor -</option>{[...new Set(ipPats.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
       </>}
       {(()=>{
         let pool=ipPats
@@ -1353,8 +1353,8 @@ const PatientListReport=({db,gotoTimeline})=>{
     </Card>)})}</>)})()}</>)}
     {(showType==='all'||showType==='op')&&(<>
       {showType==='op'&&<div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}].map(v=>(<button key={v.k} onClick={()=>setOpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:opView===v.k?'none':'1px solid #e5e7eb',background:opView===v.k?'#1d4ed8':'none',color:opView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>)))}</div>}
-      {showType==='op'&&opView==='ref'&&<FSel label="Filter by referral doctor" value={opRefFilter} onChange={e=>setOpRefFilter(e.target.value)}><option value="">— All referral doctors —</option>{[...new Set(opEnts.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
-      {showType==='op'&&opView==='con'&&<FSel label="Filter by consultant" value={opConFilter} onChange={e=>setOpConFilter(e.target.value)}><option value="">— All consultants —</option>{[...new Set(opEnts.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
+      {showType==='op'&&opView==='ref'&&<FSel label="Filter by referral doctor" value={opRefFilter} onChange={e=>setOpRefFilter(e.target.value)}><option value="">- All referral doctors -</option>{[...new Set(opEnts.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
+      {showType==='op'&&opView==='con'&&<FSel label="Filter by consultant" value={opConFilter} onChange={e=>setOpConFilter(e.target.value)}><option value="">- All consultants -</option>{[...new Set(opEnts.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
       {(()=>{
         let filtered=opPats
         if(showType==='op'&&opView==='ref'&&opRefFilter)filtered=opPats.filter(p=>p.entries.some(e=>e.ref_doctor===opRefFilter))
@@ -1385,7 +1385,7 @@ const PatientListReport=({db,gotoTimeline})=>{
   </>)
 }
 
-/* ── PATIENT TIMELINE ── */
+/*  PATIENT TIMELINE  */
 const PatientTimeline=({db,pid,onBack})=>{
   const p=db.ip_patients.find(x=>x.id===pid)
   if(!p)return<button onClick={onBack} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
@@ -1442,7 +1442,7 @@ const PatientTimeline=({db,pid,onBack})=>{
   </>)
 }
 
-/* ── REAL INCOME REPORT ── */
+/*  REAL INCOME REPORT  */
 const RealIncomeReport=({db})=>{
   const allInc=db.income.reduce((a,e)=>a+e.amount,0);const allComm=db.income.reduce((a,e)=>a+getComm(e),0);const allVCFees=db.income.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const allDeductions=allComm+allVCFees;const allReal=allInc-allDeductions
   return(<>
@@ -1464,7 +1464,7 @@ const RealIncomeReport=({db})=>{
   </>)
 }
 
-/* ── REPORTS TAB ── */
+/*  REPORTS TAB  */
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
@@ -1510,7 +1510,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
   )
 }
 
-/* ── MAIN APP ── */
+/*  MAIN APP  */
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -1629,7 +1629,7 @@ export default function App(){
 }
 
 
-/* ── REF DOCTORS TAB ── */
+/*  REF DOCTORS TAB  */
 const RefDoctorsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
@@ -1681,7 +1681,7 @@ const RefDoctorsTab=({db,actions})=>{
       </div>
       <div style={{display:'flex',gap:8,marginTop:14}}>
         <button onClick={()=>{setShowAdd(false);setEditId(null);setForm(blank)}} style={{flex:1,padding:'11px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
-        <PBtn onClick={save} disabled={busy} style={{flex:2,marginTop:0}}>{busy?'Saving…':editId?'Save changes':'Add doctor'}</PBtn>
+        <PBtn onClick={save} disabled={busy} style={{flex:2,marginTop:0}}>{busy?'Saving...':editId?'Save changes':'Add doctor'}</PBtn>
       </div>
     </Card>}
     <SecL>Registered doctors ({db.ref_doctors.length})</SecL>
@@ -1713,7 +1713,7 @@ const RefDoctorsTab=({db,actions})=>{
   </div>)
 }
 
-/* ── CONSULTANTS TAB ── */
+/*  CONSULTANTS TAB  */
 const ConsultantsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
@@ -1744,7 +1744,7 @@ const ConsultantsTab=({db,actions})=>{
           <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#7e22ce',fontWeight:700}}>%</span>
         </div>
         <div style={{fontSize:11,color:'#9333ea',marginTop:6}}>Doctor takes this % of what is collected. Hospital keeps the rest.</div>
-        {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect ₹700 → Dr. gets {fmt(700*form.fee_share_pct/100)} · Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
+        {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect ₹700 > Dr. gets {fmt(700*form.fee_share_pct/100)} - Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
       </div>
       <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Commission on investigations ordered</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -1758,7 +1758,7 @@ const ConsultantsTab=({db,actions})=>{
       </div>
       <div style={{display:'flex',gap:8,marginTop:14}}>
         <button onClick={()=>{setShowAdd(false);setEditId(null);setForm(blank)}} style={{flex:1,padding:'11px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
-        <PBtn onClick={save} disabled={busy} style={{flex:2,marginTop:0,background:'#7e22ce'}}>{busy?'Saving…':editId?'Save changes':'Add consultant'}</PBtn>
+        <PBtn onClick={save} disabled={busy} style={{flex:2,marginTop:0,background:'#7e22ce'}}>{busy?'Saving...':editId?'Save changes':'Add consultant'}</PBtn>
       </div>
     </Card>}
     <SecL>Visiting consultants ({db.consultants.length})</SecL>
