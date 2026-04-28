@@ -240,6 +240,81 @@ const DonutChart=({segments,title,centerLabel})=>{
           </>)
         })()}
       </Card>
+
+      {/* SEGMENT BREAKDOWN CARDS */}
+      <SecL>This month — segment breakdown</SecL>
+
+      {(()=>{
+        // Clinical segment: OP + OP-R + IP + IP-R income
+        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
+        const clinGross=sum(clinInc)
+        const clinComm=comm(clinInc)
+        // Clinical expenses = all expenses EXCEPT lab_to_lab
+        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
+        const clinActual=clinGross-clinComm-clinExp
+        const clinExpCats={}
+        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
+
+        // Lab segment: OP-L + IP-L income
+        const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
+        const labGross=sum(labInc)
+        const labComm=comm(labInc)
+        // Lab expenses = lab_to_lab + ref_commissions paid on lab
+        const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
+        const labActual=labGross-labComm-labToLab
+
+        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
+          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
+                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
+              </div>
+              <div style={{marginLeft:'auto',textAlign:'right'}}>
+                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
+                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
+              </div>
+            </div>
+            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
+              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
+                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
+              ))}
+              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
+            </div>
+          </div>
+        )
+
+        return(<>
+          <SegCard
+            title="Clinical & Pharmacy"
+            color="#0891b2"
+            bg="#ecfeff"
+            icon="H"
+            gross={clinGross}
+            commAmt={clinComm}
+            expAmt={clinExp}
+            expBreakdown={clinExpCats}
+            actual={clinActual}
+            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
+          />
+          <SegCard
+            title="Laboratory"
+            color="#7c3aed"
+            bg="#f5f3ff"
+            icon="L"
+            gross={labGross}
+            commAmt={labComm}
+            expAmt={labToLab}
+            expBreakdown={{'Lab to lab':labToLab}}
+            actual={labActual}
+            incTypes="OP-Lab + IP-Lab"
+          />
+        </>)
+      })()}
     </div>
   )
 }
@@ -914,6 +989,81 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
           </>)
         })()}
       </Card>
+
+      {/* SEGMENT BREAKDOWN CARDS */}
+      <SecL>This month — segment breakdown</SecL>
+
+      {(()=>{
+        // Clinical segment: OP + OP-R + IP + IP-R income
+        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
+        const clinGross=sum(clinInc)
+        const clinComm=comm(clinInc)
+        // Clinical expenses = all expenses EXCEPT lab_to_lab
+        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
+        const clinActual=clinGross-clinComm-clinExp
+        const clinExpCats={}
+        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
+
+        // Lab segment: OP-L + IP-L income
+        const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
+        const labGross=sum(labInc)
+        const labComm=comm(labInc)
+        // Lab expenses = lab_to_lab + ref_commissions paid on lab
+        const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
+        const labActual=labGross-labComm-labToLab
+
+        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
+          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
+                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
+              </div>
+              <div style={{marginLeft:'auto',textAlign:'right'}}>
+                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
+                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
+              </div>
+            </div>
+            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
+              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
+                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
+              ))}
+              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
+            </div>
+          </div>
+        )
+
+        return(<>
+          <SegCard
+            title="Clinical & Pharmacy"
+            color="#0891b2"
+            bg="#ecfeff"
+            icon="H"
+            gross={clinGross}
+            commAmt={clinComm}
+            expAmt={clinExp}
+            expBreakdown={clinExpCats}
+            actual={clinActual}
+            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
+          />
+          <SegCard
+            title="Laboratory"
+            color="#7c3aed"
+            bg="#f5f3ff"
+            icon="L"
+            gross={labGross}
+            commAmt={labComm}
+            expAmt={labToLab}
+            expBreakdown={{'Lab to lab':labToLab}}
+            actual={labActual}
+            incTypes="OP-Lab + IP-Lab"
+          />
+        </>)
+      })()}
     </div>
   )
 }
@@ -2458,6 +2608,81 @@ const PaymentPage=({onBack=null})=>{
           </>)
         })()}
       </Card>
+
+      {/* SEGMENT BREAKDOWN CARDS */}
+      <SecL>This month — segment breakdown</SecL>
+
+      {(()=>{
+        // Clinical segment: OP + OP-R + IP + IP-R income
+        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
+        const clinGross=sum(clinInc)
+        const clinComm=comm(clinInc)
+        // Clinical expenses = all expenses EXCEPT lab_to_lab
+        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
+        const clinActual=clinGross-clinComm-clinExp
+        const clinExpCats={}
+        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
+
+        // Lab segment: OP-L + IP-L income
+        const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
+        const labGross=sum(labInc)
+        const labComm=comm(labInc)
+        // Lab expenses = lab_to_lab + ref_commissions paid on lab
+        const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
+        const labActual=labGross-labComm-labToLab
+
+        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
+          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
+                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
+              </div>
+              <div style={{marginLeft:'auto',textAlign:'right'}}>
+                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
+                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
+              </div>
+            </div>
+            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
+              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
+                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
+              ))}
+              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
+            </div>
+          </div>
+        )
+
+        return(<>
+          <SegCard
+            title="Clinical & Pharmacy"
+            color="#0891b2"
+            bg="#ecfeff"
+            icon="H"
+            gross={clinGross}
+            commAmt={clinComm}
+            expAmt={clinExp}
+            expBreakdown={clinExpCats}
+            actual={clinActual}
+            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
+          />
+          <SegCard
+            title="Laboratory"
+            color="#7c3aed"
+            bg="#f5f3ff"
+            icon="L"
+            gross={labGross}
+            commAmt={labComm}
+            expAmt={labToLab}
+            expBreakdown={{'Lab to lab':labToLab}}
+            actual={labActual}
+            incTypes="OP-Lab + IP-Lab"
+          />
+        </>)
+      })()}
     </div>
   )
 }
@@ -2743,6 +2968,81 @@ const AnalyticsDash=({db})=>{
           </>)
         })()}
       </Card>
+
+      {/* SEGMENT BREAKDOWN CARDS */}
+      <SecL>This month — segment breakdown</SecL>
+
+      {(()=>{
+        // Clinical segment: OP + OP-R + IP + IP-R income
+        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
+        const clinGross=sum(clinInc)
+        const clinComm=comm(clinInc)
+        // Clinical expenses = all expenses EXCEPT lab_to_lab
+        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
+        const clinActual=clinGross-clinComm-clinExp
+        const clinExpCats={}
+        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
+
+        // Lab segment: OP-L + IP-L income
+        const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
+        const labGross=sum(labInc)
+        const labComm=comm(labInc)
+        // Lab expenses = lab_to_lab + ref_commissions paid on lab
+        const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
+        const labActual=labGross-labComm-labToLab
+
+        const SegCard=({title,color,bg,icon,gross,commAmt,expAmt,expBreakdown,actual,incTypes})=>(
+          <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <div style={{width:38,height:38,borderRadius:12,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:1.1+'rem'}}>{icon}</div>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{title}</div>
+                <div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{incTypes}</div>
+              </div>
+              <div style={{marginLeft:'auto',textAlign:'right'}}>
+                <div style={{fontSize:10,color:'#94a3b8',fontWeight:600,textTransform:'uppercase'}}>Actual income</div>
+                <div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div>
+              </div>
+            </div>
+            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
+              {expBreakdown&&Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(
+                <div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>
+              ))}
+              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
+            </div>
+          </div>
+        )
+
+        return(<>
+          <SegCard
+            title="Clinical & Pharmacy"
+            color="#0891b2"
+            bg="#ecfeff"
+            icon="H"
+            gross={clinGross}
+            commAmt={clinComm}
+            expAmt={clinExp}
+            expBreakdown={clinExpCats}
+            actual={clinActual}
+            incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"
+          />
+          <SegCard
+            title="Laboratory"
+            color="#7c3aed"
+            bg="#f5f3ff"
+            icon="L"
+            gross={labGross}
+            commAmt={labComm}
+            expAmt={labToLab}
+            expBreakdown={{'Lab to lab':labToLab}}
+            actual={labActual}
+            incTypes="OP-Lab + IP-Lab"
+          />
+        </>)
+      })()}
     </div>
   )
 }
