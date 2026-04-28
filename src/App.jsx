@@ -235,16 +235,15 @@ const CommPayForm=({docName,balance,onSave,onCancel})=>{
 /*  SETTINGS PANEL  */
 const SettingsPanel=()=>{
   const [plans,setPlans]=useState({
-    trial:{label:'Trial',days:30,price:0},
-    starter:{label:'Starter',price:999,days:365},
-    pro:{label:'Pro',price:1999,days:365},
-    enterprise:{label:'Enterprise',price:4999,days:365},
+    trial:{label:'Trial',days:30,price:0,yearly:0},
+    starter:{label:'Starter',price:300,yearly:3000,days:365},
+    pro:{label:'Pro',price:400,yearly:4000,days:365},
+    enterprise:{label:'Enterprise',price:600,yearly:6000,days:365},
   })
   const [appName,setAppName]=useState('EasyMedical')
   const [support,setSupport]=useState('support@easymedicalsolutions.in')
   const [saved,setSaved]=useState(false)
   const save=()=>{
-    // Save to localStorage for persistence
     localStorage.setItem('sa_settings',JSON.stringify({plans,appName,support}))
     setSaved(true)
     setTimeout(()=>setSaved(false),2000)
@@ -268,31 +267,47 @@ const SettingsPanel=()=>{
             {key==='trial'&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef3c7',color:'#b45309',fontWeight:700}}>FREE</span>}
             {key==='pro'&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>POPULAR</span>}
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
             <div>
-              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Price (Rs /month)</label>
+              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Monthly price (Rs)</label>
               <input style={{...S.inp,background:key==='trial'?'#f9f9f9':'#fff'}} type="number" inputMode="numeric" value={plan.price} disabled={key==='trial'} onChange={e=>setPlans({...plans,[key]:{...plan,price:parseInt(e.target.value)||0}})}/>
             </div>
             <div>
-              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Trial days</label>
-              <input style={S.inp} type="number" inputMode="numeric" value={plan.days} onChange={e=>setPlans({...plans,[key]:{...plan,days:parseInt(e.target.value)||30}})}/>
+              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Yearly price (Rs)</label>
+              <input style={{...S.inp,background:key==='trial'?'#f9f9f9':'#fff'}} type="number" inputMode="numeric" value={plan.yearly} disabled={key==='trial'} onChange={e=>setPlans({...plans,[key]:{...plan,yearly:parseInt(e.target.value)||0}})}/>
             </div>
           </div>
-          <div style={{fontSize:11,color:'#aaa',marginTop:4}}>
-            {key==='trial'?`Free for ${plan.days} days then requires upgrade`:`Rs ${plan.price}/month - Billed monthly`}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <div>
+              <label style={{display:'block',fontSize:10,color:'#888',textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Trial / access days</label>
+              <input style={S.inp} type="number" inputMode="numeric" value={plan.days} onChange={e=>setPlans({...plans,[key]:{...plan,days:parseInt(e.target.value)||30}})}/>
+            </div>
+            {key!=='trial'&&<div style={{background:'#f0fdf4',borderRadius:10,padding:'8px 12px',display:'flex',flexDirection:'column',justifyContent:'center'}}>
+              <div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Yearly saving</div>
+              <div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(plan.price*12-plan.yearly)}</div>
+              <div style={{fontSize:9,color:'#aaa'}}>vs 12x monthly</div>
+            </div>}
           </div>
+          {key!=='trial'&&<div style={{fontSize:11,color:'#aaa',marginTop:8,background:'#f9f9f9',borderRadius:8,padding:'7px 10px'}}>
+            Monthly: Rs {plan.price}/mo &nbsp;|&nbsp; Yearly: Rs {plan.yearly}/yr ({Math.round((1-(plan.yearly/(plan.price*12)))*100)}% off)
+          </div>}
+          {key==='trial'&&<div style={{fontSize:11,color:'#aaa',marginTop:4}}>Free for {plan.days} days then requires upgrade</div>}
         </Card>
       ))}
-      {saved&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#16a34a',fontWeight:600}}> Settings saved!</div>}
+      {saved&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#16a34a',fontWeight:600}}>Settings saved!</div>}
       <PBtn onClick={save}>Save settings</PBtn>
       <div style={{marginTop:16,background:'#f9f9f9',borderRadius:12,padding:'14px 16px'}}>
-        <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',marginBottom:10}}>Current plan summary</div>
+        <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',marginBottom:10}}>Plan summary</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,marginBottom:6}}>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Plan</div>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Monthly</div>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Yearly</div>
+        </div>
         {Object.entries(plans).map(([key,plan])=>(
-          <div key={key} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f0f0f0',fontSize:13}}>
+          <div key={key} style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,padding:'7px 0',borderBottom:'1px solid #f0f0f0',fontSize:13,alignItems:'center'}}>
             <span style={{fontWeight:600}}>{plan.label}</span>
-            <span style={{color:key==='trial'?'#b45309':'#111',fontWeight:key==='pro'?700:400}}>
-              {key==='trial'?`Free - ${plan.days} days`:fmt(plan.price)+'/month'}
-            </span>
+            <span style={{color:key==='trial'?'#b45309':'#111',textAlign:'right'}}>{key==='trial'?'Free':fmt(plan.price)}</span>
+            <span style={{color:'#16a34a',fontWeight:600,textAlign:'right'}}>{key==='trial'?`${plan.days}d`:fmt(plan.yearly)}</span>
           </div>
         ))}
       </div>
