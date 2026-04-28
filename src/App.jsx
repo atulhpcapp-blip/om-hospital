@@ -792,6 +792,10 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP})=>{
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [editPatient,setEditPatient]=useState(null)
+  const [ipSearch,setIpSearch]=useState('')
+  const [ipView,setIpView]=useState('all')
+  const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
+  const [ipRefFilter,setIpRefFilter]=useState('')
   const getBill=pid=>{
     const en=db.income.filter(e=>e.patient_id===pid)
     const total=en.reduce((a,e)=>a+e.amount,0)
@@ -961,10 +965,6 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const disc=db.ip_patients.filter(p=>p.discharge_date)
   const allIP=[...active,...disc.slice().reverse()]
   const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const p=db.ip_patients.find(pt=>pt.id===pid);const cr=credTotal(en);const balance=p?.is_package?0:cr;return{total:t,balance,credit:cr}}
-  const [ipSearch,setIpSearch]=useState('')
-  const [ipView,setIpView]=useState('all')
-  const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
-  const [ipRefFilter,setIpRefFilter]=useState('')
   const ipRefDocs=[...new Set(db.ip_patients.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort()
   const IPRow=({p})=>{const b=qb(p.id);const pt=p.patient_type||'Regular';const disc2=!!p.discharge_date;return(<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{disc2&&<Pill label="Discharged"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(disc2?' → '+fmtD(p.discharge_date):'  Active')+(p.reg_no?' · Reg: '+p.reg_no:'')+(p.phone?' · '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>)}
   const IPVIEWS=[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'date',l:'By Month'},{k:'ref',l:'By Ref Doctor'}]
@@ -1048,6 +1048,10 @@ const OPTab=({db,actions})=>{
   const [payDoc,setPayDoc]=useState(null)
   const [editEntry,setEditEntry]=useState(null)
   const [search,setSearch]=useState('')
+  const [view,setView]=useState('patients')
+  const [filterDate,setFilterDate]=useState(todayStr().slice(0,7))
+  const [filterRef,setFilterRef]=useState('')
+  const [filterCon,setFilterCon]=useState('')
   const opIncome=db.income.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
   const byPat={}
   opIncome.forEach(e=>{const k=e.patient_name;if(!byPat[k])byPat[k]={name:k,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>byPat[k].lastDate)byPat[k].lastDate=e.date})
@@ -1091,10 +1095,6 @@ const OPTab=({db,actions})=>{
     </div>
     )
   }
-  const [view,setView]=useState('patients')
-  const [filterDate,setFilterDate]=useState(todayStr().slice(0,7))
-  const [filterRef,setFilterRef]=useState('')
-  const [filterCon,setFilterCon]=useState('')
   // All referral doctors and consultants who appear in OP income
   const opRefDocs=[...new Set(opIncome.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   const opConsultants=[...new Set(opIncome.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort()
