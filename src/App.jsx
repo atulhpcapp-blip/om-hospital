@@ -1871,7 +1871,7 @@ export default function App(){
   const [hospital,setHospital]=useState(null)
   const [isSuperAdmin,setIsSuperAdmin]=useState(false)
   const [showRegister,setShowRegister]=useState(false)
-  const [showPayment,setShowPayment]=useState(false)
+  const [showPayment,setShowPayment]=useState(()=>new URLSearchParams(window.location.search).get('upgrade')==='true')
   const [loading,setLoading]=useState(true)
   const [db,setDb]=useState({income:[],expenses:[],ip_patients:[],ref_doctors:[],consultants:[]})
   const [dbLoading,setDbLoading]=useState(false)
@@ -2182,7 +2182,7 @@ const PaymentPage=({onBack=null})=>{
     const loaded=await loadRazorpay()
     if(!loaded){setErr('Failed to load payment. Check internet.');setBusy(false);return}
     const {data:{session}}=await supabase.auth.getSession()
-    if(!session){setErr('Session expired, please login again.');setBusy(false);return}
+    if(!session){window.location.href=window.location.pathname+'?upgrade=true#login';setErr('Please login or register first, then click Pay again.');setBusy(false);return}
     const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
     const hid=prof?.hospital_id
     if(!hid){setErr('Hospital not found.');setBusy(false);return}
