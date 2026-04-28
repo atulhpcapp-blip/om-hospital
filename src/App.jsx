@@ -13,7 +13,7 @@ const ROLES=['admin','management','accounts','staff']
 const OP_TYPES=['New OP','Review OP']
 const IP_PAT_TYPES=['Regular','Package','VC']
 const PLANS=[{key:'trial',label:'Trial (30 days)',price:0},{key:'starter',label:'Starter',price:999},{key:'pro',label:'Pro',price:1999},{key:'enterprise',label:'Enterprise',price:4999}]
-const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@omhospital.app`
+const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@easymedicalsolutions.in`
 
 const todayStr=()=>new Date().toISOString().split('T')[0]
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
@@ -240,8 +240,8 @@ const SettingsPanel=()=>{
     pro:{label:'Pro',price:1999,days:365},
     enterprise:{label:'Enterprise',price:4999,days:365},
   })
-  const [appName,setAppName]=useState('HospTrack')
-  const [support,setSupport]=useState('support@hosptrack.in')
+  const [appName,setAppName]=useState('EasyMedical')
+  const [support,setSupport]=useState('support@easymedicalsolutions.in')
   const [saved,setSaved]=useState(false)
   const save=()=>{
     // Save to localStorage for persistence
@@ -440,7 +440,7 @@ const HospitalOnboarding=({onBack})=>{
       <div style={{maxWidth:420,margin:'0 auto'}}>
         <div style={{textAlign:'center',marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:8}}></div>
-          <div style={{fontSize:22,fontWeight:800,color:'#111'}}>Register your hospital</div>
+          <div style={{fontSize:11,fontWeight:700,color:'#16a34a',letterSpacing:'.12em',textTransform:'uppercase',marginBottom:4}}>Easy Medical Solutions</div><div style={{fontSize:22,fontWeight:800,color:'#111'}}>Register your hospital</div>
           <div style={{fontSize:13,color:'#aaa',marginTop:4}}>Free 30-day trial - No credit card</div>
         </div>
         <div style={{display:'flex',gap:8,marginBottom:20}}>{[1,2].map(s=>(<div key={s} style={{flex:1,height:4,borderRadius:2,background:step>=s?'#111':'#e5e7eb'}}/>))}</div>
@@ -572,7 +572,9 @@ const AdminTab=({currentUser,hospital=null})=>{
 }
 
 /*  CREDIT TAB  */
-const CreditTab=({db})=>{
+const CreditTab=({db,actions})=>{
+  const [collectEntry,setCollectEntry]=useState(null)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   const allCredit=db.income.filter(e=>isCredit(e))
   const totalCred=allCredit.reduce((a,e)=>a+e.amount,0)
   const byPatient={}
@@ -607,10 +609,18 @@ const CreditTab=({db})=>{
               <div style={{fontSize:15,fontWeight:700,color:'#111'}}>{pt.name}</div>
               <div style={{fontSize:22,fontWeight:800,color:'#c2410c'}}>{fmt(pt.total)}</div>
             </div>
-            {Object.entries(pt.byType).map(([tk,amt])=>{const it=ITYPES.find(t=>t.key===tk);return(
-              <div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
-                <span style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}><TypeTag t={tk}/>{it?.full||tk}</span>
-                <span style={{color:'#c2410c',fontWeight:600,fontSize:14}}>{fmt(amt)}</span>
+            {Object.entries(pt.byType).map(([tk,amt])=>{const it=ITYPES.find(t=>t.key===tk);const typeEntries=allCredit.filter(e=>e.patient_name===pt.name&&e.type===tk);return(
+              <div key={tk} style={{padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                  <span style={{display:'flex',alignItems:'center',gap:8,fontSize:13}}><TypeTag t={tk}/>{it?.full||tk}</span>
+                  <span style={{color:'#c2410c',fontWeight:600,fontSize:14}}>{fmt(amt)}</span>
+                </div>
+                {typeEntries.map(e=>(
+                  <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6,paddingLeft:6}}>
+                    <span style={{fontSize:12,color:'#aaa'}}>{fmtD(e.date)} - {fmt(e.amount)}{e.notes?' - '+e.notes:''}</span>
+                    <button onClick={()=>setCollectEntry(e)} style={{padding:'4px 12px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700,whiteSpace:'nowrap'}}>Collect</button>
+                  </div>
+                ))}
               </div>
             )})}
             {Object.keys(pt.byType).length>1&&<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:2,fontSize:13,fontWeight:700,color:'#92400e'}}><span>Total due</span><span>{fmt(pt.total)}</span></div>}
@@ -622,6 +632,48 @@ const CreditTab=({db})=>{
 }
 
 /*  DAILY ENTRY  */
+
+/*  COLLECT CREDIT PAYMENT FORM  */
+const CollectCreditForm=({entry,onSave,onCancel})=>{
+  const [date,setDate]=useState(todayStr())
+  const [pay,setPay]=useState('cash')
+  const [busy,setBusy]=useState(false)
+  const it=ITYPES.find(t=>t.key===entry.type)
+  const previewComm=getComm({...entry,payment:pay})
+  const go=async()=>{setBusy(true);await onSave({...entry,payment:pay,date});setBusy(false)}
+  return(
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <div style={{fontSize:15,fontWeight:700,color:'#16a34a'}}>Collect credit payment</div>
+          <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer',color:'#555'}}>x</button>
+        </div>
+        <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
+          <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Amount to collect</div>
+          <div style={{fontSize:24,fontWeight:800,color:'#16a34a'}}>{fmt(entry.amount)}</div>
+          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} - {entry.patient_name||'Patient'} - originally {fmtD(entry.date)}</div>
+        </div>
+        <FInp label="Collection date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        <div style={{marginBottom:14}}>
+          <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8,fontWeight:700}}>Payment received via</label>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+            {['cash','upi','card','other'].map(m=>(
+              <button key={m} onClick={()=>setPay(m)} style={{padding:'10px 4px',border:pay===m?'2px solid #16a34a':'1px solid #e5e7eb',borderRadius:10,background:pay===m?'#f0fdf4':'#fff',color:pay===m?'#16a34a':'#555',fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                {m[0].toUpperCase()+m.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        {previewComm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. {entry.ref_doctor}: <strong>{fmt(previewComm)}</strong> will now be counted</div>}
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={onCancel} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
+          <PBtn onClick={go} disabled={busy} style={{flex:2,marginTop:0,background:'#16a34a'}}>{busy?'Saving...':'Mark as collected'}</PBtn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 /*  EDIT ENTRY FORM  */
 const EditEntryForm=({entry,db,onSave,onCancel})=>{
@@ -792,6 +844,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP})=>{
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [editPatient,setEditPatient]=useState(null)
+  const [collectEntry,setCollectEntry]=useState(null)
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('all')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
@@ -809,6 +862,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const balance=pats?.is_package?0:credit
     return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
   if(editPatient)return(
     <div style={{background:'#f7f7f7',minHeight:'100vh',padding:'0 0 80px'}}>
@@ -870,7 +924,20 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {p.is_package&&(p.payments||[]).length>0&&(()=>{const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const pkgCm=(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{fontSize:12,color:'#1d4ed8'}}>Package received</span><span style={{fontSize:12,textAlign:'right',color:'#1d4ed8',minWidth:60}}>{fmt(pkgPd)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{pkgCm>0?'-'+fmt(pkgCm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(pkgPd-pkgCm)}</span></div>)})()}
           {(()=>{const allInc=ents.reduce((a,e)=>a+e.amount,0);const allComm=ents.reduce((a,e)=>a+getComm(e),0);const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const totDeduct=allComm+b.pkgComm;return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 2px',marginTop:2,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(allInc+pkgPd)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totDeduct>0?'-'+fmt(totDeduct):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(allInc+pkgPd-totDeduct)}</span></div>)})()}
         </Card>
-        {b.credit>0&&(<><SecL>Credit by type</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} right={<span style={{color:'#c2410c',fontWeight:700}}>{fmt(ta)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total credit</span><span>{fmt(b.credit)}</span></div></Card></>)}
+        {b.credit>0&&(<><SecL>Credit by type</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(<div key={tk} style={{padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{color:'#c2410c',fontWeight:700}}>{fmt(ta)}</span>
+                  </div>
+                </div>
+                {te.map(e=>(
+                  <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6,paddingTop:6,borderTop:'1px dashed #fef3c7'}}>
+                    <span style={{fontSize:12,color:'#92400e'}}>{fmtD(e.date)} - {fmt(e.amount)}{e.notes?' - '+e.notes:''}</span>
+                    <button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>
+                  </div>
+                ))}
+              </div>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total credit</span><span>{fmt(b.credit)}</span></div></Card></>)}
         {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div></Card></>)}
         {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -905,7 +972,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           </FSel>
           <PBtn style={{background:'#16a34a'}} onClick={async()=>{const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return};const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const comm=p.ref_doctor?Math.round(amt*pkgRate):0;await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''});setPyF({...pyF,amt:''})}}>Save package payment</PBtn>
         </Card></>)}
-        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span><button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
+        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>{cr&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}<button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
         {p.payments&&p.payments.length>0&&(<><SecL>Package payments received</SecL><Card>{p.payments.map(py=>(<div key={py.id} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:500}}>{fmtD(py.date)} - {py.payment}</div>{py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(py.commission)} - Net: {fmt(py.amount-py.commission)}</div>}</div><div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}><span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(py.amount)}</span><DBtn onClick={()=>{if(window.confirm('Delete this payment?'))actions.deletePayment(p.id,py.id)}}>Delete</DBtn></div></div></div>))}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700}}><span>Total received</span><span style={{color:'#16a34a'}}>{fmt((p.payments||[]).reduce((a,py)=>a+py.amount,0))}</span></div></Card></>)}
         <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}><button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}} onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records?')){actions.deletePatient(p.id);setIpv('list')}}}>Delete this patient and all records</button></div>
     </div>
@@ -1047,6 +1114,7 @@ const OPTab=({db,actions})=>{
   const [selPat,setSelPat]=useState(null)
   const [payDoc,setPayDoc]=useState(null)
   const [editEntry,setEditEntry]=useState(null)
+  const [collectEntry,setCollectEntry]=useState(null)
   const [search,setSearch]=useState('')
   const [view,setView]=useState('patients')
   const [filterDate,setFilterDate]=useState(todayStr().slice(0,7))
@@ -1058,6 +1126,7 @@ const OPTab=({db,actions})=>{
   const allPatients=Object.values(byPat).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
   const patients=search.trim()?allPatients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.reg_no.toLowerCase().includes(search.toLowerCase())):allPatients
   const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editEntry)return(<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/> )
   if(selPat){
     const pat=byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
@@ -1090,7 +1159,7 @@ const OPTab=({db,actions})=>{
         {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{balance>0&&(!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{const {data:prof}=await supabase.from('profiles').select('hospital_id').eq('id',(await supabase.auth.getUser()).data.user?.id).single();const row={id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false,hospital_id:prof?.hospital_id};await supabase.from('expenses').insert([row]).select();window.location.reload()}}/>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}</Card>)})}</>)}
         <SecL>All visits</SecL>
         <Card>
-          {ents.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{const cr=isCredit(e);const comm=getComm(e);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' - Commission: '+fmt(comm):''}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}><button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
+          {ents.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{const cr=isCredit(e);const comm=getComm(e);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' - Commission: '+fmt(comm):''}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
         </Card>
     </div>
     )
@@ -1691,7 +1760,7 @@ export default function App(){
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin)return<SuperAdminDashboard/>
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
-    return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f7f7f7',padding:20}}><div style={{maxWidth:360,width:'100%',textAlign:'center'}}><div style={{fontSize:20,fontWeight:700,color:'#111',marginBottom:8}}>Trial expired</div><div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your 30-day free trial has ended. Contact support to continue.</div><Card><div style={{fontSize:13,color:'#555',lineHeight:2}}>Hospital: <strong>{hospital?.name}</strong><br/>Contact: support@hosptrack.in</div></Card><button onClick={()=>supabase.auth.signOut()} style={{marginTop:14,padding:'10px 20px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Logout</button></div></div>)
+    return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f7f7f7',padding:20}}><div style={{maxWidth:360,width:'100%',textAlign:'center'}}><div style={{fontSize:20,fontWeight:700,color:'#111',marginBottom:8}}>Trial expired</div><div style={{fontSize:14,color:'#aaa',marginBottom:20}}>Your 30-day free trial has ended. Contact support to continue.</div><Card><div style={{fontSize:13,color:'#555',lineHeight:2}}>Hospital: <strong>{hospital?.name}</strong><br/>Contact: support@easymedicalsolutions.in</div></Card><button onClick={()=>supabase.auth.signOut()} style={{marginTop:14,padding:'10px 20px',background:'none',border:'1px solid #e5e7eb',borderRadius:10,fontSize:13,color:'#555',cursor:'pointer'}}>Logout</button></div></div>)
   }
 
   return(
@@ -1715,7 +1784,7 @@ export default function App(){
         <div style={{display:tab==='op'?'block':'none'}}><OPTab db={db} actions={actions}/></div>
         <div style={{display:tab==='exp'?'block':'none'}}><ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/></div>
         <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP}/></div>
-        <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db}/></div>
+        <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db} actions={actions}/></div>
         <div style={{display:tab==='refdrs'?'block':'none'}}><RefDoctorsTab db={db} actions={actions}/></div>
         <div style={{display:tab==='consult'?'block':'none'}}><ConsultantsTab db={db} actions={actions}/></div>
         {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile} hospital={hospital}/></div>}
