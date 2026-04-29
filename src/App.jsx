@@ -1763,41 +1763,80 @@ const PatientTimeline=({db,pid,onBack})=>{
 
 /*  REAL INCOME REPORT  */
 const RealIncomeReport=({db})=>{
-  const allInc=db.income.reduce((a,e)=>a+e.amount,0);const allComm=db.income.reduce((a,e)=>a+getComm(e),0);const allVCFees=db.income.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const allDeductions=allComm+allVCFees;const allReal=allInc-allDeductions
-  const allExp=db.expenses.reduce((a,e)=>a+e.amount,0)
+  const [rPer,setRPer]=useState('month')
+  const [rDay,setRDay]=useState(todayStr())
+  const [rMon,setRMon]=useState(todayStr().slice(0,7))
+  const [rYr,setRYr]=useState(todayStr().slice(0,4))
+  const [rFrom,setRFrom]=useState(todayStr().slice(0,7)+'-01')
+  const [rTo,setRTo]=useState(todayStr())
+  const allYears=[...new Set(db.income.map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const filterInc=e=>{
+    if(rPer==='day')return e.date===rDay
+    if(rPer==='month')return e.date?.startsWith(rMon)
+    if(rPer==='year')return e.date?.startsWith(rYr)
+    if(rPer==='custom')return e.date>=rFrom&&e.date<=rTo
+    return true
+  }
+  const filterExp=e=>{
+    if(rPer==='day')return e.date===rDay
+    if(rPer==='month')return e.date?.startsWith(rMon)
+    if(rPer==='year')return e.date?.startsWith(rYr)
+    if(rPer==='custom')return e.date>=rFrom&&e.date<=rTo
+    return true
+  }
+  const inc=db.income.filter(filterInc)
+  const exp=db.expenses.filter(filterExp)
+  const allInc=inc.reduce((a,e)=>a+e.amount,0)
+  const allComm=inc.reduce((a,e)=>a+getComm(e),0)
+  const allVCFees=inc.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const allDeductions=allComm+allVCFees
+  const allReal=allInc-allDeductions
+  const allExp=exp.reduce((a,e)=>a+e.amount,0)
+  const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
   return(<>
-    <Card>
-      <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
-        <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
-        <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Collected</div>
-        <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Deductions</div>
-        <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
-      </div>
-      {ITYPES.map(t=>{const ents=db.income.filter(e=>e.type===t.key);const inc=ents.reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const deductions=comm+vcf;const real=inc-deductions;if(!inc)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(inc)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{deductions>0?'-'+fmt(deductions):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(real)}</span></div>)})}
-      <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}><span style={{fontSize:14,fontWeight:800}}>Grand total</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:64}}>{allDeductions>0?'-'+fmt(allDeductions):'-'}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span></div>
-    </Card>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:4}}>
-      <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total collected</div><div style={{fontSize:20,fontWeight:700}}>{fmt(allInc)}</div></div>
-      <div style={{background:'#fef2f2',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total deductions</div><div style={{fontSize:20,fontWeight:700,color:'#dc2626'}}>{fmt(allDeductions)}</div></div>
-      <div style={{background:'#f0fdf4',borderRadius:12,padding:'14px 16px',gridColumn:'1/-1'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income (all time)</div><div style={{fontSize:32,fontWeight:800,color:'#15803d'}}>{fmt(allReal)}</div></div>
+    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+      {TABS.map(t=>(<button key={t.k} onClick={()=>setRPer(t.k)} style={{padding:'6px 16px',borderRadius:20,border:rPer===t.k?'none':'1px solid #e5e7eb',background:rPer===t.k?'#16a34a':'none',color:rPer===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
     </div>
-    <SecL>Actual income</SecL>
-    <div style={{borderRadius:18,overflow:'hidden',marginTop:4}}>
-      <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',padding:'20px 20px 16px'}}>
-        <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em',color:'rgba(255,255,255,0.6)',marginBottom:4}}>Actual income = Real income - All expenses</div>
-        <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:14}}>After referral commissions and every expense category</div>
-        <div style={{fontSize:38,fontWeight:900,color:'#fff',letterSpacing:'-1.5px',lineHeight:1}}>{fmt(allReal-allExp)}</div>
-      </div>
-      <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderTop:'none',padding:'14px 18px',borderRadius:'0 0 18px 18px'}}>
-        <div style={{display:'flex',flexDirection:'column',gap:8}}>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(allInc)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Commissions + VC fees</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(allDeductions)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>All expenses</span><span style={{fontWeight:700,color:'#dc2626'}}>- {fmt(allExp)}</span></div>
-          <div style={{height:1,background:'#d1fae5'}}/>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:800}}><span style={{color:'#065f46'}}>= Actual income</span><span style={{color:'#059669'}}>{fmt(allReal-allExp)}</span></div>
+    {rPer==='day'&&<input style={{...S.inp,marginBottom:12}} type="date" value={rDay} onChange={e=>setRDay(e.target.value)}/>}
+    {rPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rMon} onChange={e=>setRMon(e.target.value)}/>}
+    {rPer==='year'&&<select style={{...S.sel,marginBottom:12}} value={rYr} onChange={e=>setRYr(e.target.value)}>{(allYears.length?allYears:[todayStr().slice(0,4)]).map(y=><option key={y} value={y}>{y}</option>)}</select>}
+    {rPer==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={rFrom} onChange={e=>setRFrom(e.target.value)}/><FInp label="To" type="date" value={rTo} onChange={e=>setRTo(e.target.value)}/></div>}
+    {!inc.length&&!exp.length
+      ?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No data for this period</div>
+      :<>
+        <Card>
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
+            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
+            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Collected</div>
+            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Deductions</div>
+            <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
+          </div>
+          {ITYPES.map(t=>{const ents=inc.filter(e=>e.type===t.key);const ti=ents.reduce((a,e)=>a+e.amount,0);const tc=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const td=tc+vcf;if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(ti)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(ti-td)}</span></div>)})}
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}><span style={{fontSize:14,fontWeight:800}}>Total</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:64}}>{allDeductions>0?'-'+fmt(allDeductions):'-'}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span></div>
+        </Card>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
+          <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Gross collected</div><div style={{fontSize:20,fontWeight:700}}>{fmt(allInc)}</div></div>
+          <div style={{background:'#fef2f2',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Deductions</div><div style={{fontSize:20,fontWeight:700,color:'#dc2626'}}>{fmt(allDeductions)}</div></div>
+          <div style={{background:'#f0fdf4',borderRadius:12,padding:'14px 16px',gridColumn:'1/-1'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income</div><div style={{fontSize:32,fontWeight:800,color:'#15803d'}}>{fmt(allReal)}</div></div>
         </div>
-      </div>
-    </div>
+        <SecL>Actual income</SecL>
+        <div style={{borderRadius:18,overflow:'hidden',marginTop:4}}>
+          <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',padding:'20px 20px 16px'}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em',color:'rgba(255,255,255,0.6)',marginBottom:4}}>Actual income = Real income - All expenses</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:14}}>After referral commissions and every expense category</div>
+            <div style={{fontSize:38,fontWeight:900,color:'#fff',letterSpacing:'-1.5px',lineHeight:1}}>{fmt(allReal-allExp)}</div>
+          </div>
+          <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderTop:'none',padding:'14px 18px',borderRadius:'0 0 18px 18px'}}>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(allInc)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Commissions + VC fees</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(allDeductions)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>All expenses</span><span style={{fontWeight:700,color:'#dc2626'}}>- {fmt(allExp)}</span></div>
+              <div style={{height:1,background:'#d1fae5'}}/>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:800}}><span style={{color:'#065f46'}}>= Actual income</span><span style={{color:'#059669'}}>{fmt(allReal-allExp)}</span></div>
+            </div>
+          </div>
+        </div>
+      </>}
   </>)
 }
 
