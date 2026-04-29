@@ -1959,7 +1959,7 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
   </div>)
 }
 
-const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
+const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,actions})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
   const [timelineSearch,setTimelineSearch]=useState('')
@@ -2132,7 +2132,7 @@ export default function App(){
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP}/></div>
         <div style={{display:tab==='op'?'block':'none'}}><OPTab db={db} actions={actions}/></div>
         <div style={{display:tab==='exp'?'block':'none'}}><ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/></div>
-        <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP}/></div>
+        <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} actions={actions}/></div>
         <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db} actions={actions}/></div>
         <div style={{display:tab==='refdrs'?'block':'none'}}><RefDoctorsTab db={db} actions={actions}/></div>
         <div style={{display:tab==='consult'?'block':'none'}}><ConsultantsTab db={db} actions={actions}/></div>
