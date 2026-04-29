@@ -1824,6 +1824,17 @@ const RealIncomeReport=({db})=>{
   const allDeductions=allComm+allVCFees
   const allReal=allInc-allDeductions
   const allExp=exp.reduce((a,e)=>a+e.amount,0)
+  const clinInc=inc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
+  const clinGross=sum(clinInc);const clinComm=comm(clinInc)
+  const segClinExp=exp.filter(e=>e.category!=='lab_to_lab')
+  const clinExpTotal=sum(segClinExp)
+  const clinActual=clinGross-clinComm-clinExpTotal
+  const clinExpCats={}
+  segClinExp.forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
+  const labInc=inc.filter(e=>['op_l','ip_l'].includes(e.type))
+  const labGross=sum(labInc);const labComm=comm(labInc)
+  const labToLab=sum(exp.filter(e=>e.category==='lab_to_lab'))
+  const labActual=labGross-labComm-labToLab
   const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
@@ -1869,37 +1880,33 @@ const RealIncomeReport=({db})=>{
           </div>
         </div>
         <SecL>Segment breakdown</SecL>
-        {(()=>{
-          const clinInc=inc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
-          const clinGross=sum(clinInc);const clinComm=comm(clinInc)
-          const clinExp=exp.filter(e=>e.category!=='lab_to_lab')
-          const clinExpTotal=sum(clinExp)
-          const clinActual=clinGross-clinComm-clinExpTotal
-          const clinExpCats={}
-          clinExp.forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
-          const labInc=inc.filter(e=>['op_l','ip_l'].includes(e.type))
-          const labGross=sum(labInc);const labComm=comm(labInc)
-          const labToLab=sum(exp.filter(e=>e.category==='lab_to_lab'))
-          const labActual=labGross-labComm-labToLab
-          const SegCard=({title,color,gross,commAmt,expBreakdown,actual,incTypes})=>(<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
-              <div><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{title}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{incTypes}</div></div>
-              <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:800,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div></div>
-            </div>
-            <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:6}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>
-              {Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}
-              <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div>
-            </div>
-          </div>)
-          if(!clinGross&&!labGross)return(<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No data for this period</div>)
-          return(<>
-            {clinGross>0&&<SegCard title="Clinical and Pharmacy" color="#0891b2" gross={clinGross} commAmt={clinComm} expBreakdown={clinExpCats} actual={clinActual} incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"/>}
-            {labGross>0&&<SegCard title="Laboratory" color="#7c3aed" gross={labGross} commAmt={labComm} expBreakdown={{'Lab to lab':labToLab}} actual={labActual} incTypes="OP-Lab + IP-Lab"/>}
-          </>)
-        })()}
+        {!clinGross&&!labGross&&<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No data for this period</div>}
+        {clinGross>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
+            <div><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Clinical and Pharmacy</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>OP + OP-Pharmacy + IP + IP-Pharmacy</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:800,color:clinActual>=0?'#0891b2':'#dc2626'}}>{fmt(clinActual)}</div></div>
+          </div>
+          <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:6}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(clinGross)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(clinComm)}</span></div>
+            {Object.entries(clinExpCats).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}
+            <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:clinActual>=0?'#0891b2':'#dc2626'}}>{fmt(clinActual)}</span></div>
+          </div>
+        </div>}
+        {labGross>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
+            <div><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Laboratory</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>OP-Lab + IP-Lab</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:800,color:labActual>=0?'#7c3aed':'#dc2626'}}>{fmt(labActual)}</div></div>
+          </div>
+          <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:6}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(labGross)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(labComm)}</span></div>
+            {labToLab>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Lab to lab</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(labToLab)}</span></div>}
+            <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:labActual>=0?'#7c3aed':'#dc2626'}}>{fmt(labActual)}</span></div>
+          </div>
+        </div>}
       </>}
   </>)
 }
