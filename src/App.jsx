@@ -24,7 +24,7 @@ const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?
 const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isCredit=e=>e.payment==='credit'
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
-const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
+const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=ECATS.filter(c=>c.key!=='ref_paid').reduce((a,c)=>a+(r[c.key]||0),0);return r}
 const totalRef=list=>list.reduce((a,e)=>a+getComm(e),0)
 const cashTotal=list=>list.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
 const credTotal=list=>list.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
@@ -1413,7 +1413,7 @@ const OPTab=({db,actions})=>{
 
 /*  EXPENSES TAB  */
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
-  const exp=db.expenses.filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
+  const exp=db.expenses.filter(e=>e.category!=='ref_paid').filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
   const go=async()=>{const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return};const ok=await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon});if(ok!==false)setExF({...exF,amt:'',desc:''})}
   return(
     <div>
@@ -1584,7 +1584,7 @@ const ExpensesReport=({db})=>{
   const [to,setTo]=useState(todayStr())
   const yrs=[...new Set(db.expenses.map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry2))yrs.unshift(ry2)
-  const expList=per==='month'?db.expenses.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.expenses.filter(e=>e.date?.startsWith(ry2)):db.expenses.filter(e=>e.date>=from&&e.date<=to)
+  const expList=(per==='month'?db.expenses.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.expenses.filter(e=>e.date?.startsWith(ry2)):db.expenses.filter(e=>e.date>=from&&e.date<=to)).filter(e=>e.category!=='ref_paid')
   const total=expList.reduce((a,e)=>a+e.amount,0)
   const byCat={};expList.forEach(e=>{if(!byCat[e.category])byCat[e.category]=0;byCat[e.category]+=e.amount})
   const sorted=Object.entries(byCat).sort((a,b)=>b[1]-a[1])
@@ -1778,6 +1778,7 @@ const RealIncomeReport=({db})=>{
     return true
   }
   const filterExp=e=>{
+    if(e.category==='ref_paid')return false
     if(rPer==='day')return e.date===rDay
     if(rPer==='month')return e.date?.startsWith(rMon)
     if(rPer==='year')return e.date?.startsWith(rYr)
@@ -1785,7 +1786,7 @@ const RealIncomeReport=({db})=>{
     return true
   }
   const inc=db.income.filter(filterInc)
-  const exp=db.expenses.filter(filterExp)
+  const exp=db.expenses.filter(e=>e.category!=='ref_paid').filter(filterExp)
   const allInc=inc.reduce((a,e)=>a+e.amount,0)
   const allComm=inc.reduce((a,e)=>a+getComm(e),0)
   const allVCFees=inc.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
@@ -1960,10 +1961,10 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP})=>{
       <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
-      {rv==='daily'&&(()=>{const dI=db.income.filter(e=>e.date===rd);const exp=sumExp(db.expenses.filter(e=>e.date===rd));const rc=totalRef(dI);const pkg=getPkgPayments(db.ip_patients,rd);return(<><div style={{display:'flex',gap:8,marginBottom:14}}><input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/><GBtn onClick={()=>setRd(todayStr())}>Today</GBtn></div><PLCards incList={dI} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={dI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Doctor referrals</SecL><ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
-      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm));const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
-      {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry));const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)).reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
-      {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo);const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
+      {rv==='daily'&&(()=>{const dI=db.income.filter(e=>e.date===rd);const exp=sumExp(db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid'));const rc=totalRef(dI);const pkg=getPkgPayments(db.ip_patients,rd);return(<><div style={{display:'flex',gap:8,marginBottom:14}}><input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/><GBtn onClick={()=>setRd(todayStr())}>Today</GBtn></div><PLCards incList={dI} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={dI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Doctor referrals</SecL><ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
+      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
+      {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
+      {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
       {rv==='patlist'&&(timelinePid?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>:<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>)}
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>{setTimelineSelPid('');setTimelineSearch('')}}/>:
@@ -2399,11 +2400,11 @@ const AnalyticsDash=({db})=>{
   const thisYear=today.slice(0,4)
 
   const inc=db.income
-  const exp=db.expenses
+  const exp=db.expenses.filter(e=>e.category!=='ref_paid')
 
   // Period helpers
   const incBy=(prefix)=>inc.filter(e=>e.date?.startsWith(prefix))
-  const expBy=(prefix)=>exp.filter(e=>e.date?.startsWith(prefix))
+  const expBy=(prefix)=>exp.filter(e=>e.date?.startsWith(prefix)&&e.category!=='ref_paid')
   const sum=(arr)=>arr.reduce((a,e)=>a+e.amount,0)
   const comm=(arr)=>arr.reduce((a,e)=>a+getComm(e),0)
   const credit=(arr)=>arr.reduce((a,e)=>a+(isCredit(e)?e.amount:0),0)
