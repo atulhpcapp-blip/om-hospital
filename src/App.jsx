@@ -2440,6 +2440,7 @@ const PaymentPage=({onBack=null})=>{
 
 /*  SMART REMINDERS  */
 const SmartReminders=({db})=>{
+  const [dismissed,setDismissed]=useState([])
   try{
     const today=todayStr()
     const yest=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0]})()
@@ -2467,6 +2468,7 @@ const SmartReminders=({db})=>{
     const items=[]
     if(opsDown){
       items.push({
+        key:'ops-'+todayStr(),
         color:'#f97316',bg:'#fff7ed',border:'#fed7aa',tx:'#92400e',
         title:'OP patients are down today',
         sub:'Today '+todayOPs+' vs Yesterday '+yesterdayOPs,
@@ -2479,6 +2481,7 @@ const SmartReminders=({db})=>{
         const paid=paidRec.filter(e=>e.description===p.ref_doctor).reduce((a,e)=>a+e.amount,0)
         const days=Math.floor((Date.now()-new Date(p.discharge_date+'T00:00:00').getTime())/86400000)
         items.push({
+          key:'comm-'+p.id,
           color:'#dc2626',bg:'#fef2f2',border:'#fecaca',tx:'#991b1b',
           title:'Commission not paid — Dr. '+p.ref_doctor,
           sub:p.name+' discharged '+days+' day'+(days!==1?'s':'')+' ago  |  Balance: '+fmt(earned-paid),
@@ -2487,17 +2490,19 @@ const SmartReminders=({db})=>{
       }catch{/* skip */}
     })
 
-    if(!items.length)return null
+    const visible=items.filter(r=>!dismissed.includes(r.key))
+    if(!visible.length)return null
 
     return(
       <div style={{marginBottom:20}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
           <div style={{width:8,height:8,borderRadius:'50%',background:'#ef4444'}}/>
-          <span style={{fontSize:11,fontWeight:700,color:'#ef4444',textTransform:'uppercase',letterSpacing:'.08em'}}>{items.length} Reminder{items.length!==1?'s':''}</span>
+          <span style={{fontSize:11,fontWeight:700,color:'#ef4444',textTransform:'uppercase',letterSpacing:'.08em'}}>{visible.length} Reminder{visible.length!==1?'s':''}</span>
         </div>
-        {items.map((r,i)=>(
-          <div key={i} style={{background:r.bg,border:'1px solid '+r.border,borderLeft:'4px solid '+r.color,borderRadius:12,padding:'14px 16px',marginBottom:10}}>
-            <div style={{fontSize:14,fontWeight:700,color:r.tx,marginBottom:4}}>{r.title}</div>
+        {visible.map((r,i)=>(
+          <div key={r.key||i} style={{background:r.bg,border:'1px solid '+r.border,borderLeft:'4px solid '+r.color,borderRadius:12,padding:'14px 16px',marginBottom:10,position:'relative'}}>
+            <button onClick={()=>setDismissed(d=>[...d,r.key])} style={{position:'absolute',top:10,right:10,background:'none',border:'none',fontSize:16,color:r.color,cursor:'pointer',lineHeight:1,padding:'2px 6px',borderRadius:6,opacity:0.7}}>x</button>
+            <div style={{fontSize:14,fontWeight:700,color:r.tx,marginBottom:4,paddingRight:28}}>{r.title}</div>
             <div style={{fontSize:12,color:r.color,fontWeight:600,marginBottom:10}}>{r.sub}</div>
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
               {r.actions.map((a,j)=>(
