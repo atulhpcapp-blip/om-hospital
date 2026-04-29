@@ -446,7 +446,7 @@ const HospitalOnboarding=({onBack})=>{
           <div style={{fontSize:13,fontWeight:700,color:'#15803d',marginBottom:10}}>Save your login details:</div>
           <div style={{fontSize:14,color:'#111',lineHeight:2.2}}> Username: <strong>{done.u}</strong><br/> Password: <strong>{done.p}</strong><br/> Trial expires: <strong>{fmtD(done.t)}</strong></div>
         </Card>
-        <PBtn onClick={()=>window.location.reload()} style={{marginTop:14}}>Login to your hospital</PBtn>
+        <PBtn onClick={()=>{const u=new URLSearchParams(window.location.search).get('upgrade');window.location.href=window.location.pathname+(u==='true'?'?upgrade=true':'')}} style={{marginTop:14}}>Login to your hospital</PBtn>
       </div>
     </div>
   )
@@ -2084,8 +2084,9 @@ export default function App(){
   const [ry,setRy]=useState(todayStr().slice(0,4))
 
   useEffect(()=>{
-    supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false)})
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false)})
+    const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'
+    supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
     return()=>subscription.unsubscribe()
   },[])
 
