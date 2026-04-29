@@ -252,6 +252,39 @@ const SettingsPanel=()=>{
     const s=localStorage.getItem('sa_settings')
     if(s){const d=JSON.parse(s);setPlans(d.plans||plans);setAppName(d.appName||appName);setSupport(d.support||support)}
   },[])
+  // ── REMINDERS ──
+  const yesterday=(()=>{const d=new Date(today);d.setDate(d.getDate()-1);return d.toISOString().split('T')[0]})()
+  const todayOPs=todayInc.filter(e=>['op','op_r','op_l','vc'].includes(e.type)).length
+  const yesterdayOPs=incBy(yesterday).filter(e=>['op','op_r','op_l','vc'].includes(e.type)).length
+  const opsDown=todayOPs<yesterdayOPs
+
+  // Unpaid commissions: discharged 24h+ ago, has ref doctor, commission not fully paid
+  const allPaidComm=db.expenses.filter(e=>e.category==='ref_paid')
+  const unpaidComm=db.ip_patients.filter(p=>{
+    if(!p.discharge_date||!p.ref_doctor)return false
+    const dischMs=new Date(p.discharge_date).getTime()
+    const nowMs=new Date(today).getTime()
+    if((nowMs-dischMs)<86400000)return false // less than 24h
+    const ents=db.income.filter(e=>e.patient_id===p.id)
+    const earned=ents.reduce((a,e)=>a+getComm(e),0)
+    if(earned<=0)return false
+    const paid=allPaidComm.filter(e=>e.description===p.ref_doctor).reduce((a,e)=>a+e.amount,0)
+    return paid<earned
+  })
+
+  const reminders=[]
+  if(opsDown){
+    reminders.push({type:'ops',icon:'B',color:'#f97316',bg:'#fff7ed',border:'#fed7aa',tx:'#92400e',title:'OP patients down today',sub:'Today: '+todayOPs+' vs Yesterday: '+yesterdayOPs,actions:['Call your referral doctors','Brief your marketing executive','Plan a health camp or awareness drive','Ask staff to follow up with review patients']})
+  }
+  unpaidComm.forEach(p=>{
+    const ents=db.income.filter(e=>e.patient_id===p.id)
+    const earned=ents.reduce((a,e)=>a+getComm(e),0)
+    const paid=allPaidComm.filter(e=>e.description===p.ref_doctor).reduce((a,e)=>a+e.amount,0)
+    const balance=earned-paid
+    const days=Math.floor((new Date(today).getTime()-new Date(p.discharge_date).getTime())/86400000)
+    reminders.push({type:'comm',icon:'R',color:'#dc2626',bg:'#fef2f2',border:'#fecaca',tx:'#991b1b',title:'Commission unpaid — Dr. '+p.ref_doctor,sub:p.name+' discharged '+days+' day'+(days!==1?'s':'')+ ' ago — Balance: '+fmt(balance),actions:['Go to Reports → Referrals to record payment']})
+  })
+
   return(
     <div>
       <Card>
@@ -2496,6 +2529,33 @@ const AnalyticsDash=({db})=>{
 
   return(
     <div>
+      {reminders.length>0&&<div style={{marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+          <div style={{width:8,height:8,borderRadius:'50%',background:'#ef4444',boxShadow:'0 0 0 3px rgba(239,68,68,0.2)'}}/>
+          <span style={{fontSize:11,fontWeight:700,color:'#ef4444',textTransform:'uppercase',letterSpacing:'.08em'}}>{reminders.length} Active reminder{reminders.length!==1?'s':''}</span>
+        </div>
+        {reminders.map((r,i)=>(
+          <div key={i} style={{background:r.bg,border:'1px solid '+r.border,borderRadius:16,padding:'14px 16px',marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'flex-start',gap:12,marginBottom:10}}>
+              <div style={{width:34,height:34,borderRadius:10,background:r.color,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:14,fontWeight:700,color:r.tx,marginBottom:3}}>{r.title}</div>
+                <div style={{fontSize:12,color:r.color,fontWeight:600}}>{r.sub}</div>
+              </div>
+            </div>
+            <div style={{borderTop:'1px solid '+r.border,paddingTop:10,display:'flex',flexDirection:'column',gap:7}}>
+              {r.actions.map((a,j)=>(
+                <div key={j} style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:5,height:5,borderRadius:'50%',background:r.color,flexShrink:0}}/>
+                  <span style={{fontSize:13,color:r.tx,fontWeight:500}}>{a}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>}
       {/* TODAY STRIP */}
       <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)',borderRadius:16,padding:'16px',marginBottom:14,color:'#fff'}}>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:10}}>Today  {new Date(today+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
