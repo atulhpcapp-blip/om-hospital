@@ -1800,42 +1800,52 @@ const RealIncomeReport=({db})=>{
   const [rYr,setRYr]=useState(todayStr().slice(0,4))
   const [rFrom,setRFrom]=useState(todayStr().slice(0,7)+'-01')
   const [rTo,setRTo]=useState(todayStr())
-  const allYears=[...new Set(db.income.map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
-  const filterInc=e=>{
+  const allYears=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+
+  const incList=(db.income||[]).filter(e=>{
     if(rPer==='day')return e.date===rDay
     if(rPer==='month')return e.date?.startsWith(rMon)
     if(rPer==='year')return e.date?.startsWith(rYr)
     if(rPer==='custom')return e.date>=rFrom&&e.date<=rTo
     return true
-  }
-  const filterExp=e=>{
+  })
+  const expList=(db.expenses||[]).filter(e=>{
     if(e.category==='ref_paid')return false
     if(rPer==='day')return e.date===rDay
     if(rPer==='month')return e.date?.startsWith(rMon)
     if(rPer==='year')return e.date?.startsWith(rYr)
     if(rPer==='custom')return e.date>=rFrom&&e.date<=rTo
     return true
-  }
-  const inc=db.income.filter(filterInc)
-  const exp=db.expenses.filter(e=>e.category!=='ref_paid').filter(filterExp)
-  const allInc=inc.reduce((a,e)=>a+e.amount,0)
-  const allComm=inc.reduce((a,e)=>a+getComm(e),0)
-  const allVCFees=inc.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+  })
+
+  const allInc=incList.reduce((a,e)=>a+(e.amount||0),0)
+  const allComm=incList.reduce((a,e)=>a+getComm(e),0)
+  const allVCFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const allDeductions=allComm+allVCFees
   const allReal=allInc-allDeductions
-  const allExp=exp.reduce((a,e)=>a+e.amount,0)
-  const clinInc=inc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
-  const clinGross=sum(clinInc);const clinComm=comm(clinInc)
-  const segClinExp=exp.filter(e=>e.category!=='lab_to_lab')
-  const clinExpTotal=sum(segClinExp)
+  const allExp=expList.reduce((a,e)=>a+(e.amount||0),0)
+
+  const clinInc=incList.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
+  const clinGross=clinInc.reduce((a,e)=>a+(e.amount||0),0)
+  const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
+  const segClinExp=expList.filter(e=>e.category!=='lab_to_lab')
+  const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
   const clinActual=clinGross-clinComm-clinExpTotal
   const clinExpCats={}
-  segClinExp.forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
-  const labInc=inc.filter(e=>['op_l','ip_l'].includes(e.type))
-  const labGross=sum(labInc);const labComm=comm(labInc)
-  const labToLab=sum(exp.filter(e=>e.category==='lab_to_lab'))
+  segClinExp.forEach(e=>{
+    const k=e.category||'other'
+    clinExpCats[k]=(clinExpCats[k]||0)+(e.amount||0)
+  })
+
+  const labInc=incList.filter(e=>['op_l','ip_l'].includes(e.type))
+  const labGross=labInc.reduce((a,e)=>a+(e.amount||0),0)
+  const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
+  const labToLab=expList.filter(e=>e.category==='lab_to_lab').reduce((a,e)=>a+(e.amount||0),0)
   const labActual=labGross-labComm-labToLab
+
   const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
+  const hasData=incList.length>0||expList.length>0
+
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
       {TABS.map(t=>(<button key={t.k} onClick={()=>setRPer(t.k)} style={{padding:'6px 16px',borderRadius:20,border:rPer===t.k?'none':'1px solid #e5e7eb',background:rPer===t.k?'#16a34a':'none',color:rPer===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
@@ -1844,7 +1854,7 @@ const RealIncomeReport=({db})=>{
     {rPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rMon} onChange={e=>setRMon(e.target.value)}/>}
     {rPer==='year'&&<select style={{...S.sel,marginBottom:12}} value={rYr} onChange={e=>setRYr(e.target.value)}>{(allYears.length?allYears:[todayStr().slice(0,4)]).map(y=><option key={y} value={y}>{y}</option>)}</select>}
     {rPer==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={rFrom} onChange={e=>setRFrom(e.target.value)}/><FInp label="To" type="date" value={rTo} onChange={e=>setRTo(e.target.value)}/></div>}
-    {!inc.length&&!exp.length
+    {!hasData
       ?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No data for this period</div>
       :<>
         <Card>
@@ -1854,7 +1864,7 @@ const RealIncomeReport=({db})=>{
             <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Deductions</div>
             <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
           </div>
-          {ITYPES.map(t=>{const ents=inc.filter(e=>e.type===t.key);const ti=ents.reduce((a,e)=>a+e.amount,0);const tc=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const td=tc+vcf;if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(ti)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(ti-td)}</span></div>)})}
+          {ITYPES.map(t=>{const ents=incList.filter(e=>e.type===t.key);const ti=ents.reduce((a,e)=>a+(e.amount||0),0);const tc=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const td=tc+vcf;if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(ti)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(ti-td)}</span></div>)})}
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}><span style={{fontSize:14,fontWeight:800}}>Total</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:64}}>{allDeductions>0?'-'+fmt(allDeductions):'-'}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span></div>
         </Card>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
@@ -1880,7 +1890,6 @@ const RealIncomeReport=({db})=>{
           </div>
         </div>
         <SecL>Segment breakdown</SecL>
-        {!clinGross&&!labGross&&<div style={{textAlign:'center',padding:'16px 0',color:'#94a3b8',fontSize:13}}>No data for this period</div>}
         {clinGross>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
             <div><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Clinical and Pharmacy</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>OP + OP-Pharmacy + IP + IP-Pharmacy</div></div>
@@ -1907,10 +1916,10 @@ const RealIncomeReport=({db})=>{
             <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:labActual>=0?'#7c3aed':'#dc2626'}}>{fmt(labActual)}</span></div>
           </div>
         </div>}
+        {!clinGross&&!labGross&&<div style={{textAlign:'center',padding:'12px 0',color:'#94a3b8',fontSize:13}}>No segment data for this period</div>}
       </>}
   </>)
 }
-
 /*  REPORTS TAB  */
 /*  AREA-WISE REPORT  */
 const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
