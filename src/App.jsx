@@ -2163,10 +2163,10 @@ export default function App(){
   const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading...</div>
+  if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin)return<SuperAdminDashboard/>
-  if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
     return <PaymentPage/>
   }
