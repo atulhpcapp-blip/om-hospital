@@ -1009,7 +1009,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
         <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
-        <button onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}window.location.reload()}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
+        <button onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}:p)}));setEditPatient(null)}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
       <div style={{padding:'16px'}}>
         <FInp label="Patient name" type="text" value={editPatient.name} onChange={e=>setEditPatient({...editPatient,name:e.target.value})}/>
@@ -1018,7 +1018,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <FInp label="Ward / Room" type="text" value={editPatient.room||''} onChange={e=>setEditPatient({...editPatient,room:e.target.value})}/>
         <FInp label="Diagnosis" type="text" value={editPatient.dx||''} onChange={e=>setEditPatient({...editPatient,dx:e.target.value})}/>
         <FInp label="Referring doctor" type="text" placeholder="Leave blank for self patient" value={editPatient.ref||''} onChange={e=>setEditPatient({...editPatient,ref:e.target.value})}/>
-        <PBtn onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}window.location.reload()}}>Save changes</PBtn>
+        <PBtn onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}:p)}));setEditPatient(null)}}>Save changes</PBtn>
       </div>
     </div>
   )
@@ -2483,7 +2483,7 @@ const SmartReminders=({db})=>{
         items.push({
           key:'comm-'+p.id,
           color:'#dc2626',bg:'#fef2f2',border:'#fecaca',tx:'#991b1b',
-          title:'Commission not paid — Dr. '+p.ref_doctor,
+          title:'Commission not paid - Dr. '+p.ref_doctor,
           sub:p.name+' discharged '+days+' day'+(days!==1?'s':'')+' ago  |  Balance: '+fmt(earned-paid),
           actions:['Go to Reports > Referrals > Commission to record payment']
         })
