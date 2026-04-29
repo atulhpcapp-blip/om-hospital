@@ -12,7 +12,7 @@ const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b4
 const ROLES=['admin','management','accounts','staff']
 const OP_TYPES=['New OP','Review OP']
 const IP_PAT_TYPES=['Regular','Package','VC']
-const PLANS=[{key:'trial',label:'Trial (7 days)',price:0},{key:'starter',label:'Starter',price:999},{key:'pro',label:'Pro',price:1999},{key:'enterprise',label:'Enterprise',price:4999}]
+const PLANS=[{key:'trial',label:'Trial (7 days)',price:0},{key:'starter',label:'Starter',price:600},{key:'pro',label:'Pro',price:900},{key:'enterprise',label:'Enterprise',price:1900}]
 const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@easymedicalsolutions.in`
 
 const todayStr=()=>new Date().toISOString().split('T')[0]
@@ -446,7 +446,7 @@ const HospitalOnboarding=({onBack})=>{
           <div style={{fontSize:13,fontWeight:700,color:'#15803d',marginBottom:10}}>Save your login details:</div>
           <div style={{fontSize:14,color:'#111',lineHeight:2.2}}> Username: <strong>{done.u}</strong><br/> Password: <strong>{done.p}</strong><br/> Trial expires: <strong>{fmtD(done.t)}</strong></div>
         </Card>
-        <PBtn onClick={()=>{const u=new URLSearchParams(window.location.search).get('upgrade');window.location.href=window.location.pathname+(u==='true'?'?upgrade=true':'')}} style={{marginTop:14}}>Login to your hospital</PBtn>
+        <PBtn onClick={()=>{if(new URLSearchParams(window.location.search).get('upgrade')==='true')sessionStorage.setItem('pendingUpgrade','1');window.location.href=window.location.pathname+(new URLSearchParams(window.location.search).get('upgrade')==='true'?'?upgrade=true':'')}} style={{marginTop:14}}>Login to your hospital</PBtn>
       </div>
     </div>
   )
@@ -456,7 +456,7 @@ const HospitalOnboarding=({onBack})=>{
         <div style={{textAlign:'center',marginBottom:24}}>
           <div style={{fontSize:40,marginBottom:8}}></div>
           <div style={{fontSize:11,fontWeight:700,color:'#16a34a',letterSpacing:'.12em',textTransform:'uppercase',marginBottom:4}}>Easy Medical Solutions</div><div style={{fontSize:22,fontWeight:800,color:'#111'}}>Register your hospital</div>
-          <div style={{fontSize:13,color:'#aaa',marginTop:4}}>Free 30-day trial - No credit card</div>
+          <div style={{fontSize:13,color:'#aaa',marginTop:4}}>Free 7-day trial - No credit card</div>
         </div>
         <div style={{display:'flex',gap:8,marginBottom:20}}>{[1,2].map(s=>(<div key={s} style={{flex:1,height:4,borderRadius:2,background:step>=s?'#111':'#e5e7eb'}}/>))}</div>
         {step===1&&(<Card>
@@ -2063,7 +2063,7 @@ export default function App(){
   const [hospital,setHospital]=useState(null)
   const [isSuperAdmin,setIsSuperAdmin]=useState(false)
   const [showRegister,setShowRegister]=useState(false)
-  const [showPayment,setShowPayment]=useState(()=>new URLSearchParams(window.location.search).get('upgrade')==='true')
+  const [showPayment,setShowPayment]=useState(()=>new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1')
   const [loading,setLoading]=useState(true)
   const [db,setDb]=useState({income:[],expenses:[],ip_patients:[],ref_doctors:[],consultants:[]})
   const [dbLoading,setDbLoading]=useState(false)
@@ -2084,7 +2084,8 @@ export default function App(){
   const [ry,setRy]=useState(todayStr().slice(0,4))
 
   useEffect(()=>{
-    const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'
+    const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1'
+    if(upgradeParam)sessionStorage.removeItem('pendingUpgrade')
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
     return()=>subscription.unsubscribe()
