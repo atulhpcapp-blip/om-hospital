@@ -495,7 +495,13 @@ const LoginPage=({onRegister=()=>{}})=>{
     let error
     if(isEmail){const r=await supabase.auth.signInWithPassword({email:username,password:pass});error=r.error}
     else{const r=await supabase.auth.signInWithPassword({email:toEmail(username),password:pass});error=r.error;if(error){const r2=await supabase.auth.signInWithPassword({email:username+'@omhospital.app',password:pass});if(!r2.error)error=null;else{const r3=await supabase.auth.signInWithPassword({email:username,password:pass});if(!r3.error)error=null}}}
-    if(error)setErr('Wrong username or password. Please try again.')
+    if(error){setErr('Wrong username or password. Please try again.');setBusy(false);return}
+    // After successful login, if upgrade was requested, redirect with upgrade param
+    // Supabase session is now in localStorage so app will boot with session + showPayment=true
+    if(new URLSearchParams(window.location.search).get('upgrade')==='true'){
+      window.location.href=window.location.pathname+'?upgrade=true'
+      return
+    }
     setBusy(false)
   }
   const logoSvg=<svg width="32" height="32" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(0,192,107,0.15)"/><rect x="16" y="6" width="8" height="28" rx="4" fill="#00c06b"/><rect x="6" y="16" width="28" height="8" rx="4" fill="#00c06b"/><circle cx="20" cy="20" r="5" fill="#00e87f"/></svg>
@@ -2160,7 +2166,7 @@ export default function App(){
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin)return<SuperAdminDashboard/>
-  if(showPayment)return<PaymentPage onBack={()=>setShowPayment(false)}/>
+  if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
     return <PaymentPage/>
   }
