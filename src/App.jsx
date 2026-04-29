@@ -2073,7 +2073,21 @@ export default function App(){
     addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     updateExpense:async(id,updates)=>{await supabase.from('expenses').update(updates).eq('id',id);setDb(d=>({...d,expenses:d.expenses.map(e=>e.id===id?{...e,...updates}:e)}))},
-    admitPatient:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait a moment and try again');return false}const {data,error}=await supabase.from('ip_patients').insert([{...row,hospital_id:hid}]).select();if(error){alert('Could not admit patient: '+error.message);return false}if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}));return true},
+    admitPatient:async row=>{
+      const hid=profile?.hospital_id;
+      if(!hid){alert('Hospital not loaded, please wait a moment and try again');return false}
+      const fullRow={...row,hospital_id:hid}
+      let {data,error}=await supabase.from('ip_patients').insert([fullRow]).select()
+      if(error&&error.message?.includes('schema cache')){
+        // Retry without optional columns that may not exist yet
+        const{custom_commission,patient_area,...safeRow}=fullRow
+        const r2=await supabase.from('ip_patients').insert([safeRow]).select()
+        data=r2.data;error=r2.error
+      }
+      if(error){alert('Could not admit patient: '+error.message);return false}
+      if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))
+      return true
+    },
     dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
