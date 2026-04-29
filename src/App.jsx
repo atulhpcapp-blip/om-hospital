@@ -2078,13 +2078,13 @@ export default function App(){
       if(!hid){alert('Hospital not loaded, please wait a moment and try again');return false}
       const fullRow={...row,hospital_id:hid}
       let {data,error}=await supabase.from('ip_patients').insert([fullRow]).select()
-      if(error&&error.message?.includes('schema cache')){
-        // Retry without optional columns that may not exist yet
-        const{custom_commission,patient_area,...safeRow}=fullRow
+      if(error&&(error.message?.includes('schema cache')||error.message?.includes('column'))){
+        // Strip all optional/newer columns and retry with core fields only
+        const safeRow={id:fullRow.id,hospital_id:hid,name:fullRow.name,admission_date:fullRow.admission_date,discharge_date:null,diagnosis:fullRow.diagnosis||'',room:fullRow.room||'',ref_doctor:fullRow.ref_doctor||'',is_package:fullRow.is_package||false}
         const r2=await supabase.from('ip_patients').insert([safeRow]).select()
         data=r2.data;error=r2.error
       }
-      if(error){alert('Could not admit patient: '+error.message);return false}
+      if(error){alert('Could not admit patient: '+error.message+'. Please run the SQL migrations in Supabase.');return false}
       if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))
       return true
     },
