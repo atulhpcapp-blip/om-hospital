@@ -2419,7 +2419,13 @@ export default function App(){
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{
       const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||''}
-      const {data,error}=await supabase.from('income').update(updates).eq('id',row.id).select()
+      let {data,error}=await supabase.from('income').update(updates).eq('id',row.id).select()
+      if(error&&error.message?.includes('column')){
+        // Retry with only core fields if optional columns missing
+        const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
+        const r2=await supabase.from('income').update(safe).eq('id',row.id).select()
+        data=r2.data;error=r2.error
+      }
       if(error){alert('Save failed: '+error.message);return false}
       if(data&&data[0])setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...updates}:e)}))
       return true
