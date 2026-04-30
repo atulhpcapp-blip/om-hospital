@@ -2353,21 +2353,22 @@ export default function App(){
       const {data:sa}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
       if(sa){setIsSuperAdmin(true);return}
       const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
-      setProfile(prof)
       if(!prof?.hospital_id)return
-      const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',prof.hospital_id).single()
+      // Fetch hospital + all data in parallel (saves one round-trip)
+      const [{data:hosp},[inc,exp,pts,rds,cons]]=await Promise.all([
+        supabase.from('hospitals').select('*').eq('id',prof.hospital_id).single(),
+        Promise.all([
+          supabase.from('income').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
+          supabase.from('expenses').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
+          supabase.from('ip_patients').select('*').eq('hospital_id',prof.hospital_id).order('admission_date',{ascending:false}),
+          supabase.from('ref_doctors').select('*').eq('hospital_id',prof.hospital_id).order('name'),
+          supabase.from('consultants').select('*').eq('hospital_id',prof.hospital_id).order('name')
+        ])
+      ])
+      setProfile(prof)
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
-      setDbLoading(true)
-      const [inc,exp,pts,rds,cons]=await Promise.all([
-        supabase.from('income').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
-        supabase.from('expenses').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
-        supabase.from('ip_patients').select('*').eq('hospital_id',prof.hospital_id).order('admission_date',{ascending:false}),
-        supabase.from('ref_doctors').select('*').eq('hospital_id',prof.hospital_id).order('name'),
-        supabase.from('consultants').select('*').eq('hospital_id',prof.hospital_id).order('name')
-      ])
       setDb({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[],consultants:cons.data||[]})
-      setDbLoading(false)
     }
     init()
   },[session])
@@ -2415,7 +2416,17 @@ export default function App(){
   const canSeeReports=isAdmin||isManagement
   const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
-  if(loading)return<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,color:'#aaa'}}>Loading...</div>
+  if(loading||dbLoading||(!profile&&session&&!isSuperAdmin))return(
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)'}}>
+      <svg width="52" height="52" viewBox="0 0 40 40" fill="none" style={{marginBottom:16}}><rect width="40" height="40" rx="12" fill="rgba(0,192,107,0.15)"/><rect x="16" y="6" width="8" height="28" rx="4" fill="#00c06b"/><rect x="6" y="16" width="28" height="8" rx="4" fill="#00c06b"/><circle cx="20" cy="20" r="5" fill="#00e87f"/></svg>
+      <div style={{fontSize:18,fontWeight:700,color:'#fff',marginBottom:4,letterSpacing:'-0.5px'}}>EasyMedical</div>
+      <div style={{fontSize:12,color:'rgba(0,192,107,0.6)',marginBottom:24,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.12em'}}>Solutions</div>
+      <div style={{display:'flex',gap:6}}>
+        {[0,1,2].map(i=><div key={i} style={{width:8,height:8,borderRadius:'50%',background:'#00c06b',opacity:0.8,animation:'pulse 1.2s ease-in-out infinite',animationDelay:i*0.2+'s'}}/>)}
+      </div>
+      <style>{`@keyframes pulse{0%,100%{transform:scale(0.7);opacity:0.4}50%{transform:scale(1);opacity:1}}`}</style>
+    </div>
+  )
   if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
