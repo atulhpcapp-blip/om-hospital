@@ -2584,27 +2584,15 @@ export default function App(){
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin&&!previewHospital)return<SuperAdminDashboard onPreview={(hosp,db)=>setPreviewHospital({hospital:hosp,db})}/>
   // Super admin previewing a hospital — render full app with their data
-  if(isSuperAdmin&&previewHospital){
-    const pHosp=previewHospital.hospital
-    const pDb=previewHospital.db
-    return(
-      <div style={{background:'#f8fafc',minHeight:'100vh'}}>
-        <div style={{background:'#dc2626',color:'#fff',padding:'8px 16px',fontSize:12,fontWeight:700,display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:1000}}>
-          <span>SUPER ADMIN PREVIEW — {pHosp.name}</span>
-          <button onClick={()=>setPreviewHospital(null)} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Exit preview</button>
-        </div>
-        <div style={{maxWidth:'100%',overflow:'hidden'}}>
-          {(()=>{
-            const fakeProfile={role:'admin',name:'Super Admin Preview',hospital_id:pHosp.id}
-            const canSee=true
-            const isAdmin=true
-            return null // Rendered below via PreviewApp
-          })()}
-          <PreviewApp db={pDb} hospital={pHosp} onExit={()=>setPreviewHospital(null)}/>
-        </div>
+  if(isSuperAdmin&&previewHospital)return(
+    <div style={{background:'#f8fafc',minHeight:'100vh'}}>
+      <div style={{background:'#dc2626',color:'#fff',padding:'8px 16px',fontSize:12,fontWeight:700,display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:1000}}>
+        <span>SUPER ADMIN PREVIEW — {previewHospital.hospital.name}</span>
+        <button onClick={()=>setPreviewHospital(null)} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Exit preview</button>
       </div>
-    )
-  }
+      <PreviewApp db={previewHospital.db} hospital={previewHospital.hospital} onExit={()=>setPreviewHospital(null)}/>
+    </div>
+  )
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
     return <PaymentPage/>
   }
