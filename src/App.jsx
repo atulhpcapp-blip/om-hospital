@@ -1029,15 +1029,12 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
         <button onClick={async()=>{
-          const updates={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm,patient_area:editPatient.patient_area||''}
-          let {error}=await supabase.from('ip_patients').update(updates).eq('id',editPatient.id)
-          if(error&&error.message?.includes('column')){
-            const safe={name:updates.name,phone:updates.phone,diagnosis:updates.diagnosis,room:updates.room,ref_doctor:updates.ref_doctor,admission_date:updates.admission_date}
-            const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id)
-            error=r2.error
-          }
+          const safe={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm}
+          const extra={...safe,patient_area:editPatient.patient_area||''}
+          let {error}=await supabase.from('ip_patients').update(extra).eq('id',editPatient.id)
+          if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id);error=r2.error}
           if(error){alert('Save failed: '+error.message);return}
-          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...updates}:p)}))
+          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...safe,patient_area:editPatient.patient_area||''}:p)}))
           setEditPatient(null)
         }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
@@ -1053,15 +1050,12 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
         </FSel>
         <PBtn onClick={async()=>{
-          const updates={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm,patient_area:editPatient.patient_area||''}
-          let {error}=await supabase.from('ip_patients').update(updates).eq('id',editPatient.id)
-          if(error&&error.message?.includes('column')){
-            const safe={name:updates.name,phone:updates.phone,diagnosis:updates.diagnosis,room:updates.room,ref_doctor:updates.ref_doctor,admission_date:updates.admission_date}
-            const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id)
-            error=r2.error
-          }
+          const safe={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm}
+          const extra={...safe,patient_area:editPatient.patient_area||''}
+          let {error}=await supabase.from('ip_patients').update(extra).eq('id',editPatient.id)
+          if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id);error=r2.error}
           if(error){alert('Save failed: '+error.message);return}
-          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...updates}:p)}))
+          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...safe,patient_area:editPatient.patient_area||''}:p)}))
           setEditPatient(null)
         }} style={{marginTop:8}}>Save changes</PBtn>
         <button onClick={()=>setEditPatient(null)} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
@@ -1094,7 +1088,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 {p.custom_commission!=null&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#fff7ed',color:'#b45309',fontWeight:700}}>Custom comm: {p.custom_commission}%</span>}
               </div>
             </div>
-            <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>{!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}<button onClick={()=>setEditPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date,dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||''})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button></div>
+            <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>{!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}<button onClick={()=>setEditPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date,dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||'',patient_area:p.patient_area||''})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button></div>
           </div>
         </Card>
         <MetGrid items={[{label:'Total billed',value:fmt(b.total)},{label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},{label:'Credit (due)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},{label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'}]}/>
