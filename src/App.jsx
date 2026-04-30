@@ -411,6 +411,22 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={()=>toggleActive(sel.id,sel.is_active)} style={{width:'100%',padding:'12px',background:sel.is_active?'#fef2f2':'#f0fdf4',color:sel.is_active?'#dc2626':'#16a34a',border:`1px solid ${sel.is_active?'#fecaca':'#bbf7d0'}`,borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:14}}>{sel.is_active?' Suspend':' Activate'}</button>
         <SecL>Staff ({selUsers.length})</SecL>
         <Card>{selUsers.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No staff</div>:selUsers.map(u=><Row key={u.id} left={u.name||'-'} sub={`@${u.username||'-'}`} right={<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#f0f0f0',color:'#555',fontWeight:600}}>{u.role}</span>}/>)}</Card>
+        <SecL>Actions</SecL>
+        <div style={{display:'flex',gap:8,flexDirection:'column'}}>
+          <GBtn onClick={()=>loadHospData(sel)}>View hospital data</GBtn>
+          {onPreview&&<button onClick={async()=>{
+            setDataLoading(true)
+            const [inc,exp,pts,rds,cons]=await Promise.all([
+              supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',sel.id).order('date',{ascending:false}),
+              supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',sel.id).order('date',{ascending:false}),
+              supabase.from('ip_patients').select('*').eq('hospital_id',sel.id).order('admission_date',{ascending:false}),
+              supabase.from('ref_doctors').select('*').eq('hospital_id',sel.id),
+              supabase.from('consultants').select('*').eq('hospital_id',sel.id)
+            ])
+            setDataLoading(false)
+            onPreview(sel,{income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[],consultants:cons.data||[]})
+          }} style={{width:'100%',padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}}>{dataLoading?'Loading...':'Preview as Admin'}</button>}
+        </div>
       </div>
     </div>
   )
