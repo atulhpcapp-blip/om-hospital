@@ -2394,8 +2394,6 @@ export default function App(){
   const [ry,setRy]=useState(todayStr().slice(0,4))
 
   useEffect(()=>{
-    // Preload Razorpay in background for faster payment
-    const rzpScript=document.createElement('script');rzpScript.src='https://checkout.razorpay.com/v1/checkout.js';rzpScript.async=true;document.head.appendChild(rzpScript)
     const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1'
     if(upgradeParam)sessionStorage.removeItem('pendingUpgrade')
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
@@ -2828,7 +2826,7 @@ const PaymentPage=({onBack=null})=>{
 }
 
 /*  SMART REMINDERS  */
-const SmartReminders=React.memo(({db})=>{
+const SmartReminders=({db})=>{
   const [dismissed,setDismissed]=useState([])
   try{
     const today=todayStr()
@@ -2906,10 +2904,10 @@ const SmartReminders=React.memo(({db})=>{
       </div>
     )
   }catch{return null}
-})
+}
 
 /*  ANALYTICS DASHBOARD  */
-const AnalyticsDash=React.memo(({db})=>{
+const AnalyticsDash=({db})=>{
   const today=todayStr()
   const thisMonth=today.slice(0,7)
   const lastMonth=(()=>{const d=new Date(today);d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7)})()
@@ -3348,4 +3346,4 @@ const AnalyticsDash=React.memo(({db})=>{
       </Card>
     </div>
   )
-})
+}
