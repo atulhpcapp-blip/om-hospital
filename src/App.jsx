@@ -317,6 +317,7 @@ const SettingsPanel=()=>{
 
 /*  SUPER ADMIN PREVIEW APP  */
 const PreviewApp=({db,hospital,onExit})=>{
+  if(!db||!hospital)return null
   const [tab,setTab]=useState('rep')
   const [rv,setRv]=useState('daily')
   const [rd,setRd]=useState(todayStr())
@@ -340,7 +341,7 @@ const PreviewApp=({db,hospital,onExit})=>{
         <div style={{width:32,height:32,borderRadius:8,background:'rgba(0,192,107,0.12)',display:'flex',alignItems:'center',justifyContent:'center'}}>
           <svg width="18" height="18" viewBox="0 0 40 40" fill="none"><rect x="16" y="5" width="8" height="30" rx="4" fill="#16a34a"/><rect x="5" y="16" width="30" height="8" rx="4" fill="#16a34a"/></svg>
         </div>
-        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{hospital.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{hospital.city} — {hospital.plan}</div></div>
+        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{hospital.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{hospital.city} - {hospital.plan}</div></div>
       </div>
       <div style={{display:'flex',gap:6,padding:'10px 16px',borderBottom:'1px solid #f0f0f0',overflowX:'auto'}}>
         {TABS.map(t=>(<button key={t.k} onClick={()=>setTab(t.k)} style={{padding:'7px 16px',borderRadius:20,border:'none',background:tab===t.k?'#16a34a':'#f1f5f9',color:tab===t.k?'#fff':'#64748b',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{t.l}</button>))}
@@ -348,7 +349,7 @@ const PreviewApp=({db,hospital,onExit})=>{
       <div style={{padding:'16px'}}>
         {tab==='dash'&&<AnalyticsDash db={db}/>}
         {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
-        {tab==='ip'&&<div style={{display:'block'}}><IPTab db={db} actions={fakeActions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={{}} setPF={()=>{}} cF={{}} setCF={()=>{}} pyF={{}} setPyF={()=>{}} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={()=>alert('Read-only in preview mode')}/></div>}
+        {tab==='ip'&&<div style={{display:'block'}}><IPTab db={db} actions={fakeActions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={{name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''}} setPF={()=>{}} cF={{}} setCF={()=>{}} pyF={{}} setPyF={()=>{}} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={()=>alert('Read-only in preview mode')}/></div>}
         {tab==='op'&&<OPTab db={db} actions={fakeActions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
       </div>
     </div>
@@ -2419,7 +2420,7 @@ export default function App(){
   const [profile,setProfile]=useState(null)
   const [hospital,setHospital]=useState(null)
   const [isSuperAdmin,setIsSuperAdmin]=useState(false)
-  const [previewHospital,setPreviewHospital]=useState(null)  // {hospital, db} — super admin preview mode
+  const [previewHospital,setPreviewHospital]=useState(null)  // {hospital, db} - super admin preview mode
   const [showRegister,setShowRegister]=useState(false)
   const [showPayment,setShowPayment]=useState(()=>new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1')
   const [loading,setLoading]=useState(true)
@@ -2472,7 +2473,7 @@ export default function App(){
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
       setDb({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[],consultants:cons.data||[]})
-      // Set default tab based on role — admin/management open Reports
+      // Set default tab based on role - admin/management open Reports
       if(!tabInitialized){
         const role=prof?.role
         if(role==='admin'||role==='management')setTab('rep')
@@ -2558,8 +2559,8 @@ export default function App(){
         <button onClick={async()=>{
           const safe={name:editIPPatient.name,phone:editIPPatient.phone||'',diagnosis:editIPPatient.dx||'',room:editIPPatient.room||'',ref_doctor:editIPPatient.ref||'',admission_date:editIPPatient.adm||''}
           let {error}=await supabase.from('ip_patients').update({...safe,patient_area:editIPPatient.patient_area||''}).eq('id',editIPPatient.id)
-          if(error){{const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}}
-          if(error){{alert('Save failed: '+error.message);return}}
+          if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}
+          if(error){alert('Save failed: '+error.message);return}
           setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editIPPatient.id?{...p,...safe,patient_area:editIPPatient.patient_area||''}:p)}))
           setEditIPPatient(null)
         }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
@@ -2583,11 +2584,11 @@ export default function App(){
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin&&!previewHospital)return<SuperAdminDashboard onPreview={(hosp,db)=>setPreviewHospital({hospital:hosp,db})}/>
-  // Super admin previewing a hospital — render full app with their data
+  // Super admin previewing a hospital - render full app with their data
   if(isSuperAdmin&&previewHospital)return(
     <div style={{background:'#f8fafc',minHeight:'100vh'}}>
       <div style={{background:'#dc2626',color:'#fff',padding:'8px 16px',fontSize:12,fontWeight:700,display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:1000}}>
-        <span>SUPER ADMIN PREVIEW — {previewHospital.hospital.name}</span>
+        <span>SUPER ADMIN PREVIEW - {previewHospital.hospital.name}</span>
         <button onClick={()=>setPreviewHospital(null)} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Exit preview</button>
       </div>
       <PreviewApp db={previewHospital.db} hospital={previewHospital.hospital} onExit={()=>setPreviewHospital(null)}/>
