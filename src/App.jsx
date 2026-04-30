@@ -708,7 +708,7 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
 /*  CREDIT TAB  */
 const CreditTab=({db,actions})=>{
   const [collectEntry,setCollectEntry]=useState(null)
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   const allCredit=db.income.filter(e=>isCredit(e))
   const totalCred=allCredit.reduce((a,e)=>a+e.amount,0)
   const byPatient={}
@@ -879,7 +879,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
     const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:isIP?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||''})
     if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:''})
   }
-  if(editEntry)return(<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
+  if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   return(
     <div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -1008,8 +1008,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const balance=pats?.is_package?0:credit
     return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
-  if(editIPEntry)return(<EditEntryForm entry={editIPEntry} onSave={async row=>{await actions.editIncome(row);setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
   if(editPatient)return(
     <div style={{background:'#f8fafc',minHeight:'100vh',padding:'0 0 80px'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
@@ -1281,8 +1281,8 @@ const OPTab=({db,actions,opSearch,setOpSearch})=>{
   const allPatients=Object.values(byPat).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
   const patients=search.trim()?allPatients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.reg_no.toLowerCase().includes(search.toLowerCase())):allPatients
   const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{await actions.editIncome(row);setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
-  if(editEntry)return(<EditEntryForm entry={editEntry} onSave={async row=>{await actions.editIncome(row);setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/> )
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   if(selPat){
     const pat=byPat[selPat?.trim().toLowerCase()]||byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
     const ents=pat.entries
@@ -2417,7 +2417,13 @@ export default function App(){
   const actions={
     addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
-    editIncome:async row=>{const {data}=await supabase.from('income').update(row).eq('id',row.id).select();if(data)setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?data[0]:e)}))},
+    editIncome:async row=>{
+      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||''}
+      const {data,error}=await supabase.from('income').update(updates).eq('id',row.id).select()
+      if(error){alert('Save failed: '+error.message);return false}
+      if(data&&data[0])setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...updates}:e)}))
+      return true
+    },
     addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     updateExpense:async(id,updates)=>{await supabase.from('expenses').update(updates).eq('id',id);setDb(d=>({...d,expenses:d.expenses.map(e=>e.id===id?{...e,...updates}:e)}))},
