@@ -2167,7 +2167,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           return(<div key={pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>
-                {consName&&<div style={{fontSize:11,color:'#7c3aed',marginTop:2}}>Consultant: {consName} — Fee paid: {fmt(consFee)}</div>}
+                {consName&&<div style={{fontSize:11,color:'#7c3aed',marginTop:2}}>Consultant: {consName} - Fee paid: {fmt(consFee)}</div>}
                 <div style={{fontSize:11,color:'#16a34a',marginTop:2}}>Hospital profit: {fmt(profit)}</div>
               </div>
               <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(total)}</div><TypeTag t="vc"/></div>
@@ -2241,7 +2241,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <R l="Lab Total" v={fmt(labInc)} bold green/>
       </Card>}
 
-    {/* EXPENSES — split OP/IP and Lab */}
+    {/* EXPENSES - split OP/IP and Lab */}
     <SecL>OP and IP Expenses</SecL>
     {dExpNonLab.length===0
       ?<div style={{color:'#ccc',fontSize:13,padding:'8px 0',marginBottom:8}}>No OP/IP expenses today</div>
@@ -2264,7 +2264,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <R l="Total Lab Expenses" v={fmt(labToLab)} bold red/>
       </Card>}
 
-    {/* SEGMENT BREAKDOWN — only 2 cards */}
+    {/* SEGMENT BREAKDOWN - only 2 cards */}
     <SecL>Segment breakdown</SecL>
     <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
       {/* OP and IP Income */}
@@ -2326,7 +2326,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const [customTo,setCustomTo]=useState(todayStr())
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
-  const allPaidComm=db.expenses.filter(e=>e.category==='ref_paid')
+  const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
   const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'}]
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
@@ -2394,6 +2394,8 @@ export default function App(){
   const [ry,setRy]=useState(todayStr().slice(0,4))
 
   useEffect(()=>{
+    // Preload Razorpay in background for faster payment
+    const rzpScript=document.createElement('script');rzpScript.src='https://checkout.razorpay.com/v1/checkout.js';rzpScript.async=true;document.head.appendChild(rzpScript)
     const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1'
     if(upgradeParam)sessionStorage.removeItem('pendingUpgrade')
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
@@ -2412,8 +2414,8 @@ export default function App(){
       const [{data:hosp},[inc,exp,pts,rds,cons]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',prof.hospital_id).single(),
         Promise.all([
-          supabase.from('income').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
-          supabase.from('expenses').select('*').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
+          supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
           supabase.from('ip_patients').select('*').eq('hospital_id',prof.hospital_id).order('admission_date',{ascending:false}),
           supabase.from('ref_doctors').select('*').eq('hospital_id',prof.hospital_id).order('name'),
           supabase.from('consultants').select('*').eq('hospital_id',prof.hospital_id).order('name')
@@ -2523,11 +2525,11 @@ export default function App(){
           </div>
         </div>
         {dbLoading&&<div style={{fontSize:11,color:'#3b82f6',marginBottom:6,textAlign:'center',fontWeight:600}}>Syncing...</div>}
-        <div style={{display:'flex',overflowX:'auto',gap:4,marginBottom:-1,paddingBottom:0}}>
+        <div style={{display:'flex',overflowX:'auto',gap:4,marginBottom:-1,paddingBottom:0,WebkitOverflowScrolling:'touch'}}>
           {TABS.map(t=>{const tcolor=TAB_COLORS[t.k]||{active:'#16a34a',bg:'#f0fdf4'};const on=tab===t.k;return(<button key={t.k} onClick={()=>setTab(t.k)} style={{flexShrink:0,padding:'9px 12px',fontSize:11,fontWeight:700,border:'none',background:on?tcolor.bg:'transparent',color:on?tcolor.active:'#94a3b8',borderBottom:on?'2.5px solid '+tcolor.active:'2.5px solid transparent',cursor:'pointer',whiteSpace:'nowrap',borderRadius:'8px 8px 0 0',transition:'all .15s'}}>{t.l}</button>)})}
         </div>
       </div>
-      <div style={{padding:'16px 16px 80px'}}>
+      <div style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab}/></div>
@@ -2826,7 +2828,7 @@ const PaymentPage=({onBack=null})=>{
 }
 
 /*  SMART REMINDERS  */
-const SmartReminders=({db})=>{
+const SmartReminders=React.memo(({db})=>{
   const [dismissed,setDismissed]=useState([])
   try{
     const today=todayStr()
@@ -2904,10 +2906,10 @@ const SmartReminders=({db})=>{
       </div>
     )
   }catch{return null}
-}
+})
 
 /*  ANALYTICS DASHBOARD  */
-const AnalyticsDash=({db})=>{
+const AnalyticsDash=React.memo(({db})=>{
   const today=todayStr()
   const thisMonth=today.slice(0,7)
   const lastMonth=(()=>{const d=new Date(today);d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7)})()
@@ -3346,4 +3348,4 @@ const AnalyticsDash=({db})=>{
       </Card>
     </div>
   )
-}
+})
