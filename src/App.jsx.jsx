@@ -2514,6 +2514,8 @@ export default function App(){
   const [ry,setRy]=useState(todayStr().slice(0,4))
 
   useEffect(()=>{
+    // Wake Supabase DB immediately (reduces cold start time)
+    supabase.from('hospitals').select('id').limit(1).then(()=>{})
     const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1'
     if(upgradeParam)sessionStorage.removeItem('pendingUpgrade')
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
