@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+// EasyMedical v2.1 - build OK
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
@@ -315,49 +316,9 @@ const SettingsPanel=()=>{
   )
 }
 
-/*  SUPER ADMIN PREVIEW APP  */
-const PreviewApp=({db,hospital,onExit})=>{
-  if(!db||!hospital)return null
-  const [tab,setTab]=useState('rep')
-  const [rv,setRv]=useState('daily')
-  const [rd,setRd]=useState(todayStr())
-  const [rm,setRm]=useState(todayStr().slice(0,7))
-  const [ry,setRy]=useState(todayStr().slice(0,4))
-  const [ipv,setIpv]=useState('list')
-  const [ipid,setIpid]=useState('')
-  const [timelineSelPid,setTimelineSelPid]=useState('')
-  const [prevTab,setPrevTab]=useState(null)
-  const [opNavSearch,setOpNavSearch]=useState('')
-  const [opPrevTab,setOpPrevTab]=useState(null)
-  const gotoIP=useCallback((pid,fromTab=null)=>{if(fromTab)setPrevTab(fromTab);setIpid(pid);setIpv('detail');setTab('ip')},[])
-  const gotoOP=useCallback((patName,fromTab=null)=>{if(fromTab)setOpPrevTab(fromTab);setOpNavSearch(patName||'');setTab('op')},[])
-  const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
-  const allPaidComm=useMemo(()=>(db.expenses||[]).filter(e=>e.category==='ref_paid'),[db.expenses])
-  const TABS=[{k:'dash',l:'Dash',icon:'G'},{k:'rep',l:'Reports',icon:'R'},{k:'ip',l:'IP',icon:'H'},{k:'op',l:'OP',icon:'O'}]
-  const fakeActions={editIncome:async()=>false,addIncome:async()=>alert('Read-only in preview mode'),admitPatient:async()=>alert('Read-only in preview mode'),dischargePatient:async()=>alert('Read-only in preview mode'),deleteIncome:async()=>alert('Read-only in preview mode'),addExpense:async()=>alert('Read-only in preview mode'),delExpense:async()=>alert('Read-only in preview mode'),updateExpense:async()=>alert('Read-only in preview mode')}
-  return(
-    <div style={{background:'#f8fafc',minHeight:'100vh',paddingBottom:80}}>
-      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'10px 16px',display:'flex',alignItems:'center',gap:12}}>
-        <div style={{width:32,height:32,borderRadius:8,background:'rgba(0,192,107,0.12)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <svg width="18" height="18" viewBox="0 0 40 40" fill="none"><rect x="16" y="5" width="8" height="30" rx="4" fill="#16a34a"/><rect x="5" y="16" width="30" height="8" rx="4" fill="#16a34a"/></svg>
-        </div>
-        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{hospital.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{hospital.city} - {hospital.plan}</div></div>
-      </div>
-      <div style={{display:'flex',gap:6,padding:'10px 16px',borderBottom:'1px solid #f0f0f0',overflowX:'auto'}}>
-        {TABS.map(t=>(<button key={t.k} onClick={()=>setTab(t.k)} style={{padding:'7px 16px',borderRadius:20,border:'none',background:tab===t.k?'#16a34a':'#f1f5f9',color:tab===t.k?'#fff':'#64748b',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{t.l}</button>))}
-      </div>
-      <div style={{padding:'16px'}}>
-        {tab==='dash'&&<AnalyticsDash db={db}/>}
-        {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
-        {tab==='ip'&&<div style={{display:'block'}}><IPTab db={db} actions={fakeActions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={{name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''}} setPF={()=>{}} cF={{}} setCF={()=>{}} pyF={{}} setPyF={()=>{}} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={()=>alert('Read-only in preview mode')}/></div>}
-        {tab==='op'&&<OPTab db={db} actions={fakeActions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
-      </div>
-    </div>
-  )
-}
 
 /*  SUPER ADMIN DASHBOARD  */
-const SuperAdminDashboard=({onPreview=null})=>{
+const SuperAdminDashboard=()=>{
   const [hospitals,setHospitals]=useState([])
   const [loading,setLoading]=useState(true)
   const [view,setView]=useState('list')
