@@ -811,12 +811,17 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
 /*  EDIT ENTRY FORM  */
 const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [amount,setAmount]=useState(String(entry.amount))
+  const [patName,setPatName]=useState(entry.patient_name||'')
+  const [patPhone,setPatPhone]=useState(entry.patient_phone||'')
+  const [patArea,setPatArea]=useState(entry.patient_area||'')
   const [ref,setRef]=useState(entry.ref_doctor||'')
+  const [custComm,setCustComm]=useState(entry.custom_commission!=null?String(Math.round(entry.custom_commission)):'')
   const [pay,setPay]=useState(entry.payment||'cash')
   const [notes,setNotes]=useState(entry.notes||'')
   const [date,setDate]=useState(entry.date||todayStr())
   const [opType,setOpType]=useState(entry.op_type||'New OP')
-  const [custComm,setCustComm]=useState(entry.custom_commission!=null?String(Math.round(entry.custom_commission)):'')
+  const [vcConsultant,setVcConsultant]=useState(entry.consultant_name||'')
+  const [vcFee,setVcFee]=useState(entry.consultant_fee!=null?String(entry.consultant_fee):'')
   const [busy,setBusy]=useState(false)
   const isOP=entry.type==='op'
   const isVC=entry.type==='vc'
@@ -828,31 +833,39 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const go=async()=>{
     const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter valid amount');return}
     setBusy(true)
-    await onSave({...entry,amount:amt,ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null})
+    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
     setBusy(false)
   }
   return(
     <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
-          <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}> Cancel</button>
-          <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
-          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.5:1}}>{busy?'Saving...':'Save'}</button>
+        <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>Cancel</button>
+        <div style={{display:'flex',alignItems:'center',gap:8}}><TypeTag t={entry.type}/><span style={{fontSize:14,fontWeight:700}}>Edit entry</span></div>
+        <button onClick={go} disabled={busy} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.6:1}}>{busy?'Saving...':'Save'}</button>
       </div>
-      <div style={{padding:'16px'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,padding:'4px 0'}}>
-          <TypeTag t={entry.type}/>
-          <span style={{fontSize:13,color:'#555'}}>{ITYPES.find(t=>t.key===entry.type)?.full}</span>
-          {entry.patient_name&&<span style={{fontSize:12,color:'#aaa'}}>- {entry.patient_name}</span>}
-        </div>
+      <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
         <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        {!isIPtype&&<FInp label="Patient name" type="text" value={patName} onChange={e=>setPatName(e.target.value)} placeholder="Patient name"/>}
+        {!isIPtype&&<FInp label="Patient phone (optional)" type="tel" value={patPhone} onChange={e=>setPatPhone(e.target.value)} placeholder="9999999999"/>}
+        {!isIPtype&&<FInp label="Patient area (optional)" type="text" value={patArea} onChange={e=>setPatArea(e.target.value)} placeholder="e.g. Kukatpally, Miyapur"/>}
         <FInp label="Amount (Rs)" type="number" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/>
         {isOP&&<FSel label="OP type" value={opType} onChange={e=>setOpType(e.target.value)}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
-        {showRefField&&<FInp label="Referring doctor (blank = self/no commission)" type="text" placeholder="Doctor name or leave blank" value={ref} onChange={e=>setRef(e.target.value)}/>}
-        {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%${isOP?' - enter % for OP ref':''})`} type="number" inputMode="numeric" placeholder={isOP?'e.g. 20':String(defaultCommPct)} value={custComm} onChange={e=>setCustComm(e.target.value)}/>}
-        {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{ref}</strong>: <strong>{fmt(comm)}</strong> ({commPct}% of {fmt(parseFloat(amount||0))})</div>}
-        {showRefField&&ref.trim()===''&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>No commission - self/direct patient</div>}
-        <FSel label="Payment" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
-        <FInp label="Notes" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
+        <FSel label="Payment mode" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
+        {isVC&&<>
+          <FSel label="Visiting consultant" value={vcConsultant} onChange={e=>setVcConsultant(e.target.value)}>
+            <option value="">- Select consultant -</option>
+            {(db?.consultants||[]).map(d=><option key={d.id} value={d.name}>{d.name}</option>)}
+          </FSel>
+          <FInp label="Consultant fee paid (Rs)" type="number" inputMode="numeric" value={vcFee} onChange={e=>setVcFee(e.target.value)} placeholder="0"/>
+          {vcFee&&parseFloat(vcFee)>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Hospital profit: {fmt(parseFloat(amount||0)-parseFloat(vcFee||0))}</div>}
+        </>}
+        {showRefField&&<FSel label="Referring doctor" value={ref} onChange={e=>{const sel=(db?.ref_doctors||[]).find(d=>d.name===e.target.value);const pctKey={op_r:'op_r_pct',op_l:'op_l_pct'}[entry.type]||'op_r_pct';const pct=sel?sel[pctKey]:null;setRef(e.target.value);if(pct!=null&&custComm==='')setCustComm(String(pct))}}>
+          <option value="">- No referral / Self -</option>
+          {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+        </FSel>}
+        {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%)`} type="number" inputMode="numeric" value={custComm} onChange={e=>setCustComm(e.target.value)} placeholder={String(defaultCommPct)}/>}
+        {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {ref}: {fmt(comm)} ({commPct}%)</div>}
+        <FInp label="Notes (optional)" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
         <PBtn onClick={go} disabled={busy} style={{marginTop:8}}>{busy?'Saving...':'Save changes'}</PBtn>
         <button onClick={onCancel} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
       </div>
