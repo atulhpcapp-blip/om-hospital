@@ -1024,20 +1024,47 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
   if(editPatient)return(
-    <div style={{background:'#f8fafc',minHeight:'100vh',padding:'0 0 80px'}}>
+    <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
         <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
-        <button onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}:p)}));setEditPatient(null)}} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
+        <button onClick={async()=>{
+          const updates={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm,patient_area:editPatient.patient_area||''}
+          let {error}=await supabase.from('ip_patients').update(updates).eq('id',editPatient.id)
+          if(error&&error.message?.includes('column')){
+            const safe={name:updates.name,phone:updates.phone,diagnosis:updates.diagnosis,room:updates.room,ref_doctor:updates.ref_doctor,admission_date:updates.admission_date}
+            const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id)
+            error=r2.error
+          }
+          if(error){alert('Save failed: '+error.message);return}
+          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...updates}:p)}))
+          setEditPatient(null)
+        }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
-      <div style={{padding:'16px'}}>
+      <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
         <FInp label="Patient name" type="text" value={editPatient.name} onChange={e=>setEditPatient({...editPatient,name:e.target.value})}/>
         <FInp label="Phone" type="tel" value={editPatient.phone||''} onChange={e=>setEditPatient({...editPatient,phone:e.target.value})}/>
         <FInp label="Admission date" type="date" value={editPatient.adm} onChange={e=>setEditPatient({...editPatient,adm:e.target.value})}/>
         <FInp label="Ward / Room" type="text" value={editPatient.room||''} onChange={e=>setEditPatient({...editPatient,room:e.target.value})}/>
         <FInp label="Diagnosis" type="text" value={editPatient.dx||''} onChange={e=>setEditPatient({...editPatient,dx:e.target.value})}/>
-        <FInp label="Referring doctor" type="text" placeholder="Leave blank for self patient" value={editPatient.ref||''} onChange={e=>setEditPatient({...editPatient,ref:e.target.value})}/>
-        <PBtn onClick={async()=>{const {error}=await supabase.from('ip_patients').update({name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}).eq('id',editPatient.id);if(error){alert('Save failed: '+error.message);return}setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,name:editPatient.name,phone:editPatient.phone,diagnosis:editPatient.dx,room:editPatient.room,ref_doctor:editPatient.ref,admission_date:editPatient.adm}:p)}));setEditPatient(null)}}>Save changes</PBtn>
+        <FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur" value={editPatient.patient_area||''} onChange={e=>setEditPatient({...editPatient,patient_area:e.target.value})}/>
+        <FSel label="Referring doctor" value={editPatient.ref||''} onChange={e=>setEditPatient({...editPatient,ref:e.target.value})}>
+          <option value="">- No referral / Self patient -</option>
+          {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+        </FSel>
+        <PBtn onClick={async()=>{
+          const updates={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm,patient_area:editPatient.patient_area||''}
+          let {error}=await supabase.from('ip_patients').update(updates).eq('id',editPatient.id)
+          if(error&&error.message?.includes('column')){
+            const safe={name:updates.name,phone:updates.phone,diagnosis:updates.diagnosis,room:updates.room,ref_doctor:updates.ref_doctor,admission_date:updates.admission_date}
+            const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id)
+            error=r2.error
+          }
+          if(error){alert('Save failed: '+error.message);return}
+          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...updates}:p)}))
+          setEditPatient(null)
+        }} style={{marginTop:8}}>Save changes</PBtn>
+        <button onClick={()=>setEditPatient(null)} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
       </div>
     </div>
   )
