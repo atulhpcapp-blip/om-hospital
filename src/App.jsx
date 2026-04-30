@@ -1265,12 +1265,12 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
 }
 
 /*  OP PATIENTS TAB  */
-const OPTab=({db,actions})=>{
+const OPTab=({db,actions,opSearch,setOpSearch})=>{
   const [selPat,setSelPat]=useState(null)
   const [payDoc,setPayDoc]=useState(null)
   const [editEntry,setEditEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
-  const [search,setSearch]=useState('')
+  const [search,setSearch]=useState(opSearch||'')
   const [view,setView]=useState('patients')
   const [filterDate,setFilterDate]=useState(todayStr().slice(0,7))
   const [filterRef,setFilterRef]=useState('')
@@ -2016,7 +2016,7 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
 
 
 /*  DAILY DETAIL REPORT  */
-const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,gotoIP,gotoTimeline})=>{
+const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,gotoIP,gotoTimeline,gotoOP})=>{
   const dI=db.income.filter(e=>e.date===rd)
   const dExp=db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid')
 
@@ -2077,8 +2077,9 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const opPharmaInc=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+e.amount,0)
   const opPharmaComm=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+getComm(e),0)
   const ipEnts=dI.filter(e=>['ip','ip_r'].includes(e.type))
+  // Use grouped totals to avoid double-counting DB duplicates
+  const labInc=opLabEnts.reduce((a,e)=>a+e.amount,0)+ipLabEnts.reduce((a,e)=>a+e.amount,0)
   const labEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
-  const labInc=labEnts.reduce((a,e)=>a+e.amount,0)
   const labComm=labEnts.reduce((a,e)=>a+getComm(e),0)
   const labToLab=dExp.filter(e=>e.category==='lab_to_lab').reduce((a,e)=>a+e.amount,0)
   const labActual=labInc-labComm-labToLab
@@ -2094,14 +2095,13 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
 
   // Clickable name — OP goes to timeline, IP goes to IP record
   const NameBtn=({name,pid,isIP})=>{
-    // Find ip_patient by id first, then by name match
     const ipPat=pid?ipMap[pid]:db.ip_patients.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase())
-    const canNav=!!(isIP?gotoIP:gotoTimeline)
     const click=()=>{
-      if(isIP&&gotoIP&&ipPat){gotoIP(ipPat.id)}
-      else if(!isIP&&gotoTimeline&&ipPat){gotoTimeline(ipPat.id)}
+      if(isIP&&gotoIP&&ipPat){gotoIP(ipPat.id,'rep')}
+      else if(!isIP&&gotoOP){gotoOP(name,'rep')}
     }
-    return(<button onClick={canNav&&ipPat?click:undefined} style={{fontSize:13,fontWeight:700,color:isIP?'#2563eb':'#1d4ed8',background:'none',border:'none',cursor:canNav&&ipPat?'pointer':'default',padding:0,textAlign:'left',textDecoration:canNav&&ipPat?'underline':'none',textDecorationColor:'rgba(37,99,235,0.3)'}}>{name}</button>)
+    const canNav=isIP?(!!gotoIP&&!!ipPat):(!!gotoOP)
+    return(<button onClick={canNav?click:undefined} style={{fontSize:13,fontWeight:700,color:isIP?'#2563eb':'#1d4ed8',background:'none',border:'none',cursor:canNav?'pointer':'default',padding:0,textAlign:'left',textDecoration:canNav?'underline':'none',textDecorationColor:'rgba(37,99,235,0.3)'}}>{name}</button>)
   }
 
   return(<>
@@ -2296,7 +2296,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,actions})=>{
       <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
-      {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}}/>}
+      {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
       {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
@@ -2407,7 +2407,9 @@ export default function App(){
 
   }
   const [prevTab,setPrevTab]=useState(null)
+  const [opNavSearch,setOpNavSearch]=useState('')
   const gotoIP=useCallback((pid,fromTab=null)=>{if(fromTab)setPrevTab(fromTab);setIpid(pid);setIpv('detail');setTab('ip')},[])
+  const gotoOP=useCallback((patName,fromTab=null)=>{setOpNavSearch(patName||'');setTab('op')},[])
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
@@ -2448,16 +2450,16 @@ export default function App(){
         </div>
       </div>
       <div style={{padding:'16px 16px 80px'}}>
-        <div style={{display:tab==='dash'?'block':'none'}}>{canSeeReports&&<AnalyticsDash db={db}/>}{!canSeeReports&&<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>}</div>
-        <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
+        {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
+        {tab==='entry'&&<EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/>}
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab}/></div>
-        <div style={{display:tab==='op'?'block':'none'}}><OPTab db={db} actions={actions}/></div>
-        <div style={{display:tab==='exp'?'block':'none'}}><ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/></div>
-        <div style={{display:tab==='rep'?'block':'none'}}><RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} actions={actions}/></div>
-        <div style={{display:tab==='credit'?'block':'none'}}><CreditTab db={db} actions={actions}/></div>
-        <div style={{display:tab==='refdrs'?'block':'none'}}><RefDoctorsTab db={db} actions={actions}/></div>
-        <div style={{display:tab==='consult'?'block':'none'}}><ConsultantsTab db={db} actions={actions}/></div>
-        {isAdmin&&<div style={{display:tab==='admin'?'block':'none'}}><AdminTab currentUser={profile} hospital={hospital} onLogoUpdate={url=>setHospital(h=>({...h,logo_url:url}))}/></div>}
+        {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch}/>}
+        {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
+        {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} actions={actions}/>}
+        {tab==='credit'&&<CreditTab db={db} actions={actions}/>}
+        {tab==='refdrs'&&<RefDoctorsTab db={db} actions={actions}/>}
+        {tab==='consult'&&<ConsultantsTab db={db} actions={actions}/>}
+        {isAdmin&&tab==='admin'&&<AdminTab currentUser={profile} hospital={hospital} onLogoUpdate={url=>setHospital(h=>({...h,logo_url:url}))}/>}
       </div>
     </div>
   )
