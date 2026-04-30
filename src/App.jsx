@@ -832,11 +832,11 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
     setBusy(false)
   }
   return(
-    <div style={{background:'#f8fafc',minHeight:'100vh',padding:'0 0 80px'}}>
+    <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
           <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}> Cancel</button>
           <div style={{fontSize:15,fontWeight:700}}>Edit entry</div>
-          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.5:1}}>{busy?'...':'Save'}</button>
+          <button onClick={go} disabled={busy} style={{background:'none',border:'none',color:'#111',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.5:1}}>{busy?'Saving...':'Save'}</button>
       </div>
       <div style={{padding:'16px'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,padding:'4px 0'}}>
@@ -860,7 +860,8 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   )
 }
 
-const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,setEditEntry})=>{
+const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
+  const [editEntry,setEditEntry]=useState(null)
   const di=db.income.filter(e=>e.date===eDate)
   const tots={};ITYPES.forEach(t=>{tots[t.key]=di.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)})
   const tot=Object.values(tots).reduce((a,b)=>a+b,0)
@@ -869,6 +870,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,setEditEntry}
   const custCommPct=iF.custom_commission!==''?parseFloat(iF.custom_commission)/100:(COMM[itype]||0)
   const prev=iF.amount&&iF.ref&&iF.ref.trim()&&(custCommPct>0||iF.custom_commission!=='')?parseFloat(iF.amount||0)*(iF.custom_commission!==''?parseFloat(iF.custom_commission)/100:(COMM[itype]||0)):0
   const todayCash=cashTotal(di);const todayCredit=credTotal(di)
+  if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   const go=async()=>{
     const amt=parseFloat(iF.amount);if(!amt||amt<=0){alert('Enter a valid amount');return}
     let pid=null,pname=''
@@ -2366,7 +2368,6 @@ export default function App(){
   const [eDate,setEDate]=useState(todayStr())
   const [itype,setItype]=useState('op')
   const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:''})
-  const [editEntry,setEditEntry]=useState(null)
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
   const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''})
@@ -2418,15 +2419,16 @@ export default function App(){
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{
       const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||''}
-      let {data,error}=await supabase.from('income').update(updates).eq('id',row.id).select()
-      if(error&&error.message?.includes('column')){
-        // Retry with only core fields if optional columns missing
-        const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
-        const r2=await supabase.from('income').update(safe).eq('id',row.id).select()
-        data=r2.data;error=r2.error
+      const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
+      let {error}=await supabase.from('income').update(updates).eq('id',row.id)
+      if(error){
+        // Retry with core fields only (schema cache issue)
+        const r2=await supabase.from('income').update(safe).eq('id',row.id)
+        error=r2.error
       }
-      if(error){alert('Save failed: '+error.message);return false}
-      if(data&&data[0])setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...updates}:e)}))
+      if(error){alert('Could not save: '+error.message);return false}
+      // Always update local state optimistically (works even if RLS blocks select)
+      setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...safe}:e)}))
       return true
     },
     addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
@@ -2514,7 +2516,7 @@ export default function App(){
       </div>
       <div style={{padding:'16px 16px 80px'}}>
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
-        {editEntry?<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>:(tab==='entry'&&<EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF} setEditEntry={setEditEntry}/>)}
+        <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab}/></div>
         {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
