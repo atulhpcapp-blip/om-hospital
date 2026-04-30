@@ -2388,6 +2388,7 @@ export default function App(){
   const [db,setDb]=useState({income:[],expenses:[],ip_patients:[],ref_doctors:[],consultants:[]})
   const [dbLoading,setDbLoading]=useState(false)
   const [tab,setTab]=useState('dash')
+  const [tabInitialized,setTabInitialized]=useState(false)
   const [eDate,setEDate]=useState(todayStr())
   const [itype,setItype]=useState('op')
   const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:''})
@@ -2433,6 +2434,12 @@ export default function App(){
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
       setDb({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[],consultants:cons.data||[]})
+      // Set default tab based on role — admin/management open Reports
+      if(!tabInitialized){
+        const role=prof?.role
+        if(role==='admin'||role==='management')setTab('rep')
+        setTabInitialized(true)
+      }
     }
     init()
   },[session])
