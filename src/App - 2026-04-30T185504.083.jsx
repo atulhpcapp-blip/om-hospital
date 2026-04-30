@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-// EasyMedical v2.1 - build OK
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
@@ -2376,21 +2375,6 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
 }
 
 /*  MAIN APP  */
-export class ErrorBoundary extends React.Component{
-  constructor(p){super(p);this.state={err:null}}
-  static getDerivedStateFromError(e){return{err:e}}
-  render(){
-    if(this.state.err)return(
-      <div style={{padding:24,fontFamily:'sans-serif'}}>
-        <h2 style={{color:'red'}}>App Error - Please contact support</h2>
-        <pre style={{fontSize:12,background:'#fee',padding:12,borderRadius:8,overflow:'auto'}}>{String(this.state.err)}</pre>
-        <button onClick={()=>window.location.reload()} style={{marginTop:16,padding:'10px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontSize:14}}>Reload app</button>
-      </div>
-    )
-    return this.props.children
-  }
-}
-
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
