@@ -2291,7 +2291,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           <R l="Lab income (OP-Lab + IP-Lab)" v={fmt(labInc)} green/>
-          {labComm>0&&<R l="Ref commissions" v={'- '+fmt(labComm)} red/>}
+          <R l="Ref commissions" v={'- '+fmt(labComm)} red/>
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
