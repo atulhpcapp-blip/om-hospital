@@ -888,7 +888,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   )
 }
 
-const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>
+const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   const di=db.income.filter(e=>e.date===eDate)
   const tots={};ITYPES.forEach(t=>{tots[t.key]=di.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)})
   const tot=Object.values(tots).reduce((a,b)=>a+b,0)
