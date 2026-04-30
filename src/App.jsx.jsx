@@ -2524,24 +2524,21 @@ export default function App(){
   useEffect(()=>{
     if(!session)return
     const init=async()=>{
-      // Run profile + super_admin check in parallel
-      const [{data:sa},{data:prof}]=await Promise.all([
-        supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle(),
-        supabase.from('profiles').select('*').eq('id',session.user.id).single()
-      ])
+      const {data:sa}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
       if(sa){setIsSuperAdmin(true);setLoading(false);return}
+      const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
       if(!prof?.hospital_id){setProfile(prof);setLoading(false);return}
       const hid=prof.hospital_id
-      // Load everything in one parallel batch
-      const [hospR,incR,expR,ptsR,rdsR,consR]=await Promise.all([
+      const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
-        supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
-        supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
-        supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
-        supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
-        supabase.from('consultants').select('*').eq('hospital_id',hid).order('name')
+        Promise.all([
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
+          supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
+          supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
+          supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
+          supabase.from('consultants').select('*').eq('hospital_id',hid).order('name')
+        ])
       ])
-      const hosp=hospR.data
       setProfile(prof)
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
