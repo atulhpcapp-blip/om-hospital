@@ -315,20 +315,74 @@ const SettingsPanel=()=>{
   )
 }
 
+/*  SUPER ADMIN PREVIEW APP  */
+const PreviewApp=({db,hospital,onExit})=>{
+  const [tab,setTab]=useState('rep')
+  const [rv,setRv]=useState('daily')
+  const [rd,setRd]=useState(todayStr())
+  const [rm,setRm]=useState(todayStr().slice(0,7))
+  const [ry,setRy]=useState(todayStr().slice(0,4))
+  const [ipv,setIpv]=useState('list')
+  const [ipid,setIpid]=useState('')
+  const [timelineSelPid,setTimelineSelPid]=useState('')
+  const [prevTab,setPrevTab]=useState(null)
+  const [opNavSearch,setOpNavSearch]=useState('')
+  const [opPrevTab,setOpPrevTab]=useState(null)
+  const gotoIP=useCallback((pid,fromTab=null)=>{if(fromTab)setPrevTab(fromTab);setIpid(pid);setIpv('detail');setTab('ip')},[])
+  const gotoOP=useCallback((patName,fromTab=null)=>{if(fromTab)setOpPrevTab(fromTab);setOpNavSearch(patName||'');setTab('op')},[])
+  const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const allPaidComm=useMemo(()=>(db.expenses||[]).filter(e=>e.category==='ref_paid'),[db.expenses])
+  const TABS=[{k:'dash',l:'Dash',icon:'G'},{k:'rep',l:'Reports',icon:'R'},{k:'ip',l:'IP',icon:'H'},{k:'op',l:'OP',icon:'O'}]
+  const fakeActions={editIncome:async()=>false,addIncome:async()=>alert('Read-only in preview mode'),admitPatient:async()=>alert('Read-only in preview mode'),dischargePatient:async()=>alert('Read-only in preview mode'),deleteIncome:async()=>alert('Read-only in preview mode'),addExpense:async()=>alert('Read-only in preview mode'),delExpense:async()=>alert('Read-only in preview mode'),updateExpense:async()=>alert('Read-only in preview mode')}
+  return(
+    <div style={{background:'#f8fafc',minHeight:'100vh',paddingBottom:80}}>
+      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'10px 16px',display:'flex',alignItems:'center',gap:12}}>
+        <div style={{width:32,height:32,borderRadius:8,background:'rgba(0,192,107,0.12)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <svg width="18" height="18" viewBox="0 0 40 40" fill="none"><rect x="16" y="5" width="8" height="30" rx="4" fill="#16a34a"/><rect x="5" y="16" width="30" height="8" rx="4" fill="#16a34a"/></svg>
+        </div>
+        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{hospital.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{hospital.city} — {hospital.plan}</div></div>
+      </div>
+      <div style={{display:'flex',gap:6,padding:'10px 16px',borderBottom:'1px solid #f0f0f0',overflowX:'auto'}}>
+        {TABS.map(t=>(<button key={t.k} onClick={()=>setTab(t.k)} style={{padding:'7px 16px',borderRadius:20,border:'none',background:tab===t.k?'#16a34a':'#f1f5f9',color:tab===t.k?'#fff':'#64748b',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{t.l}</button>))}
+      </div>
+      <div style={{padding:'16px'}}>
+        {tab==='dash'&&<AnalyticsDash db={db}/>}
+        {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
+        {tab==='ip'&&<div style={{display:'block'}}><IPTab db={db} actions={fakeActions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={{}} setPF={()=>{}} cF={{}} setCF={()=>{}} pyF={{}} setPyF={()=>{}} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={()=>alert('Read-only in preview mode')}/></div>}
+        {tab==='op'&&<OPTab db={db} actions={fakeActions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
+      </div>
+    </div>
+  )
+}
+
 /*  SUPER ADMIN DASHBOARD  */
-const SuperAdminDashboard=()=>{
+const SuperAdminDashboard=({onPreview=null})=>{
   const [hospitals,setHospitals]=useState([])
   const [loading,setLoading]=useState(true)
   const [view,setView]=useState('list')
   const [sel,setSel]=useState(null)
   const [selUsers,setSelUsers]=useState([])
+  const [hospData,setHospData]=useState(null)
+  const [dataLoading,setDataLoading]=useState(false)
   const [nH,setNH]=useState({name:'',city:'',phone:'',plan:'trial',adminName:'',adminUser:'',adminPass:''})
   const [busy,setBusy]=useState(false)
   const [msg,setMsg]=useState(null)
   const planClr={trial:['#fef3c7','#b45309'],starter:['#dbeafe','#1d4ed8'],pro:['#dcfce7','#16a34a'],enterprise:['#f3e8ff','#7e22ce']}
   const load=async()=>{setLoading(true);const {data}=await supabase.from('hospitals').select('*').order('created_at',{ascending:false});setHospitals(data||[]);setLoading(false)}
   useEffect(()=>{load()},[])
-  const openHosp=async h=>{setSel(h);setView('detail');const {data}=await supabase.from('profiles').select('*').eq('hospital_id',h.id);setSelUsers(data||[])}
+  const openHosp=async h=>{setSel(h);setView('detail');const {data}=await supabase.from('profiles').select('*').eq('hospital_id',h.id);setSelUsers(data||[]);setHospData(null)}
+  const loadHospData=async(h)=>{
+    setDataLoading(true)
+    const [inc,exp,pts,rds]=await Promise.all([
+      supabase.from('income').select('id,date,type,amount,patient_name,ref_doctor,payment,consultant_fee').eq('hospital_id',h.id).order('date',{ascending:false}).limit(500),
+      supabase.from('expenses').select('id,date,category,amount,description').eq('hospital_id',h.id).order('date',{ascending:false}).limit(200),
+      supabase.from('ip_patients').select('id,name,admission_date,discharge_date,ref_doctor,is_package').eq('hospital_id',h.id).order('admission_date',{ascending:false}).limit(200),
+      supabase.from('ref_doctors').select('id,name,area').eq('hospital_id',h.id)
+    ])
+    setHospData({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[]})
+    setDataLoading(false)
+    setView('hospdata')
+  }
   const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
   const create=async()=>{
@@ -875,6 +929,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
 
 const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   const [editEntry,setEditEntry]=useState(null)
+  const [editIPPatient,setEditIPPatient]=useState(null)
   const di=db.income.filter(e=>e.date===eDate)
   const tots={};ITYPES.forEach(t=>{tots[t.key]=di.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)})
   const tot=Object.values(tots).reduce((a,b)=>a+b,0)
@@ -1000,9 +1055,8 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
   )
 }
 
-const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab})=>{
+const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab,setEditIPPatient})=>{
   const [editIPEntry,setEditIPEntry]=useState(null)
-  const [editPatient,setEditPatient]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('all')
@@ -1023,45 +1077,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   }
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
-  if(editPatient)return(
-    <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
-      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
-        <button onClick={()=>setEditPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
-        <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
-        <button onClick={async()=>{
-          const safe={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm}
-          const extra={...safe,patient_area:editPatient.patient_area||''}
-          let {error}=await supabase.from('ip_patients').update(extra).eq('id',editPatient.id)
-          if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id);error=r2.error}
-          if(error){alert('Save failed: '+error.message);return}
-          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...safe,patient_area:editPatient.patient_area||''}:p)}))
-          setEditPatient(null)
-        }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
-      </div>
-      <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
-        <FInp label="Patient name" type="text" value={editPatient.name} onChange={e=>setEditPatient({...editPatient,name:e.target.value})}/>
-        <FInp label="Phone" type="tel" value={editPatient.phone||''} onChange={e=>setEditPatient({...editPatient,phone:e.target.value})}/>
-        <FInp label="Admission date" type="date" value={editPatient.adm} onChange={e=>setEditPatient({...editPatient,adm:e.target.value})}/>
-        <FInp label="Ward / Room" type="text" value={editPatient.room||''} onChange={e=>setEditPatient({...editPatient,room:e.target.value})}/>
-        <FInp label="Diagnosis" type="text" value={editPatient.dx||''} onChange={e=>setEditPatient({...editPatient,dx:e.target.value})}/>
-        <FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur" value={editPatient.patient_area||''} onChange={e=>setEditPatient({...editPatient,patient_area:e.target.value})}/>
-        <FSel label="Referring doctor" value={editPatient.ref||''} onChange={e=>setEditPatient({...editPatient,ref:e.target.value})}>
-          <option value="">- No referral / Self patient -</option>
-          {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
-        </FSel>
-        <PBtn onClick={async()=>{
-          const safe={name:editPatient.name,phone:editPatient.phone||'',diagnosis:editPatient.dx||'',room:editPatient.room||'',ref_doctor:editPatient.ref||'',admission_date:editPatient.adm}
-          const extra={...safe,patient_area:editPatient.patient_area||''}
-          let {error}=await supabase.from('ip_patients').update(extra).eq('id',editPatient.id)
-          if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editPatient.id);error=r2.error}
-          if(error){alert('Save failed: '+error.message);return}
-          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editPatient.id?{...p,...safe,patient_area:editPatient.patient_area||''}:p)}))
-          setEditPatient(null)
-        }} style={{marginTop:8}}>Save changes</PBtn>
-        <button onClick={()=>setEditPatient(null)} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
-      </div>
-    </div>
-  )
+
   if(ipv==='detail'&&ipid){
     const p=db.ip_patients.find(p=>p.id===ipid)
     if(!p)return<button onClick={()=>setIpv('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
@@ -1088,7 +1104,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 {p.custom_commission!=null&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#fff7ed',color:'#b45309',fontWeight:700}}>Custom comm: {p.custom_commission}%</span>}
               </div>
             </div>
-            <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>{!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}<button onClick={()=>setEditPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date,dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||'',patient_area:p.patient_area||''})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button></div>
+            <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>{!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}<button onClick={()=>setEditIPPatient&&setEditIPPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date||'',dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||'',patient_area:p.patient_area||''})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button></div>
           </div>
         </Card>
         <MetGrid items={[{label:'Total billed',value:fmt(b.total)},{label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},{label:'Credit (due)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},{label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'}]}/>
@@ -2403,6 +2419,7 @@ export default function App(){
   const [profile,setProfile]=useState(null)
   const [hospital,setHospital]=useState(null)
   const [isSuperAdmin,setIsSuperAdmin]=useState(false)
+  const [previewHospital,setPreviewHospital]=useState(null)  // {hospital, db} — super admin preview mode
   const [showRegister,setShowRegister]=useState(false)
   const [showPayment,setShowPayment]=useState(()=>new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1')
   const [loading,setLoading]=useState(true)
@@ -2533,10 +2550,61 @@ export default function App(){
       <style>{`@keyframes pulse{0%,100%{transform:scale(0.7);opacity:0.4}50%{transform:scale(1);opacity:1}}`}</style>
     </div>
   )
+  if(editIPPatient)return(
+    <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
+      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
+        <button onClick={()=>setEditIPPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
+        <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
+        <button onClick={async()=>{
+          const safe={name:editIPPatient.name,phone:editIPPatient.phone||'',diagnosis:editIPPatient.dx||'',room:editIPPatient.room||'',ref_doctor:editIPPatient.ref||'',admission_date:editIPPatient.adm||''}
+          let {error}=await supabase.from('ip_patients').update({...safe,patient_area:editIPPatient.patient_area||''}).eq('id',editIPPatient.id)
+          if(error){{const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}}
+          if(error){{alert('Save failed: '+error.message);return}}
+          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editIPPatient.id?{...p,...safe,patient_area:editIPPatient.patient_area||''}:p)}))
+          setEditIPPatient(null)
+        }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
+      </div>
+      <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
+        <FInp label="Patient name" type="text" value={editIPPatient.name||''} onChange={e=>setEditIPPatient(p=>({...p,name:e.target.value}))}/>
+        <FInp label="Phone" type="tel" value={editIPPatient.phone||''} onChange={e=>setEditIPPatient(p=>({...p,phone:e.target.value}))}/>
+        <FInp label="Admission date" type="date" value={editIPPatient.adm||''} onChange={e=>setEditIPPatient(p=>({...p,adm:e.target.value}))}/>
+        <FInp label="Ward / Room" type="text" value={editIPPatient.room||''} onChange={e=>setEditIPPatient(p=>({...p,room:e.target.value}))}/>
+        <FInp label="Diagnosis" type="text" value={editIPPatient.dx||''} onChange={e=>setEditIPPatient(p=>({...p,dx:e.target.value}))}/>
+        <FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur" value={editIPPatient.patient_area||''} onChange={e=>setEditIPPatient(p=>({...p,patient_area:e.target.value}))}/>
+        <FSel label="Referring doctor" value={editIPPatient.ref||''} onChange={e=>setEditIPPatient(p=>({...p,ref:e.target.value}))}>
+          <option value="">- No referral / Self patient -</option>
+          {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+        </FSel>
+        <button onClick={()=>setEditIPPatient(null)} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:16}}>Cancel</button>
+      </div>
+    </div>
+  )
   if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
-  if(isSuperAdmin)return<SuperAdminDashboard/>
+  if(isSuperAdmin&&!previewHospital)return<SuperAdminDashboard onPreview={(hosp,db)=>setPreviewHospital({hospital:hosp,db})}/>
+  // Super admin previewing a hospital — render full app with their data
+  if(isSuperAdmin&&previewHospital){
+    const pHosp=previewHospital.hospital
+    const pDb=previewHospital.db
+    return(
+      <div style={{background:'#f8fafc',minHeight:'100vh'}}>
+        <div style={{background:'#dc2626',color:'#fff',padding:'8px 16px',fontSize:12,fontWeight:700,display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:1000}}>
+          <span>SUPER ADMIN PREVIEW — {pHosp.name}</span>
+          <button onClick={()=>setPreviewHospital(null)} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Exit preview</button>
+        </div>
+        <div style={{maxWidth:'100%',overflow:'hidden'}}>
+          {(()=>{
+            const fakeProfile={role:'admin',name:'Super Admin Preview',hospital_id:pHosp.id}
+            const canSee=true
+            const isAdmin=true
+            return null // Rendered below via PreviewApp
+          })()}
+          <PreviewApp db={pDb} hospital={pHosp} onExit={()=>setPreviewHospital(null)}/>
+        </div>
+      </div>
+    )
+  }
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
     return <PaymentPage/>
   }
@@ -2569,7 +2637,7 @@ export default function App(){
       <div style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
-        <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab}/></div>
+        <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
         {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
         {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions}/>}
