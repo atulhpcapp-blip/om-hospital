@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
@@ -2051,18 +2051,24 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     if(e.ref_doctor&&!ipByPat[k].ref)ipByPat[k].ref=e.ref_doctor
   })
 
-  // Lab — deduplicate by entry id (the true unique key)
-  const seenIds=new Set()
-  const opLabEnts=dI.filter(e=>{
-    if(e.type!=='op_l')return false
-    if(seenIds.has(e.id))return false
-    seenIds.add(e.id);return true
+  // Lab — group by patient (same patient can have multiple entries — sum them)
+  const opLabByPat={}
+  dI.filter(e=>e.type==='op_l').forEach(e=>{
+    const k=(e.patient_name||'Unknown').trim().toLowerCase()
+    if(!opLabByPat[k])opLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0,ids:[]}
+    opLabByPat[k].amount+=e.amount
+    if(e.ref_doctor&&!opLabByPat[k].ref)opLabByPat[k].ref=e.ref_doctor
+    opLabByPat[k].ids.push(e.id)
   })
-  const ipLabEnts=dI.filter(e=>{
-    if(e.type!=='ip_l')return false
-    if(seenIds.has(e.id))return false
-    seenIds.add(e.id);return true
+  const opLabEnts=Object.values(opLabByPat)
+  const ipLabByPat={}
+  dI.filter(e=>e.type==='ip_l').forEach(e=>{
+    const k=e.patient_id||(e.patient_name||'Unknown').trim().toLowerCase()
+    if(!ipLabByPat[k])ipLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0}
+    ipLabByPat[k].amount+=e.amount
+    if(e.ref_doctor&&!ipLabByPat[k].ref)ipLabByPat[k].ref=e.ref_doctor
   })
+  const ipLabEnts=Object.values(ipLabByPat)
 
   // Totals
   const opConsInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
@@ -2180,16 +2186,16 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
       :<Card>
         {opLabEnts.length>0&&<div style={{marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,color:'#6366f1',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>OP Lab</div>
-          {opLabEnts.map((e,i)=>(<div key={e.id||i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
-            <div><NameBtn name={e.patient_name||'Patient'} pid={e.patient_id} isIP={false}/>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref_doctor}</div>}</div>
+          {opLabEnts.map((e,i)=>(<div key={e.name+i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
+            <div><NameBtn name={e.name} pid={e.pid} isIP={false}/>{e.ref&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref}</div>}</div>
             <div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(e.amount)}</div><TypeTag t="op_l"/></div>
           </div>))}
           <R l="OP Lab subtotal" v={fmt(opLabEnts.reduce((a,e)=>a+e.amount,0))} bold/>
         </div>}
         {ipLabEnts.length>0&&<div>
           <div style={{fontSize:11,fontWeight:700,color:'#7c3aed',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>IP Lab</div>
-          {ipLabEnts.map((e,i)=>(<div key={e.id||i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
-            <div><NameBtn name={e.patient_name||'Patient'} pid={e.patient_id} isIP={true}/>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref_doctor}</div>}</div>
+          {ipLabEnts.map((e,i)=>(<div key={e.name+i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
+            <div><NameBtn name={e.name} pid={e.pid} isIP={true}/>{e.ref&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref}</div>}</div>
             <div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(e.amount)}</div><TypeTag t="ip_l"/></div>
           </div>))}
           <R l="IP Lab subtotal" v={fmt(ipLabEnts.reduce((a,e)=>a+e.amount,0))} bold/>
@@ -2827,8 +2833,8 @@ const AnalyticsDash=({db})=>{
   const lastMonth=(()=>{const d=new Date(today);d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7)})()
   const thisYear=today.slice(0,4)
 
-  const inc=db.income
-  const exp=db.expenses.filter(e=>e.category!=='ref_paid')
+  const inc=useMemo(()=>db.income||[],[db.income])
+  const exp=useMemo(()=>(db.expenses||[]).filter(e=>e.category!=='ref_paid'),[db.expenses])
 
   // Period helpers
   const incBy=(prefix)=>inc.filter(e=>e.date?.startsWith(prefix))
