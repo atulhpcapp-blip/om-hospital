@@ -316,8 +316,46 @@ const SettingsPanel=()=>{
 }
 
 
+/*  SUPER ADMIN PREVIEW APP  */
+const PreviewApp=({db,hospital,onExit})=>{
+  if(!db||!hospital)return null
+  const [tab,setTab]=useState('rep')
+  const [rv,setRv]=useState('daily')
+  const [rd,setRd]=useState(todayStr())
+  const [rm,setRm]=useState(todayStr().slice(0,7))
+  const [ry,setRy]=useState(todayStr().slice(0,4))
+  const [ipv,setIpv]=useState('list')
+  const [ipid,setIpid]=useState('')
+  const [prevTab,setPrevTab]=useState(null)
+  const [opNavSearch,setOpNavSearch]=useState('')
+  const [opPrevTab,setOpPrevTab]=useState(null)
+  const gotoIP=useCallback((pid,from=null)=>{if(from)setPrevTab(from);setIpid(pid);setIpv('detail');setTab('ip')},[])
+  const gotoOP=useCallback((name,from=null)=>{if(from)setOpPrevTab(from);setOpNavSearch(name||'');setTab('op')},[])
+  const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  const allPaidComm=useMemo(()=>(db.expenses||[]).filter(e=>e.category==='ref_paid'),[db.expenses])
+  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')}}
+  const PTABS=[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'}]
+  return(
+    <div style={{background:'#f8fafc',minHeight:'100vh'}}>
+      <div style={{background:'#dc2626',color:'#fff',padding:'8px 16px',fontSize:12,fontWeight:700,display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:1000}}>
+        <span>SUPER ADMIN PREVIEW - {hospital.name}</span>
+        <button onClick={onExit} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Exit preview</button>
+      </div>
+      <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'10px 16px',display:'flex',gap:8,overflowX:'auto'}}>
+        {PTABS.map(t=>(<button key={t.k} onClick={()=>setTab(t.k)} style={{padding:'7px 16px',borderRadius:20,border:'none',background:tab===t.k?'#16a34a':'#f1f5f9',color:tab===t.k?'#fff':'#64748b',fontSize:13,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{t.l}</button>))}
+      </div>
+      <div style={{padding:'16px'}}>
+        {tab==='dash'&&<AnalyticsDash db={db}/>}
+        {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
+        {tab==='ip'&&<div style={{display:'block'}}><IPTab db={db} actions={fakeActions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={{name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''}} setPF={()=>{}} cF={{}} setCF={()=>{}} pyF={{}} setPyF={()=>{}} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={()=>alert('Read-only preview')}/></div>}
+        {tab==='op'&&<OPTab db={db} actions={fakeActions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
+      </div>
+    </div>
+  )
+}
+
 /*  SUPER ADMIN DASHBOARD  */
-const SuperAdminDashboard=()=>{
+const SuperAdminDashboard=({onPreview=null})=>{
   const [hospitals,setHospitals]=useState([])
   const [loading,setLoading]=useState(true)
   const [view,setView]=useState('list')
@@ -2375,12 +2413,12 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
 
 /*  MAIN APP  */
 export default function App(){
-  const [editIPPatient,setEditIPPatient]=useState(null)
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
   const [hospital,setHospital]=useState(null)
   const [isSuperAdmin,setIsSuperAdmin]=useState(false)
   const [previewHospital,setPreviewHospital]=useState(null)  // {hospital, db} - super admin preview mode
+  const [editIPPatient,setEditIPPatient]=useState(null)
   const [showRegister,setShowRegister]=useState(false)
   const [showPayment,setShowPayment]=useState(()=>new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1')
   const [loading,setLoading]=useState(true)
@@ -3403,3 +3441,5 @@ const AnalyticsDash=({db})=>{
     </div>
   )
 }
+
+import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<App/>)
