@@ -1284,6 +1284,8 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
   const [editEntry,setEditEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
   const [search,setSearch]=useState(opSearch||'')
+  // Track if we came from daily report (local copy survives re-renders)
+  const [fromReport,setFromReport]=useState(!!opPrevTab)
   const [view,setView]=useState('patients')
   const [filterDate,setFilterDate]=useState(todayStr().slice(0,7))
   const [filterRef,setFilterRef]=useState('')
@@ -1294,6 +1296,13 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
   const allPatients=Object.values(byPat).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
   const patients=search.trim()?allPatients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.reg_no.toLowerCase().includes(search.toLowerCase())):allPatients
   const allPaid=db.expenses.filter(e=>e.category==='ref_paid')
+  // Auto-open patient detail when navigated from daily report
+  useEffect(()=>{
+    if(opSearch&&opSearch.trim()){
+      const k=opSearch.trim().toLowerCase()
+      if(byPat[k]){setSelPat(k);setFromReport(true)}
+    }
+  },[opSearch])
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   if(selPat){
@@ -1305,8 +1314,8 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
     const refs=Object.values(refDocs)
     return(
       <div>
-        {opPrevTab&&<button onClick={()=>{setOpPrevTab&&setOpPrevTab(null);setTab&&setTab(opPrevTab);setSelPat(null)}} style={{color:'#16a34a',fontSize:13,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,cursor:'pointer',marginBottom:8,display:'block',padding:'6px 14px',fontWeight:600}}>Back to Daily Report</button>}
-        <button onClick={()=>{if(setOpPrevTab)setOpPrevTab(null);setSelPat(null);setPayDoc(null)}} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>All OP patients</button>
+        {fromReport&&<button onClick={()=>{setFromReport(false);setOpPrevTab&&setOpPrevTab(null);setTab&&setTab('rep');setSelPat(null)}} style={{color:'#16a34a',fontSize:13,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,cursor:'pointer',marginBottom:8,display:'block',padding:'6px 14px',fontWeight:600}}>Back to Daily Report</button>}
+        <button onClick={()=>{setFromReport(false);if(setOpPrevTab)setOpPrevTab(null);setSelPat(null);setPayDoc(null)}} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>All OP patients</button>
         <Card>
           <div style={{fontSize:17,fontWeight:700}}>{pat.name}</div>
           {pat.phone&&<div style={{fontSize:12,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}
