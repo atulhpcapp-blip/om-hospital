@@ -2373,7 +2373,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
 }
 
 /*  MAIN APP  */
-export default function App(){
+export default function App(){const [editIPPatient,setEditIPPatient]=useState(null)
   const [editIPPatient,setEditIPPatient]=useState(null)
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
