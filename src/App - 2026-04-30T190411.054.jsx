@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
@@ -3379,7 +3379,7 @@ const AnalyticsDash=({db})=>{
                   const lastMonthEntries=doc.byMonth[months[n-1]]||[]
                   const allRecent=doc.timeline.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5)
                   const totalInc=doc.timeline.reduce((a,e)=>a+e.amount,0)
-                  const [open,setOpen]=React.useState(false)
+                  const [open,setOpen]=useState(false)
                   return(<div key={doc.name} style={{background:urgency.bg,border:'1px solid '+urgency.border,borderRadius:12,padding:'12px 14px',marginBottom:8}}>
                     <div style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer'}} onClick={()=>setOpen(!open)}>
                       <div style={{flex:1}}>
