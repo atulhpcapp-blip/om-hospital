@@ -380,7 +380,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
     ])
     setHospData({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[]})
     setDataLoading(false)
-    setView('detail');setHospData({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[]})
+    setView('hospdata')
   }
   const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
@@ -398,6 +398,57 @@ const SuperAdminDashboard=({onPreview=null})=>{
     setNH({name:'',city:'',phone:'',plan:'trial',adminName:'',adminUser:'',adminPass:''})
     load();setBusy(false)
   }
+  if(view==='hospdata'&&sel&&hospData)return(
+    <div style={{background:'#f8fafc',minHeight:'100vh'}}>
+      <div style={{background:'#111',color:'#fff',padding:'14px 16px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:10}}>
+        <button onClick={()=>setView('detail')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>Back</button>
+        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700}}>{sel.name}</div><div style={{fontSize:10,color:'#9ca3af'}}>Data summary</div></div>
+      </div>
+      <div style={{padding:'16px'}}>
+        {(()=>{
+          const inc=hospData.income||[]
+          const exp=(hospData.expenses||[]).filter(e=>e.category!=='ref_paid')
+          const thisMonth=new Date().toISOString().slice(0,7)
+          const mInc=inc.filter(e=>e.date?.startsWith(thisMonth))
+          const allGross=inc.reduce((a,e)=>a+(e.amount||0),0)
+          const mGross=mInc.reduce((a,e)=>a+(e.amount||0),0)
+          const mExp=exp.filter(e=>e.date?.startsWith(thisMonth)).reduce((a,e)=>a+(e.amount||0),0)
+          const activeIP=(hospData.ip_patients||[]).filter(p=>!p.discharge_date).length
+          const totalIP=(hospData.ip_patients||[]).length
+          const owedComm=inc.reduce((a,e)=>a+getComm(e),0)
+          const paidComm=(hospData.expenses||[]).filter(e=>e.category==='ref_paid').reduce((a,e)=>a+(e.amount||0),0)
+          const cards=[
+            {l:'This month income',v:fmt(mGross),c:'#16a34a',bg:'#f0fdf4'},
+            {l:'This month expenses',v:fmt(mExp),c:'#dc2626',bg:'#fef2f2'},
+            {l:'All-time income',v:fmt(allGross),c:'#0891b2',bg:'#f0f9ff'},
+            {l:'Active IP patients',v:activeIP+' / '+totalIP+' total',c:'#7c3aed',bg:'#fdf4ff'},
+            {l:'Commission owed',v:fmt(owedComm),c:'#d97706',bg:'#fffbeb'},
+            {l:'Commission paid',v:fmt(paidComm),c:'#16a34a',bg:'#f0fdf4'},
+          ]
+          return(<>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+              {cards.map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'14px'}}>
+                <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
+                <div style={{fontSize:18,fontWeight:800,color:m.c}}>{m.v}</div>
+              </div>))}
+            </div>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:'#0f172a'}}>Recent income (last 20)</div>
+            <Card>{inc.slice(0,20).map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+              <div><div style={{fontSize:13,fontWeight:600}}>{e.patient_name||'Patient'}</div><div style={{fontSize:11,color:'#94a3b8'}}>{e.date} - {e.type}{e.ref_doctor?' | '+e.ref_doctor:''}</div></div>
+              <div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(e.amount)}</div>
+            </div>))}
+            {inc.length===0&&<div style={{textAlign:'center',padding:'20px',color:'#ccc'}}>No income yet</div>}</Card>
+            <div style={{fontWeight:700,fontSize:14,margin:'16px 0 8px',color:'#0f172a'}}>IP Patients (last 10)</div>
+            <Card>{(hospData.ip_patients||[]).slice(0,10).map((p,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+              <div><div style={{fontSize:13,fontWeight:600}}>{p.name}</div><div style={{fontSize:11,color:'#94a3b8'}}>Admitted: {p.admission_date}{p.ref_doctor?' | '+p.ref_doctor:''}</div></div>
+              <div style={{fontSize:11,fontWeight:700,color:p.discharge_date?'#94a3b8':'#16a34a'}}>{p.discharge_date?'Discharged':'Active'}</div>
+            </div>))}
+            {(hospData.ip_patients||[]).length===0&&<div style={{textAlign:'center',padding:'20px',color:'#ccc'}}>No IP patients yet</div>}</Card>
+          </>)
+        })()}
+      </div>
+    </div>
+  )
   if(view==='detail'&&sel)return(
     <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -411,8 +462,6 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={()=>toggleActive(sel.id,sel.is_active)} style={{width:'100%',padding:'12px',background:sel.is_active?'#fef2f2':'#f0fdf4',color:sel.is_active?'#dc2626':'#16a34a',border:`1px solid ${sel.is_active?'#fecaca':'#bbf7d0'}`,borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:14}}>{sel.is_active?' Suspend':' Activate'}</button>
         <SecL>Staff ({selUsers.length})</SecL>
         <Card>{selUsers.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No staff</div>:selUsers.map(u=><Row key={u.id} left={u.name||'-'} sub={`@${u.username||'-'}`} right={<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#f0f0f0',color:'#555',fontWeight:600}}>{u.role}</span>}/>)}</Card>
-        <button onClick={async()=>{const d=prompt('Enter plan end date:',sel.plan_end||'2099-12-31');if(!d)return;await supabase.from('hospitals').update({plan_end:d,is_active:true}).eq('id',sel.id);setSel({...sel,plan_end:d,is_active:true});load()}} style={{width:'100%',padding:'12px',background:'#16a34a',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:8}}>Extend Plan / Activate</button>
-        <button onClick={async()=>{setDataLoading(true);const [a,b,d,e,f]=await Promise.all([supabase.from('income').select('*').eq('hospital_id',sel.id).order('date',{ascending:false}),supabase.from('expenses').select('*').eq('hospital_id',sel.id),supabase.from('ip_patients').select('*').eq('hospital_id',sel.id),supabase.from('ref_doctors').select('*').eq('hospital_id',sel.id),supabase.from('consultants').select('*').eq('hospital_id',sel.id)]);setDataLoading(false);onPreview&&onPreview(sel,{income:a.data||[],expenses:b.data||[],ip_patients:d.data||[],ref_doctors:e.data||[],consultants:f.data||[]})}} style={{width:'100%',padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}}>{dataLoading?'Loading...':'Preview as Admin'}</button>
         <SecL>Extend plan</SecL>
         <div style={{display:'flex',gap:8,marginBottom:8}}>
           <input id="extDate" type="date" defaultValue={sel.plan_end||''} style={{flex:1,padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:10,fontSize:14}} placeholder="Pick end date"/>
@@ -2465,6 +2514,8 @@ export default function App(){
   const [ry,setRy]=useState(todayStr().slice(0,4))
 
   useEffect(()=>{
+    // Wake Supabase DB immediately (reduces cold start time)
+    supabase.from('hospitals').select('id').limit(1).then(()=>{})
     const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1'
     if(upgradeParam)sessionStorage.removeItem('pendingUpgrade')
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
@@ -2476,28 +2527,27 @@ export default function App(){
     if(!session)return
     const init=async()=>{
       const {data:sa}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
-      if(sa){setIsSuperAdmin(true);return}
+      if(sa){setIsSuperAdmin(true);setLoading(false);return}
       const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
-      if(!prof?.hospital_id)return
-      // Fetch hospital + all data in parallel (saves one round-trip)
-      const [{data:hosp},[inc,exp,pts,rds,cons]]=await Promise.all([
-        supabase.from('hospitals').select('*').eq('id',prof.hospital_id).single(),
+      if(!prof?.hospital_id){setProfile(prof);setLoading(false);return}
+      const hid=prof.hospital_id
+      const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
+        supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
-          supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',prof.hospital_id).order('date',{ascending:false}),
-          supabase.from('ip_patients').select('*').eq('hospital_id',prof.hospital_id).order('admission_date',{ascending:false}),
-          supabase.from('ref_doctors').select('*').eq('hospital_id',prof.hospital_id).order('name'),
-          supabase.from('consultants').select('*').eq('hospital_id',prof.hospital_id).order('name')
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
+          supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
+          supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
+          supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
+          supabase.from('consultants').select('*').eq('hospital_id',hid).order('name')
         ])
       ])
       setProfile(prof)
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
-      setDb({income:inc.data||[],expenses:exp.data||[],ip_patients:pts.data||[],ref_doctors:rds.data||[],consultants:cons.data||[]})
-      // Set default tab based on role - admin/management open Reports
+      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[]})
+      setLoading(false)
       if(!tabInitialized){
-        const role=prof?.role
-        if(role==='admin'||role==='management')setTab('rep')
+        if(prof?.role==='admin'||prof?.role==='management')setTab('rep')
         setTabInitialized(true)
       }
     }
@@ -2561,7 +2611,7 @@ export default function App(){
   const canSeeReports=isAdmin||isManagement
   const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
-  if(loading||dbLoading||(!profile&&session&&!isSuperAdmin))return(
+  if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)'}}>
       <svg width="52" height="52" viewBox="0 0 40 40" fill="none" style={{marginBottom:16}}><rect width="40" height="40" rx="12" fill="rgba(0,192,107,0.15)"/><rect x="16" y="6" width="8" height="28" rx="4" fill="#00c06b"/><rect x="6" y="16" width="28" height="8" rx="4" fill="#00c06b"/><circle cx="20" cy="20" r="5" fill="#00e87f"/></svg>
       <div style={{fontSize:18,fontWeight:700,color:'#fff',marginBottom:4,letterSpacing:'-0.5px'}}>EasyMedical</div>
@@ -3306,7 +3356,32 @@ const AnalyticsDash=({db})=>{
         return(<><SegCard title="Clinical and Pharmacy" color="#0891b2" bg="#ecfeff" gross={clinGross} commAmt={clinComm} expBreakdown={clinExpCats} actual={clinActual} incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"/><SegCard title="Laboratory" color="#7c3aed" bg="#f5f3ff" gross={labGross} commAmt={labComm} expBreakdown={{'Lab to lab':labToLab}} actual={labActual} incTypes="OP-Lab + IP-Lab"/></>)
       })()}
 
-          <SecL>Today's income</SecL><div style={{borderRadius:18,overflow:'hidden',marginBottom:16,background:'linear-gradient(135deg,#0f172a,#1e3a5f)',padding:'18px 20px'}}><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'12px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:6}}>REAL INCOME TODAY</div><div style={{fontSize:24,fontWeight:900,color:'#4ade80'}}>{fmt(todayTotal-todayComm)}</div><div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:2}}>After commissions</div></div><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'12px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:6}}>ACTUAL INCOME TODAY</div><div style={{fontSize:24,fontWeight:900,color:'#34d399'}}>{fmt(todayTotal-todayComm-todayExpTotal)}</div><div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:2}}>After all expenses</div></div></div><div style={{fontSize:11,color:'rgba(255,255,255,0.4)',display:'flex',flexDirection:'column',gap:5}}><div style={{display:'flex',justifyContent:'space-between'}}><span>Gross collected</span><span style={{color:'rgba(255,255,255,0.8)',fontWeight:600}}>{fmt(todayTotal)}</span></div><div style={{display:'flex',justifyContent:'space-between'}}><span>Commissions</span><span style={{color:'#fbbf24',fontWeight:600}}>- {fmt(todayComm)}</span></div><div style={{display:'flex',justifyContent:'space-between'}}><span>Expenses</span><span style={{color:'#f87171',fontWeight:600}}>- {fmt(todayExpTotal)}</span></div></div></div>   
+      {/* DAILY REAL & ACTUAL INCOME */}
+      <SecL>Today's income</SecL>
+      <div style={{borderRadius:18,overflow:'hidden',marginBottom:16}}>
+        <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)',padding:'18px 20px'}}>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>{new Date(today+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:12,padding:'12px'}}>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income</div>
+              <div style={{fontSize:22,fontWeight:900,color:'#4ade80'}}>{fmt(todayTotal-todayComm)}</div>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:3}}>After ref commissions</div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:12,padding:'12px'}}>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Actual income</div>
+              <div style={{fontSize:22,fontWeight:900,color:'#34d399'}}>{fmt(todayTotal-todayComm-todayExpTotal)}</div>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:3}}>After all expenses</div>
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}><span style={{color:'rgba(255,255,255,0.4)'}}>Gross collected</span><span style={{color:'rgba(255,255,255,0.8)',fontWeight:600}}>{fmt(todayTotal)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}><span style={{color:'rgba(255,255,255,0.4)'}}>Commissions</span><span style={{color:'#fbbf24',fontWeight:600}}>- {fmt(todayComm)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}><span style={{color:'rgba(255,255,255,0.4)'}}>Expenses</span><span style={{color:'#f87171',fontWeight:600}}>- {fmt(todayExpTotal)}</span></div>
+          </div>
+        </div>
+      </div>
+
+      {/* MEDICAL SUPPLIES */}
       <SecL>Medical supplies ordered - this month</SecL>
       <Card>
         {(()=>{
