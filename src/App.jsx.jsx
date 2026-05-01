@@ -3356,6 +3356,31 @@ const AnalyticsDash=({db})=>{
         return(<><SegCard title="Clinical and Pharmacy" color="#0891b2" bg="#ecfeff" gross={clinGross} commAmt={clinComm} expBreakdown={clinExpCats} actual={clinActual} incTypes="OP + OP-Pharmacy + IP + IP-Pharmacy"/><SegCard title="Laboratory" color="#7c3aed" bg="#f5f3ff" gross={labGross} commAmt={labComm} expBreakdown={{'Lab to lab':labToLab}} actual={labActual} incTypes="OP-Lab + IP-Lab"/></>)
       })()}
 
+      {/* DAILY REAL & ACTUAL INCOME */}
+      <SecL>Today's income</SecL>
+      <div style={{borderRadius:18,overflow:'hidden',marginBottom:16}}>
+        <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)',padding:'18px 20px'}}>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>{new Date(today+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:12,padding:'12px'}}>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income</div>
+              <div style={{fontSize:22,fontWeight:900,color:'#4ade80'}}>{fmt(todayTotal-todayComm-todayVCFees)}</div>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:3}}>After ref commissions</div>
+            </div>
+            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:12,padding:'12px'}}>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Actual income</div>
+              <div style={{fontSize:22,fontWeight:900,color:'#34d399'}}>{fmt(todayTotal-todayComm-todayVCFees-todayExpTotal)}</div>
+              <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:3}}>After all expenses</div>
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}><span style={{color:'rgba(255,255,255,0.4)'}}>Gross collected</span><span style={{color:'rgba(255,255,255,0.8)',fontWeight:600}}>{fmt(todayTotal)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}><span style={{color:'rgba(255,255,255,0.4)'}}>Commissions</span><span style={{color:'#fbbf24',fontWeight:600}}>- {fmt(todayComm+todayVCFees)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}><span style={{color:'rgba(255,255,255,0.4)'}}>Expenses</span><span style={{color:'#f87171',fontWeight:600}}>- {fmt(todayExpTotal)}</span></div>
+          </div>
+        </div>
+      </div>
+
       {/* MEDICAL SUPPLIES */}
       <SecL>Medical supplies ordered - this month</SecL>
       <Card>
