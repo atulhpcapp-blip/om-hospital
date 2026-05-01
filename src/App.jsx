@@ -2903,7 +2903,7 @@ const PaymentPage=({onBack=null})=>{
     const hid=prof?.hospital_id
     if(!hid){setErr('Hospital not found.');setBusy(false);return}
     const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',hid).single()
-    const res=await fetch(SUPABASE_URL+'/functions/v1/create-order',{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/create-subscription',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
       body:JSON.stringify({hospital_id:hid,plan,billing})
