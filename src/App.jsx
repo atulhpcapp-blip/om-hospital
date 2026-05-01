@@ -2246,7 +2246,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     <div style={{display:'flex',gap:8,marginBottom:14}}>
       <input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/>
       <GBtn onClick={()=>setRd(todayStr())}>Today</GBtn>
-    </div>
+    </div> 
+    <div style={{borderRadius:16,overflow:'hidden',marginBottom:12,background:'linear-gradient(135deg,#0f172a,#1e3a5f)',padding:'16px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:10}}>REAL AND ACTUAL INCOME - {rd}</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>REAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#4ade80'}}>{fmt(dI.reduce((a,e)=>a+e.amount,0)-dI.reduce((a,e)=>a+getComm(e),0))}</div></div><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>ACTUAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#34d399'}}>{fmt(dI.reduce((a,e)=>a+e.amount,0)-dI.reduce((a,e)=>a+getComm(e),0)-db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0))}</div></div></div></div>
 
     {/* OP CONSULTATION */}
     <SecL>OP Consultation</SecL>
