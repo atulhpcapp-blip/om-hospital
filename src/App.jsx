@@ -3333,7 +3333,7 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
               const tiers=['starter','pro','enterprise']
               const currentIdx=tiers.indexOf(currentPlan)
               const thisIdx=tiers.indexOf(k)
-              const isLocked=currentPlan&&thisIdx<=currentIdx
+              const isLocked=currentPlan&&thisIdx<currentIdx  // only lock LOWER tiers
               const isCurrent=currentPlan===k
               return(<div key={k} onClick={()=>!isLocked&&setPlan(k)} style={{background:isCurrent?'rgba(255,255,255,0.05)':plan===k?'rgba(0,192,107,0.08)':'rgba(255,255,255,0.03)',border:isCurrent?'1px solid rgba(255,255,255,0.15)':plan===k?'2px solid rgba(0,192,107,0.5)':'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px',cursor:isLocked?'not-allowed':'pointer',opacity:isLocked?0.5:1,transition:'all .2s',position:'relative'}}>
               {isCurrent&&<div style={{position:'absolute',top:-10,right:16,background:'rgba(255,255,255,0.2)',color:'#fff',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>CURRENT PLAN</div>}
