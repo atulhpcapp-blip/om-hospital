@@ -3145,7 +3145,8 @@ const AnalyticsDash=({db})=>{
 
   return(
     <div>
-      <SmartReminders db={db}/>
+      <SmartReminders db={db}/> 
+      <div style={{borderRadius:16,overflow:'hidden',marginBottom:12,background:'linear-gradient(135deg,#0f172a,#1e3a5f)',padding:'16px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:10}}>TODAY - REAL AND ACTUAL INCOME</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>REAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#4ade80'}}>{fmt(todayTotal-todayComm)}</div></div><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>ACTUAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#34d399'}}>{fmt(todayTotal-todayComm-todayExpTotal)}</div></div></div><div style={{fontSize:11,color:'rgba(255,255,255,0.4)',display:'flex',justifyContent:'space-between'}}><span>Gross: {fmt(todayTotal)}</span><span style={{color:'#fbbf24'}}>Comm: -{fmt(todayComm)}</span><span style={{color:'#f87171'}}>Exp: -{fmt(todayExpTotal)}</span></div></div>
             {/* TODAY STRIP */}
       <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)',borderRadius:16,padding:'16px',marginBottom:14,color:'#fff'}}>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:10}}>Today  {new Date(today+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
