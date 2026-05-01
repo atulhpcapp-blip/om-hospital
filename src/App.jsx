@@ -1994,7 +1994,7 @@ const RealIncomeReport=({db})=>{
     {!hasData
       ?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No data for this period</div>
       :<>
-        <Card>
+       <div style={{marginTop:12,paddingTop:10,borderTop:'1px dashed #e5e7eb'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payment mode breakdown</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>{[{k:'cash',l:'Cash',bg:'#f0fdf4',c:'#16a34a'},{k:'upi',l:'UPI / Scan',bg:'#eff6ff',c:'#2563eb'},{k:'card',l:'Card',bg:'#fdf4ff',c:'#7c3aed'},{k:'bank',l:'Bank',bg:'#fff7ed',c:'#d97706'},{k:'credit',l:'Credit (Due)',bg:'#fef2f2',c:'#dc2626'}].map(m=>{const amt=incList.filter(e=>e.payment===m.k).reduce((a,e)=>a+(e.amount||0),0);if(!amt)return null;return(<div key={m.k} style={{background:m.bg,borderRadius:10,padding:'8px 10px'}}><div style={{fontSize:10,color:m.c,fontWeight:700,marginBottom:3}}>{m.l}</div><div style={{fontSize:14,fontWeight:800,color:m.c}}>{fmt(amt)}</div></div>)})}</div></div> <Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Collected</div>
