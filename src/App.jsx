@@ -2228,15 +2228,23 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const opLabByPat={}
   dI.filter(e=>e.type==='op_l').forEach(e=>{
     const k=(e.patient_name||'Unknown').trim().toLowerCase()
-    if(!opLabByPat[k])opLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0}
+    if(!opLabByPat[k])opLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0,cash:0,upi:0,card:0,credit:0}
     opLabByPat[k].amount+=e.amount
+    if(e.payment==='cash')opLabByPat[k].cash+=e.amount
+    else if(e.payment==='upi')opLabByPat[k].upi+=e.amount
+    else if(e.payment==='card')opLabByPat[k].card+=e.amount
+    else if(e.payment==='credit')opLabByPat[k].credit+=e.amount
     if(e.ref_doctor&&!opLabByPat[k].ref)opLabByPat[k].ref=e.ref_doctor
   })
   const ipLabByPat={}
   dI.filter(e=>e.type==='ip_l').forEach(e=>{
     const k=e.patient_id||(e.patient_name||'Unknown').trim().toLowerCase()
-    if(!ipLabByPat[k])ipLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0}
+    if(!ipLabByPat[k])ipLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0,cash:0,upi:0,card:0,credit:0}
     ipLabByPat[k].amount+=e.amount
+    if(e.payment==='cash')ipLabByPat[k].cash+=e.amount
+    else if(e.payment==='upi')ipLabByPat[k].upi+=e.amount
+    else if(e.payment==='card')ipLabByPat[k].card+=e.amount
+    else if(e.payment==='credit')ipLabByPat[k].credit+=e.amount
     if(e.ref_doctor&&!ipLabByPat[k].ref)ipLabByPat[k].ref=e.ref_doctor
   })
   const opLabEnts=Object.values(opLabByPat)
@@ -2293,11 +2301,21 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           const consFee=pat.entries.reduce((a,e)=>a+(e.consultant_fee||0),0)
           const consName=pat.entries.find(e=>e.consultant_name)?.consultant_name
           const ref=pat.entries.find(e=>e.ref_doctor)?.ref_doctor
+          const cashAmt=pat.entries.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
+          const upiAmt=pat.entries.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
+          const cardAmt=pat.entries.filter(e=>e.payment==='card').reduce((a,e)=>a+e.amount,0)
+          const creditAmt=pat.entries.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
           return(<div key={pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>
                 {ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
                 {consFee>0&&<div style={{fontSize:11,color:'#7c3aed',marginTop:2}}>Cons fee: {fmt(consFee)}{consName?' ('+consName+')':''}</div>}
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
+                  {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
+                  {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
+                  {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
+                  {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
+                </div>
               </div>
               <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(total)}</div><TypeTag t="op"/></div>
             </div>
@@ -2339,9 +2357,20 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         {Object.values(oprByPat).map(pat=>{
           const total=pat.entries.reduce((a,e)=>a+e.amount,0)
           const ref=pat.entries.find(e=>e.ref_doctor)?.ref_doctor
+          const cashAmt=pat.entries.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
+          const upiAmt=pat.entries.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
+          const cardAmt=pat.entries.filter(e=>e.payment==='card').reduce((a,e)=>a+e.amount,0)
+          const creditAmt=pat.entries.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
           return(<div key={pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>{ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}</div>
+              <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>{ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
+                  {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
+                  {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
+                  {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
+                  {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
+                </div>
+              </div>
               <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(total)}</div><TypeTag t="op_r"/></div>
             </div>
           </div>)
@@ -2354,7 +2383,12 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     {Object.keys(ipByPat).length===0
       ?<div style={{color:'#ccc',fontSize:13,padding:'8px 0',marginBottom:8}}>No IP entries today</div>
       :<Card>
-        {Object.values(ipByPat).map(pat=>(<div key={pat.id||pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
+        {Object.values(ipByPat).map(pat=>{
+          const ipEnts=dI.filter(e=>['ip','ip_r'].includes(e.type)&&(e.patient_id===pat.id||(e.patient_name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()))
+          const cashAmt=ipEnts.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
+          const upiAmt=ipEnts.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
+          const creditAmt=ipEnts.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
+          return(<div key={pat.id||pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
             <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.id} isIP={true}/>
               <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:4}}>
@@ -2362,10 +2396,16 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                 {pat.ip_r>0&&<span style={{fontSize:11,color:'#16a34a',fontWeight:600}}>IP Pharmacy: {fmt(pat.ip_r)}</span>}
               </div>
               {pat.ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {pat.ref}</div>}
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
+                {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
+                {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
+                {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
+              </div>
             </div>
             <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(pat.ip+pat.ip_r)}</div></div>
           </div>
-        </div>))}
+        </div>)})}
+
         <R l="IP Total" v={fmt(ipInc)} bold green/>
       </Card>}
 
@@ -2377,7 +2417,14 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         {opLabEnts.length>0&&<div style={{marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,color:'#6366f1',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>OP Lab</div>
           {opLabEnts.map((e,i)=>(<div key={e.name+i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
-            <div><NameBtn name={e.name} pid={e.pid} isIP={false}/>{e.ref&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref}</div>}</div>
+            <div style={{flex:1}}><NameBtn name={e.name} pid={e.pid} isIP={false}/>{e.ref&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref}</div>}
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:3}}>
+                {e.cash>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(e.cash)}</span>}
+                {e.upi>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(e.upi)}</span>}
+                {e.card>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(e.card)}</span>}
+                {e.credit>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(e.credit)}</span>}
+              </div>
+            </div>
             <div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(e.amount)}</div><TypeTag t="op_l"/></div>
           </div>))}
           <R l="OP Lab subtotal" v={fmt(opLabEnts.reduce((a,e)=>a+e.amount,0))} bold/>
@@ -2385,7 +2432,14 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         {ipLabEnts.length>0&&<div>
           <div style={{fontSize:11,fontWeight:700,color:'#7c3aed',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>IP Lab</div>
           {ipLabEnts.map((e,i)=>(<div key={e.name+i} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
-            <div><NameBtn name={e.name} pid={e.pid} isIP={true}/>{e.ref&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref}</div>}</div>
+            <div style={{flex:1}}><NameBtn name={e.name} pid={e.pid} isIP={true}/>{e.ref&&<div style={{fontSize:11,color:'#d97706'}}>Ref: {e.ref}</div>}
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:3}}>
+                {e.cash>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(e.cash)}</span>}
+                {e.upi>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(e.upi)}</span>}
+                {e.card>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(e.card)}</span>}
+                {e.credit>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(e.credit)}</span>}
+              </div>
+            </div>
             <div style={{textAlign:'right'}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(e.amount)}</div><TypeTag t="ip_l"/></div>
           </div>))}
           <R l="IP Lab subtotal" v={fmt(ipLabEnts.reduce((a,e)=>a+e.amount,0))} bold/>
