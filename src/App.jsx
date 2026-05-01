@@ -2827,6 +2827,37 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
 }
 
 /*  MAIN APP  */
+/*  SLOW LOAD / MAINTENANCE WARNING  */
+const SlowLoadWarning=()=>{
+  const [showSlow,setShowSlow]=useState(false)
+  const [showOffline,setShowOffline]=useState(!navigator.onLine)
+  useEffect(()=>{
+    const t=setTimeout(()=>setShowSlow(true),8000) // show after 8 sec
+    const onOffline=()=>setShowOffline(true)
+    const onOnline=()=>setShowOffline(false)
+    window.addEventListener('offline',onOffline)
+    window.addEventListener('online',onOnline)
+    return()=>{clearTimeout(t);window.removeEventListener('offline',onOffline);window.removeEventListener('online',onOnline)}
+  },[])
+  if(showOffline)return(
+    <div style={{background:'rgba(220,38,38,0.15)',border:'1px solid rgba(220,38,38,0.3)',borderRadius:14,padding:'16px 20px',maxWidth:320,textAlign:'center'}}>
+      <div style={{fontSize:24,marginBottom:8}}>📡</div>
+      <div style={{fontSize:14,fontWeight:700,color:'#fca5a5',marginBottom:6}}>No internet connection</div>
+      <div style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>Please check your WiFi or mobile data and try again</div>
+      <button onClick={()=>window.location.reload()} style={{marginTop:12,padding:'8px 20px',background:'#dc2626',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Retry</button>
+    </div>
+  )
+  if(showSlow)return(
+    <div style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:14,padding:'16px 20px',maxWidth:320,textAlign:'center'}}>
+      <div style={{fontSize:24,marginBottom:8}}>☕</div>
+      <div style={{fontSize:13,fontWeight:700,color:'rgba(255,255,255,0.8)',marginBottom:6}}>Taking longer than usual...</div>
+      <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',marginBottom:12}}>The server is waking up. This happens after periods of inactivity. Usually ready in 10-15 seconds.</div>
+      <button onClick={()=>window.location.reload()} style={{padding:'8px 20px',background:'rgba(0,192,107,0.2)',border:'1px solid rgba(0,192,107,0.3)',borderRadius:8,color:'#00c06b',fontSize:13,fontWeight:700,cursor:'pointer'}}>Refresh</button>
+    </div>
+  )
+  return null
+}
+
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -2955,13 +2986,14 @@ export default function App(){
   const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
-    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)'}}>
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
       <svg width="52" height="52" viewBox="0 0 40 40" fill="none" style={{marginBottom:16}}><rect width="40" height="40" rx="12" fill="rgba(0,192,107,0.15)"/><rect x="16" y="6" width="8" height="28" rx="4" fill="#00c06b"/><rect x="6" y="16" width="28" height="8" rx="4" fill="#00c06b"/><circle cx="20" cy="20" r="5" fill="#00e87f"/></svg>
       <div style={{fontSize:18,fontWeight:700,color:'#fff',marginBottom:4,letterSpacing:'-0.5px'}}>EasyMedical</div>
       <div style={{fontSize:12,color:'rgba(0,192,107,0.6)',marginBottom:24,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.12em'}}>Solutions</div>
-      <div style={{display:'flex',gap:6}}>
+      <div style={{display:'flex',gap:6,marginBottom:32}}>
         {[0,1,2].map(i=><div key={i} style={{width:8,height:8,borderRadius:'50%',background:'#00c06b',opacity:0.8,animation:'pulse 1.2s ease-in-out infinite',animationDelay:i*0.2+'s'}}/>)}
       </div>
+      <SlowLoadWarning/>
       <style>{`@keyframes pulse{0%,100%{transform:scale(0.7);opacity:0.4}50%{transform:scale(1);opacity:1}}`}</style>
     </div>
   )
