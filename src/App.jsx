@@ -2092,6 +2092,206 @@ const RealIncomeReport=({db})=>{
       </>}
   </>)
 }
+/*  LOST DOCTORS REPORT  */
+const LostDoctorsReport=({db})=>{
+  const inc=db.income||[]
+  const today=todayStr()
+  const thisMonth=today.slice(0,7)
+  
+  // Get month strings for past 6 months
+  const getMonth=(monthsBack)=>{
+    const d=new Date()
+    d.setMonth(d.getMonth()-monthsBack)
+    return d.toISOString().slice(0,7)
+  }
+  
+  // Doctors who sent patients this month
+  const activeThisMonth=new Set(inc.filter(e=>e.date?.startsWith(thisMonth)&&e.ref_doctor?.trim()).map(e=>e.ref_doctor.trim()))
+  
+  // For each past month, find doctors who sent patients then but NOT this month
+  const periods=[1,2,3,4,5,6].map(n=>{
+    const mon=getMonth(n)
+    const [yr,mo]=mon.split('-')
+    const label=MOFULL[parseInt(mo)-1]+' '+yr
+    const docsThisMonth=new Set(inc.filter(e=>e.date?.startsWith(mon)&&e.ref_doctor?.trim()).map(e=>e.ref_doctor.trim()))
+    const lostDocs=[...docsThisMonth].filter(d=>!activeThisMonth.has(d))
+    // Get their patient count and income from that month
+    const details=lostDocs.map(doc=>{
+      const docInc=inc.filter(e=>e.date?.startsWith(mon)&&e.ref_doctor===doc)
+      const pts=new Set(docInc.map(e=>e.patient_name||e.patient_id)).size
+      const total=docInc.reduce((a,e)=>a+e.amount,0)
+      const lastSeen=inc.filter(e=>e.ref_doctor===doc).map(e=>e.date).sort().reverse()[0]||mon
+      return{doc,pts,total,lastSeen}
+    }).sort((a,b)=>b.total-a.total)
+    return{mon,label,n,lostDocs:details}
+  }).filter(p=>p.lostDocs.length>0)
+
+  return(<>
+    <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:14,padding:'14px 16px',marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#991b1b',marginBottom:4}}>Lost referral doctors</div>
+      <div style={{fontSize:12,color:'#b91c1c'}}>Doctors who sent patients in past months but have NOT sent anyone this month. Call them today.</div>
+    </div>
+    {periods.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No lost doctors found — all referrals are active!</div>}
+    {periods.map(p=>(<div key={p.mon} style={{marginBottom:20}}>
+      <SecL>{p.n} month{p.n>1?'s':''} ago — {p.label} ({p.lostDocs.length} doctor{p.lostDocs.length>1?'s':''})</SecL>
+      <Card>
+        {p.lostDocs.map((d,i)=>(<div key={d.doc} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Dr. {d.doc}</div>
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{d.pts} patient{d.pts>1?'s':''} that month — Income: {fmt(d.total)}</div>
+            <div style={{fontSize:11,color:'#d97706',marginTop:1}}>Last seen: {fmtD(d.lastSeen)}</div>
+          </div>
+          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700,whiteSpace:'nowrap'}}>{p.n}mo ago</span>
+        </div>))}
+      </Card>
+    </div>))}
+  </>)
+}
+
+/*  SUPPLIES REPORT  */
+const SuppliesReport=({db,actions})=>{
+  const [newItem,setNewItem]=useState('')
+  const [newQty,setNewQty]=useState('')
+  const [newUnit,setNewUnit]=useState('units')
+  const [adding,setAdding]=useState(false)
+  
+  // Use expenses with category 'supplies' as supply tracking
+  const supplies=db.expenses.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const thisMonth=todayStr().slice(0,7)
+  const monthSupplies=supplies.filter(e=>e.date?.startsWith(thisMonth))
+  const totalSpent=monthSupplies.reduce((a,e)=>a+e.amount,0)
+
+  return(<>
+    <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:14,padding:'14px 16px',marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#15803d'}}>Medical supplies this month</div>
+      <div style={{fontSize:22,fontWeight:800,color:'#16a34a',marginTop:4}}>{fmt(totalSpent)}</div>
+      <div style={{fontSize:11,color:'#86efac',marginTop:2}}>{monthSupplies.length} entries</div>
+    </div>
+    {adding?(<div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:14,padding:'16px',marginBottom:16}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Add supply entry</div>
+      <FInp label="Item name" value={newItem} onChange={e=>setNewItem(e.target.value)} placeholder="e.g. Gloves, Syringes, Bandages"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        <FInp label="Amount (Rs)" type="number" value={newQty} onChange={e=>setNewQty(e.target.value)} placeholder="500"/>
+        <FSel label="Unit" value={newUnit} onChange={e=>setNewUnit(e.target.value)}>
+          <option>units</option><option>boxes</option><option>packets</option><option>bottles</option><option>strips</option>
+        </FSel>
+      </div>
+      <div style={{display:'flex',gap:8,marginTop:8}}>
+        <PBtn onClick={async()=>{if(!newItem||!newQty){alert('Enter item and amount');return}await actions.addExpense({id:uid(),date:todayStr(),category:'supplies',amount:parseFloat(newQty),description:newItem+' ('+newUnit+')',payment:'cash',is_monthly:false});setNewItem('');setNewQty('');setAdding(false)}}>Save</PBtn>
+        <button onClick={()=>setAdding(false)} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,cursor:'pointer'}}>Cancel</button>
+      </div>
+    </div>):(<GBtn onClick={()=>setAdding(true)} style={{width:'100%',marginBottom:16}}>+ Add supply purchase</GBtn>)}
+    <SecL>All supply entries</SecL>
+    {supplies.length===0?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No supplies recorded yet</div>:
+    <Card>
+      {supplies.map((e,i)=>(<div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Supply'}</div>
+          <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)}</div>
+        </div>
+        <div style={{fontSize:14,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</div>
+      </div>))}
+    </Card>}
+  </>)
+}
+
+/*  INCOME CHART REPORT  */
+const IncomeChartReport=({db})=>{
+  const [period,setPeriod]=useState('month')
+  const [mon,setMon]=useState(todayStr().slice(0,7))
+  const [yr,setYr]=useState(todayStr().slice(0,4))
+  const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  
+  const inc=db.income||[]
+  const exps=(db.expenses||[]).filter(e=>e.category!=='ref_paid')
+  
+  let chartData=[]
+  if(period==='month'){
+    const days=[...new Set(inc.filter(e=>e.date?.startsWith(mon)).map(e=>e.date))].sort()
+    chartData=days.map(d=>{
+      const dI=inc.filter(e=>e.date===d)
+      const dE=exps.filter(e=>e.date===d)
+      const gross=dI.reduce((a,e)=>a+e.amount,0)
+      const comm=dI.reduce((a,e)=>a+getComm(e),0)
+      const exp=dE.reduce((a,e)=>a+e.amount,0)
+      return{label:d.slice(8),gross,real:gross-comm,actual:gross-comm-exp}
+    })
+  } else {
+    const mons=[...new Set(inc.filter(e=>e.date?.startsWith(yr)).map(e=>e.date?.slice(0,7)))].sort()
+    chartData=mons.map(m=>{
+      const mI=inc.filter(e=>e.date?.startsWith(m))
+      const mE=exps.filter(e=>e.date?.startsWith(m))
+      const gross=mI.reduce((a,e)=>a+e.amount,0)
+      const comm=mI.reduce((a,e)=>a+getComm(e),0)
+      const exp=mE.reduce((a,e)=>a+e.amount,0)
+      const [,mo]=m.split('-')
+      return{label:MOS[parseInt(mo)-1],gross,real:gross-comm,actual:gross-comm-exp}
+    })
+  }
+  
+  const maxVal=Math.max(...chartData.map(d=>d.gross),1)
+  
+  return(<>
+    <div style={{display:'flex',gap:6,marginBottom:12}}>
+      {[{k:'month',l:'Monthly'},{k:'year',l:'Yearly'}].map(t=>(<button key={t.k} onClick={()=>setPeriod(t.k)} style={{padding:'6px 16px',borderRadius:20,border:period===t.k?'none':'1px solid #e5e7eb',background:period===t.k?'#16a34a':'none',color:period===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
+    </div>
+    {period==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={mon} onChange={e=>setMon(e.target.value)}/>}
+    {period==='year'&&<select style={{...S.sel,marginBottom:12}} value={yr} onChange={e=>setYr(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+    
+    {/* Legend */}
+    <div style={{display:'flex',gap:16,marginBottom:16,flexWrap:'wrap'}}>
+      {[{c:'#16a34a',l:'Gross collected'},{c:'#2563eb',l:'Real income'},{c:'#7c3aed',l:'Actual income'}].map(m=>(<div key={m.l} style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><div style={{width:12,height:12,borderRadius:3,background:m.c}}/>{m.l}</div>))}
+    </div>
+    
+    {chartData.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc'}}>No data for this period</div>:
+    <div style={{overflowX:'auto'}}>
+      <div style={{minWidth:Math.max(chartData.length*60,300),paddingBottom:8}}>
+        {/* Chart bars */}
+        <div style={{display:'flex',alignItems:'flex-end',gap:4,height:200,marginBottom:8,borderBottom:'2px solid #f0f0f0',paddingTop:8}}>
+          {chartData.map((d,i)=>(
+            <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,height:'100%',justifyContent:'flex-end',minWidth:40}}>
+              <div style={{width:'100%',display:'flex',gap:2,alignItems:'flex-end',height:'100%',justifyContent:'flex-end'}}>
+                <div style={{flex:1,background:'#16a34a',borderRadius:'3px 3px 0 0',height:Math.round((d.gross/maxVal)*180)+'px',minHeight:d.gross>0?2:0}}/>
+                <div style={{flex:1,background:'#2563eb',borderRadius:'3px 3px 0 0',height:Math.round((d.real/maxVal)*180)+'px',minHeight:d.real>0?2:0}}/>
+                <div style={{flex:1,background:'#7c3aed',borderRadius:'3px 3px 0 0',height:Math.round((Math.max(d.actual,0)/maxVal)*180)+'px',minHeight:Math.max(d.actual,0)>0?2:0}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* X-axis labels */}
+        <div style={{display:'flex',gap:4}}>
+          {chartData.map((d,i)=>(<div key={i} style={{flex:1,textAlign:'center',fontSize:10,color:'#94a3b8',minWidth:40}}>{d.label}</div>))}
+        </div>
+      </div>
+    </div>}
+    
+    {/* Summary table */}
+    {chartData.length>0&&<>
+      <SecL>Summary</SecL>
+      <Card>
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,paddingBottom:8,borderBottom:'1px solid #f0f0f0',marginBottom:4}}>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700}}></div>
+          <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textAlign:'right',minWidth:72}}>Gross</div>
+          <div style={{fontSize:10,color:'#2563eb',fontWeight:700,textAlign:'right',minWidth:72}}>Real</div>
+          <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textAlign:'right',minWidth:72}}>Actual</div>
+        </div>
+        {chartData.map((d,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
+          <span style={{fontSize:12,fontWeight:600}}>{d.label}</span>
+          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#16a34a'}}>{fmt(d.gross)}</span>
+          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#2563eb'}}>{fmt(d.real)}</span>
+          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:d.actual>=0?'#7c3aed':'#dc2626',fontWeight:d.actual<0?700:400}}>{fmt(d.actual)}</span>
+        </div>))}
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',borderTop:'2px solid #111',marginTop:4}}>
+          <span style={{fontSize:13,fontWeight:800}}>Total</span>
+          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#16a34a'}}>{fmt(chartData.reduce((a,d)=>a+d.gross,0))}</span>
+          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#2563eb'}}>{fmt(chartData.reduce((a,d)=>a+d.real,0))}</span>
+          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#7c3aed'}}>{fmt(chartData.reduce((a,d)=>a+d.actual,0))}</span>
+        </div>
+      </Card>
+    </>}
+  </>)
+}
+
 /*  REPORTS TAB  */
 /*  AREA-WISE REPORT  */
 const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
@@ -2528,6 +2728,42 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>)
       })}
     </div>
+    <SecL>Income chart — last 30 days</SecL>
+    {(()=>{
+      const days=[];const today=new Date();
+      for(let i=29;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(d.toISOString().split('T')[0])}
+      const chartData=days.map(d=>{
+        const dI2=db.income.filter(e=>e.date===d)
+        const dE=db.expenses.filter(e=>e.date===d&&e.category!=='ref_paid')
+        const gross=dI2.reduce((a,e)=>a+e.amount,0)
+        const comm=dI2.reduce((a,e)=>a+getComm(e),0)
+        const exp=dE.reduce((a,e)=>a+e.amount,0)
+        return{label:d.slice(8),date:d,gross,real:gross-comm,actual:gross-comm-exp,isSelected:d===rd}
+      })
+      const maxVal=Math.max(...chartData.map(d=>d.gross),1)
+      return(<div style={{background:'#fff',borderRadius:14,border:'1px solid #f0f0f0',padding:'14px',marginBottom:16}}>
+        <div style={{display:'flex',gap:12,marginBottom:10,flexWrap:'wrap'}}>
+          {[{c:'#16a34a',l:'Gross'},{c:'#2563eb',l:'Real'},{c:'#7c3aed',l:'Actual'}].map(m=>(<div key={m.l} style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}><div style={{width:10,height:10,borderRadius:2,background:m.c}}/>{m.l}</div>))}
+        </div>
+        <div style={{overflowX:'auto'}}>
+          <div style={{minWidth:900,paddingBottom:4}}>
+            <div style={{display:'flex',alignItems:'flex-end',gap:2,height:120,marginBottom:4,borderBottom:'1px solid #f0f0f0'}}>
+              {chartData.map((d,i)=>(
+                <div key={i} onClick={()=>setRd(d.date)} style={{flex:1,display:'flex',gap:1,alignItems:'flex-end',height:'100%',cursor:'pointer',minWidth:20,opacity:d.isSelected?1:0.75,filter:d.isSelected?'brightness(1.1)':'none'}}>
+                  <div style={{flex:1,background:'#16a34a',borderRadius:'2px 2px 0 0',height:Math.round((d.gross/maxVal)*110)+'px'}}/>
+                  <div style={{flex:1,background:'#2563eb',borderRadius:'2px 2px 0 0',height:Math.round((d.real/maxVal)*110)+'px'}}/>
+                  <div style={{flex:1,background:'#7c3aed',borderRadius:'2px 2px 0 0',height:Math.round((Math.max(d.actual,0)/maxVal)*110)+'px'}}/>
+                </div>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:2}}>
+              {chartData.map((d,i)=>(<div key={i} style={{flex:1,textAlign:'center',fontSize:8,color:d.isSelected?'#16a34a':'#aaa',fontWeight:d.isSelected?700:400,minWidth:20}}>{d.label}</div>))}
+            </div>
+          </div>
+        </div>
+        <div style={{marginTop:10,fontSize:12,color:'#94a3b8',textAlign:'center'}}>Tap any bar to jump to that date</div>
+      </div>)
+    })()}
     <SecL>Doctor referrals</SecL>
     <ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>
   </>)
@@ -2544,7 +2780,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'}]
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
     return(<div style={{marginBottom:12}}>
@@ -2579,6 +2815,9 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
       {rv==='expenses'&&<ExpensesReport db={db}/>}
       {rv==='realincome'&&<RealIncomeReport db={db}/>}
       {rv==='area'&&<AreaReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
+      {rv==='lostdrs'&&<LostDoctorsReport db={db}/>}
+      {rv==='supplies'&&<SuppliesReport db={db} actions={actions}/>}
+      {rv==='incomechart'&&<IncomeChartReport db={db}/>}
     </div>
   )
 }
