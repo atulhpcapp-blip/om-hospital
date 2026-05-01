@@ -2651,7 +2651,7 @@ export default function App(){
       </div>
     </div>
   )
-  if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
+  if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage session={session} onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin&&!previewHospital)return<SuperAdminDashboard onPreview={(hosp,db)=>setPreviewHospital({hospital:hosp,db})}/>
@@ -2666,7 +2666,7 @@ export default function App(){
     </div>
   )
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
-    return <PaymentPage/>
+    return <PaymentPage session={session}/>
   }
 
   const TAB_COLORS={dash:{active:'#6366f1',bg:'#eef2ff'},entry:{active:'#16a34a',bg:'#f0fdf4'},ip:{active:'#2563eb',bg:'#eff6ff'},op:{active:'#7c3aed',bg:'#f5f3ff'},exp:{active:'#dc2626',bg:'#fff1f2'},rep:{active:'#d97706',bg:'#fffbeb'},credit:{active:'#c2410c',bg:'#fff7ed'},refdrs:{active:'#0891b2',bg:'#ecfeff'},consult:{active:'#7c3aed',bg:'#f5f3ff'},admin:{active:'#475569',bg:'#f8fafc'}}
@@ -2874,7 +2874,7 @@ const ConsultantsTab=({db,actions})=>{
 
 /*  PAYMENT PAGE  */
 
-const PaymentPage=({onBack=null})=>{
+const PaymentPage=({onBack=null,session:passedSession=null})=>{
   const [plan,setPlan]=useState('pro')
   const [billing,setBilling]=useState('monthly')
   const [busy,setBusy]=useState(false)
@@ -2896,36 +2896,44 @@ const PaymentPage=({onBack=null})=>{
     setBusy(true);setErr('')
     const loaded=await loadRazorpay()
     if(!loaded){setErr('Failed to load payment. Check internet.');setBusy(false);return}
-    const {data:{session}}=await supabase.auth.getSession()
-    if(!session){window.location.href=window.location.pathname+'?upgrade=true#login';setErr('Please login or register first, then click Pay again.');setBusy(false);return}
+    let session=passedSession
+    if(!session){const r=await supabase.auth.getSession();session=r.data?.session}
+    if(!session){window.location.href=window.location.pathname+'?upgrade=true#login';setErr('Please login first, then click Subscribe again.');setBusy(false);return}
     const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
     const hid=prof?.hospital_id
     if(!hid){setErr('Hospital not found.');setBusy(false);return}
     const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',hid).single()
-    const res=await fetch(SUPABASE_URL+'/functions/v1/create-order',{
+    const p=PLANS[plan]
+    // Create Razorpay Subscription via Edge Function
+    const res=await fetch(SUPABASE_URL+'/functions/v1/create-subscription',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
       body:JSON.stringify({hospital_id:hid,plan,billing})
     })
-    const order=await res.json()
-    if(!res.ok||order.error){setErr(order.error||'Order creation failed');setBusy(false);return}
-    const p=PLANS[plan]
+    const subData=await res.json()
+    if(!res.ok||subData.error){setErr(subData.error||'Could not create subscription');setBusy(false);return}
     const rzp=new window.Razorpay({
-      key:RZP_KEY,amount:order.amount,currency:'INR',
-      name:'Easy Medical Solutions',
-      description:p.label+' plan - '+billing,
-      order_id:order.order_id,
-      prefill:{name:hosp?.name||'',email:session.user.email||'',contact:'7013211742'},
+      key:RZP_KEY,
+      subscription_id:subData.subscription_id,
+      name:'EasyMedical Solutions',
+      description:p.label+' plan - '+billing+' (Auto-renewing)',
+      prefill:{name:hosp?.name||'',email:session.user.email||'',contact:hosp?.phone||''},
       theme:{color:'#16a34a'},
+      recurring:1,
       handler:async(response)=>{
-        const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-payment',{
+        // First payment successful - activate plan
+        const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-subscription',{
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
-          body:JSON.stringify({...response,hospital_id:hid,plan,billing})
+          body:JSON.stringify({...response,hospital_id:hid,plan,billing,subscription_id:subData.subscription_id})
         })
         const vdata=await vres.json()
-        if(vdata.success){alert('Payment successful! '+p.label+' plan active until '+vdata.plan_end+'. App will now reload.');window.location.reload()}
-        else{setErr('Verification failed. Contact support@easymedicalsolutions.in')}
+        if(vdata.success){
+          alert('Subscription activated! '+p.label+' plan auto-renews every '+billing+'. Active until '+vdata.plan_end)
+          window.location.reload()
+        } else {
+          setErr('Activation failed. Contact support@easymedicalsolutions.in')
+        }
         setBusy(false)
       },
       modal:{ondismiss:()=>setBusy(false)}
@@ -2977,10 +2985,10 @@ const PaymentPage=({onBack=null})=>{
         </div>
         {err&&<div style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.25)',borderRadius:10,padding:'10px 14px',color:'#fca5a5',fontSize:13,textAlign:'center',marginBottom:12}}>{err}</div>}
         <button onClick={pay} disabled={busy} style={{width:'100%',padding:'15px',background:busy?'rgba(0,192,107,0.3)':'linear-gradient(135deg,#00c06b,#00e87f)',color:busy?'rgba(255,255,255,0.4)':'#0a1628',border:'none',borderRadius:14,fontSize:16,fontWeight:800,cursor:busy?'not-allowed':'pointer',letterSpacing:'-0.3px',boxShadow:busy?'none':'0 8px 24px rgba(0,192,107,0.3)'}}>
-          {busy?'Opening payment...':'Pay Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+' & Activate'}
+          {busy?'Setting up subscription...':'Subscribe Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+'/'+(billing==='monthly'?'mo':'yr')+' - Auto-renewing'}
         </button>
         <div style={{textAlign:'center',marginTop:14,fontSize:11,color:'rgba(255,255,255,0.25)'}}>
-          Secured by Razorpay &nbsp;&nbsp; UPI, Cards, NetBanking, Wallets
+          Auto-renewing subscription via Razorpay &nbsp;&nbsp; UPI Autopay, Cards
           <br/>support@easymedicalsolutions.in &nbsp;&nbsp; 7013211742
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:14}}>
