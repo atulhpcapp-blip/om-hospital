@@ -2919,7 +2919,7 @@ const PaymentPage=({onBack=null})=>{
       prefill:{name:hosp?.name||'',email:session.user.email||'',contact:'7013211742'},
       theme:{color:'#16a34a'},
       handler:async(response)=>{
-        const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-payment',{
+        const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-subscription',{
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
           body:JSON.stringify({...response,hospital_id:hid,plan,billing})
