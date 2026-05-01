@@ -781,7 +781,11 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
           {logoUrl?<img src={logoUrl} alt="logo" style={{width:44,height:44,borderRadius:10,objectFit:'cover',border:'2px solid rgba(255,255,255,0.3)'}}/>:<div style={{width:44,height:44,borderRadius:10,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:800,color:'#fff',flexShrink:0}}>{hospital.name?.[0]||'H'}</div>}
           <div>
-            <div style={{fontSize:11,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Your hospital</div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+              <div style={{fontSize:11,color:'#bfdbfe',fontWeight:700,textTransform:'uppercase'}}>Your hospital</div>
+              {hospital.plan&&hospital.plan!=='trial'&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:hospital.plan==='enterprise'?'linear-gradient(135deg,#d97706,#f59e0b)':hospital.plan==='pro'?'linear-gradient(135deg,#7c3aed,#a855f7)':'linear-gradient(135deg,#2563eb,#3b82f6)',color:'#fff',fontWeight:800,textTransform:'uppercase',letterSpacing:'.05em'}}>{hospital.plan==='enterprise'?'Enterprise':hospital.plan==='pro'?'Pro':'Starter'}</span>}
+              {hospital.plan==='trial'&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'rgba(255,255,255,0.15)',color:'#fff',fontWeight:700}}>Trial</span>}
+            </div>
             <div style={{fontSize:16,fontWeight:700}}>{hospital.name}</div>
           </div>
         </div>
@@ -3218,6 +3222,8 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
   const [billing,setBilling]=useState('monthly')
   const [busy,setBusy]=useState(false)
   const [err,setErr]=useState('')
+  const [currentPlan,setCurrentPlan]=useState(null)
+  const [currentBilling,setCurrentBilling]=useState(null)
   const SUPABASE_URL='https://wlgbhrmycequuiabpwqf.supabase.co'
   const RZP_KEY='rzp_live_Sk2iKfvRngPIJH'
   const PLANS={
@@ -3225,6 +3231,27 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
     pro:{label:'Pro',monthly:900,yearly:9000,desc:'Everything + Area reports, Consultant module, All reports, Unlimited staff',popular:true},
     enterprise:{label:'Enterprise',monthly:1900,yearly:19000,desc:'Everything + Multi-hospital, Dedicated support, Phone support'},
   }
+  // Load hospital's current plan on mount
+  useEffect(()=>{
+    const loadPlan=async()=>{
+      let session=passedSession
+      if(!session){const r=await supabase.auth.getSession();session=r.data?.session}
+      if(!session)return
+      const {data:prof}=await supabase.from('profiles').select('hospital_id').eq('id',session.user.id).single()
+      if(!prof?.hospital_id)return
+      const {data:hosp}=await supabase.from('hospitals').select('plan').eq('id',prof.hospital_id).single()
+      if(hosp?.plan&&hosp.plan!=='trial'){
+        setCurrentPlan(hosp.plan)
+        // Auto-select next tier up
+        const tiers=['starter','pro','enterprise']
+        const idx=tiers.indexOf(hosp.plan)
+        if(idx<tiers.length-1)setPlan(tiers[idx+1])
+        else setPlan(hosp.plan)
+      }
+    }
+    loadPlan()
+  },[])
+
   const loadRazorpay=()=>new Promise(resolve=>{
     if(window.Razorpay){resolve(true);return}
     const s=document.createElement('script');s.src='https://checkout.razorpay.com/v1/checkout.js'
@@ -3302,9 +3329,15 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
           </div>
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:20}}>
-          {Object.entries(PLANS).map(([k,pl])=>(
-            <div key={k} onClick={()=>setPlan(k)} style={{background:plan===k?'rgba(0,192,107,0.08)':'rgba(255,255,255,0.03)',border:plan===k?'2px solid rgba(0,192,107,0.5)':'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px',cursor:'pointer',transition:'all .2s',position:'relative'}}>
-              {pl.popular&&<div style={{position:'absolute',top:-10,right:16,background:'linear-gradient(135deg,#16a34a,#22c55e)',color:'#0a1628',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>POPULAR</div>}
+          {Object.entries(PLANS).map(([k,pl])=>{
+              const tiers=['starter','pro','enterprise']
+              const currentIdx=tiers.indexOf(currentPlan)
+              const thisIdx=tiers.indexOf(k)
+              const isLocked=currentPlan&&thisIdx<=currentIdx
+              const isCurrent=currentPlan===k
+              return(<div key={k} onClick={()=>!isLocked&&setPlan(k)} style={{background:isCurrent?'rgba(255,255,255,0.05)':plan===k?'rgba(0,192,107,0.08)':'rgba(255,255,255,0.03)',border:isCurrent?'1px solid rgba(255,255,255,0.15)':plan===k?'2px solid rgba(0,192,107,0.5)':'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px',cursor:isLocked?'not-allowed':'pointer',opacity:isLocked?0.5:1,transition:'all .2s',position:'relative'}}>
+              {isCurrent&&<div style={{position:'absolute',top:-10,right:16,background:'rgba(255,255,255,0.2)',color:'#fff',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>CURRENT PLAN</div>}
+              {!isCurrent&&pl.popular&&!isLocked&&<div style={{position:'absolute',top:-10,right:16,background:'linear-gradient(135deg,#16a34a,#22c55e)',color:'#0a1628',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>POPULAR</div>}
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <div style={{width:20,height:20,borderRadius:'50%',border:'2px solid',borderColor:plan===k?'#00c06b':'rgba(255,255,255,0.2)',background:plan===k?'#00c06b':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
@@ -3318,12 +3351,12 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
                 </div>
               </div>
               <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',paddingLeft:30}}>{pl.desc}</div>
-            </div>
-          ))}
+            </div>)
+          })}
         </div>
         {err&&<div style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.25)',borderRadius:10,padding:'10px 14px',color:'#fca5a5',fontSize:13,textAlign:'center',marginBottom:12}}>{err}</div>}
         <button onClick={pay} disabled={busy} style={{width:'100%',padding:'15px',background:busy?'rgba(0,192,107,0.3)':'linear-gradient(135deg,#00c06b,#00e87f)',color:busy?'rgba(255,255,255,0.4)':'#0a1628',border:'none',borderRadius:14,fontSize:16,fontWeight:800,cursor:busy?'not-allowed':'pointer',letterSpacing:'-0.3px',boxShadow:busy?'none':'0 8px 24px rgba(0,192,107,0.3)'}}>
-          {busy?'Setting up subscription...':'Subscribe Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+'/'+(billing==='monthly'?'mo':'yr')+' - Auto-renewing'}
+          {busy?'Setting up...':((currentPlan&&currentPlan!==plan?'Upgrade to '+PLANS[plan].label+' - ':'')+' Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+'/'+(billing==='monthly'?'mo':'yr'))}
         </button>
         <div style={{textAlign:'center',marginTop:14,fontSize:11,color:'rgba(255,255,255,0.25)'}}>
           Auto-renewing subscription via Razorpay &nbsp;&nbsp; UPI Autopay, Cards
