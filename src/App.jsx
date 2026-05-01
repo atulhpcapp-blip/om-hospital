@@ -1397,8 +1397,8 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
   const [filterDate,setFilterDate]=useState(todayStr().slice(0,7))
   const [filterRef,setFilterRef]=useState('')
   const [filterCon,setFilterCon]=useState('')
-  const opIncome=db.income.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name) 
-    const byPat={}
+  const opIncome=db.income.filter(e=>!['ip','ip_r','ip_l'].includes(e.type)&&e.patient_name)
+  const byPat={}
   opIncome.forEach(e=>{const k=(e.patient_name||'').trim().toLowerCase();if(!byPat[k])byPat[k]={name:e.patient_name,phone:e.patient_phone||'',reg_no:e.reg_no||'',entries:[],total:0,totalComm:0,totalCredit:0,lastDate:''};byPat[k].entries.push(e);byPat[k].total+=e.amount;byPat[k].totalComm+=getComm(e);byPat[k].totalCredit+=isCredit(e)?e.amount:0;if(e.date>byPat[k].lastDate)byPat[k].lastDate=e.date})
   const allPatients=Object.values(byPat).sort((a,b)=>b.lastDate.localeCompare(a.lastDate))
   const patients=search.trim()?allPatients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.reg_no.toLowerCase().includes(search.toLowerCase())):allPatients
@@ -1443,9 +1443,30 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
         </Card>
         {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{balance>0&&(!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}</Card>)})}</>)}
         <SecL>All visits (OP + IP)</SecL>
-       {(()=>{const patName=(selPat||'').trim().toLowerCase();const ipAdmissions=db.ip_patients.filter(p=>p.name.trim().toLowerCase()===patName);const ipIncome=db.income.filter(e=>['ip','ip_r','ip_l'].includes(e.type)&&ipAdmissions.some(p=>p.id===e.patient_id));const grandTotal=ents.reduce((a,e)=>a+e.amount,0)+ipIncome.reduce((a,e)=>a+e.amount,0);return(<>{ipAdmissions.length>0&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#1d4ed8'}}>{ipAdmissions.length} IP admission{ipAdmissions.length>1?'s':''} found — Total: {fmt(grandTotal)}</div>}{ipAdmissions.map(p=>(<div key={p.id} style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:10,padding:'8px 12px',marginBottom:6,fontSize:12}}><span style={{fontWeight:700,color:'#92400e'}}>IP: </span>{fmtD(p.admission_date)}{p.discharge_date?' to '+fmtD(p.discharge_date):<span style={{color:'#16a34a',fontWeight:700}}> Active</span>}{p.diagnosis&&' — '+p.diagnosis}</div>))}</>)})()} <Card>
-          {ents.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{const cr=isCredit(e);const comm=getComm(e);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' - Commission: '+fmt(comm):''}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
-        {db.income.filter(e=>['ip','ip_r','ip_l'].includes(e.type)&&db.ip_patients.filter(p=>p.name.trim().toLowerCase()===(selPat||'').trim().toLowerCase()).some(p=>p.id===e.patient_id)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={e.type}/><span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span><span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span></div>{e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{e.notes}</div>}</div><span style={{fontSize:13,fontWeight:600,color:'#16a34a'}}>{fmt(e.amount)}</span></div></div>))}</Card>
+        {(()=>{
+          const patName=(selPat||'').trim().toLowerCase()
+          // Find all IP admissions for this patient by name match
+          const ipAdmissions=db.ip_patients.filter(p=>p.name.trim().toLowerCase()===patName)
+          // Get all income entries for IP admissions
+          const ipIncome=db.income.filter(e=>['ip','ip_r','ip_l'].includes(e.type)&&ipAdmissions.some(p=>p.id===e.patient_id))
+          // Combine all entries
+          const allEnts=[...ents,...ipIncome].slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+          const ipTotal=ipIncome.reduce((a,e)=>a+e.amount,0)
+          const grandTotal=ents.reduce((a,e)=>a+e.amount,0)+ipTotal
+          return(<>
+            {ipAdmissions.length>0&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#1d4ed8'}}>
+              {ipAdmissions.length} IP admission{ipAdmissions.length>1?'s':''} found — showing complete history. Total: {fmt(grandTotal)}
+            </div>}
+            {ipAdmissions.map(p=>(<div key={p.id} style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:10,padding:'8px 12px',marginBottom:6,fontSize:12}}>
+              <span style={{fontWeight:700,color:'#92400e'}}>IP Admission: </span>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{color:'#16a34a',fontWeight:700}}> (Active)</span>}
+              {p.diagnosis&&<span style={{color:'#555'}}> — {p.diagnosis}</span>}
+              <span style={{float:'right',fontWeight:700,color:'#1d4ed8'}}>{fmt(db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0))}</span>
+            </div>))}
+            <Card>
+              {allEnts.map(e=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{e.notes}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&!isIP&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}{!isIP&&<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>}<span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
+            </Card>
+          </>)
+        })()}
     </div>
     )
   }
@@ -1994,7 +2015,7 @@ const RealIncomeReport=({db})=>{
     {!hasData
       ?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No data for this period</div>
       :<>
-       <div style={{marginTop:12,paddingTop:10,borderTop:'1px dashed #e5e7eb'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payment mode breakdown</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>{[{k:'cash',l:'Cash',bg:'#f0fdf4',c:'#16a34a'},{k:'upi',l:'UPI / Scan',bg:'#eff6ff',c:'#2563eb'},{k:'card',l:'Card',bg:'#fdf4ff',c:'#7c3aed'},{k:'bank',l:'Bank',bg:'#fff7ed',c:'#d97706'},{k:'credit',l:'Credit (Due)',bg:'#fef2f2',c:'#dc2626'}].map(m=>{const amt=incList.filter(e=>e.payment===m.k).reduce((a,e)=>a+(e.amount||0),0);if(!amt)return null;return(<div key={m.k} style={{background:m.bg,borderRadius:10,padding:'8px 10px'}}><div style={{fontSize:10,color:m.c,fontWeight:700,marginBottom:3}}>{m.l}</div><div style={{fontSize:14,fontWeight:800,color:m.c}}>{fmt(amt)}</div></div>)})}</div></div> <Card>
+        <Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Collected</div>
@@ -2003,6 +2024,20 @@ const RealIncomeReport=({db})=>{
           </div>
           {ITYPES.map(t=>{const ents=incList.filter(e=>e.type===t.key);const ti=ents.reduce((a,e)=>a+(e.amount||0),0);const tc=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const td=tc+vcf;if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(ti)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(ti-td)}</span></div>)})}
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}><span style={{fontSize:14,fontWeight:800}}>Total</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:64}}>{allDeductions>0?'-'+fmt(allDeductions):'-'}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span></div>
+          {/* Payment mode breakdown */}
+          <div style={{marginTop:12,paddingTop:10,borderTop:'1px dashed #e5e7eb'}}>
+            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payment mode breakdown</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+              {[{k:'cash',l:'Cash',bg:'#f0fdf4',c:'#16a34a'},{k:'upi',l:'UPI / Scan',bg:'#eff6ff',c:'#2563eb'},{k:'card',l:'Card',bg:'#fdf4ff',c:'#7c3aed'},{k:'bank',l:'Bank',bg:'#fff7ed',c:'#d97706'},{k:'credit',l:'Credit (Due)',bg:'#fef2f2',c:'#dc2626'}].map(m=>{
+                const amt=incList.filter(e=>e.payment===m.k).reduce((a,e)=>a+(e.amount||0),0)
+                if(!amt)return null
+                return(<div key={m.k} style={{background:m.bg,borderRadius:10,padding:'8px 10px'}}>
+                  <div style={{fontSize:10,color:m.c,fontWeight:700,marginBottom:3}}>{m.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{fmt(amt)}</div>
+                </div>)
+              })}
+            </div>
+          </div>
         </Card>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
           <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Gross collected</div><div style={{fontSize:20,fontWeight:700}}>{fmt(allInc)}</div></div>
@@ -2246,8 +2281,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     <div style={{display:'flex',gap:8,marginBottom:14}}>
       <input style={{...S.inp,flex:1}} type="date" value={rd} onChange={e=>setRd(e.target.value)}/>
       <GBtn onClick={()=>setRd(todayStr())}>Today</GBtn>
-    </div> 
-    <div style={{borderRadius:16,overflow:'hidden',marginBottom:12,background:'linear-gradient(135deg,#0f172a,#1e3a5f)',padding:'16px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:10}}>REAL AND ACTUAL INCOME - {rd}</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>REAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#4ade80'}}>{fmt(dI.reduce((a,e)=>a+e.amount,0)-dI.reduce((a,e)=>a+getComm(e),0))}</div></div><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>ACTUAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#34d399'}}>{fmt(dI.reduce((a,e)=>a+e.amount,0)-dI.reduce((a,e)=>a+getComm(e),0)-db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0))}</div></div></div></div>
+    </div>
 
     {/* OP CONSULTATION */}
     <SecL>OP Consultation</SecL>
@@ -2652,7 +2686,7 @@ export default function App(){
       </div>
     </div>
   )
-  if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
+  if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage session={session} onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin&&!previewHospital)return<SuperAdminDashboard onPreview={(hosp,db)=>setPreviewHospital({hospital:hosp,db})}/>
@@ -2667,7 +2701,7 @@ export default function App(){
     </div>
   )
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
-    return <PaymentPage/>
+    return <PaymentPage session={session}/>
   }
 
   const TAB_COLORS={dash:{active:'#6366f1',bg:'#eef2ff'},entry:{active:'#16a34a',bg:'#f0fdf4'},ip:{active:'#2563eb',bg:'#eff6ff'},op:{active:'#7c3aed',bg:'#f5f3ff'},exp:{active:'#dc2626',bg:'#fff1f2'},rep:{active:'#d97706',bg:'#fffbeb'},credit:{active:'#c2410c',bg:'#fff7ed'},refdrs:{active:'#0891b2',bg:'#ecfeff'},consult:{active:'#7c3aed',bg:'#f5f3ff'},admin:{active:'#475569',bg:'#f8fafc'}}
@@ -2875,7 +2909,7 @@ const ConsultantsTab=({db,actions})=>{
 
 /*  PAYMENT PAGE  */
 
-const PaymentPage=({onBack=null})=>{
+const PaymentPage=({onBack=null,session:passedSession=null})=>{
   const [plan,setPlan]=useState('pro')
   const [billing,setBilling]=useState('monthly')
   const [busy,setBusy]=useState(false)
@@ -2897,36 +2931,43 @@ const PaymentPage=({onBack=null})=>{
     setBusy(true);setErr('')
     const loaded=await loadRazorpay()
     if(!loaded){setErr('Failed to load payment. Check internet.');setBusy(false);return}
-    const {data:{session}}=await supabase.auth.getSession()
-    if(!session){window.location.href=window.location.pathname+'?upgrade=true#login';setErr('Please login or register first, then click Pay again.');setBusy(false);return}
+    let session=passedSession
+    if(!session){const r=await supabase.auth.getSession();session=r.data?.session}
+    if(!session){window.location.href=window.location.pathname+'?upgrade=true';setErr('Please login first.');setBusy(false);return}
     const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
     const hid=prof?.hospital_id
-    if(!hid){setErr('Hospital not found.');setBusy(false);return}
+    if(!hid){setErr('Hospital not found. Please register your hospital first.');setBusy(false);return}
     const {data:hosp}=await supabase.from('hospitals').select('*').eq('id',hid).single()
+    const p=PLANS[plan]
+    const amt=(billing==='monthly'?p.monthly:p.yearly)*100
+    // Create Razorpay Subscription
     const res=await fetch(SUPABASE_URL+'/functions/v1/create-subscription',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
       body:JSON.stringify({hospital_id:hid,plan,billing})
     })
-    const order=await res.json()
-    if(!res.ok||order.error){setErr(order.error||'Order creation failed');setBusy(false);return}
-    const p=PLANS[plan]
+    const subData=await res.json()
+    if(!res.ok||subData.error){setErr(subData.error||'Could not create subscription');setBusy(false);return}
     const rzp=new window.Razorpay({
-      key:RZP_KEY,amount:order.amount,currency:'INR',
-      name:'Easy Medical Solutions',
-      description:p.label+' plan - '+billing,
-      order_id:order.order_id,
-      prefill:{name:hosp?.name||'',email:session.user.email||'',contact:'7013211742'},
+      key:RZP_KEY,
+      subscription_id:subData.subscription_id,
+      name:'EasyMedical Solutions',
+      description:p.label+' - Auto-renews '+billing,
+      prefill:{name:hosp?.name||'',email:session.user.email||'',contact:hosp?.phone||''},
       theme:{color:'#16a34a'},
       handler:async(response)=>{
         const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-subscription',{
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
-          body:JSON.stringify({...response,hospital_id:hid,plan,billing})
+          body:JSON.stringify({...response,hospital_id:hid,plan,billing,subscription_id:subData.subscription_id})
         })
         const vdata=await vres.json()
-        if(vdata.success){alert('Payment successful! '+p.label+' plan active until '+vdata.plan_end+'. App will now reload.');window.location.reload()}
-        else{setErr('Verification failed. Contact support@easymedicalsolutions.in')}
+        if(vdata.success){
+          alert('Subscription activated! '+p.label+' plan auto-renews every '+(billing==='monthly'?'month':'year')+'. Active until '+vdata.plan_end)
+          window.location.reload()
+        } else {
+          setErr('Activation failed. Contact support@easymedicalsolutions.in')
+        }
         setBusy(false)
       },
       modal:{ondismiss:()=>setBusy(false)}
@@ -2978,10 +3019,10 @@ const PaymentPage=({onBack=null})=>{
         </div>
         {err&&<div style={{background:'rgba(220,38,38,0.12)',border:'1px solid rgba(220,38,38,0.25)',borderRadius:10,padding:'10px 14px',color:'#fca5a5',fontSize:13,textAlign:'center',marginBottom:12}}>{err}</div>}
         <button onClick={pay} disabled={busy} style={{width:'100%',padding:'15px',background:busy?'rgba(0,192,107,0.3)':'linear-gradient(135deg,#00c06b,#00e87f)',color:busy?'rgba(255,255,255,0.4)':'#0a1628',border:'none',borderRadius:14,fontSize:16,fontWeight:800,cursor:busy?'not-allowed':'pointer',letterSpacing:'-0.3px',boxShadow:busy?'none':'0 8px 24px rgba(0,192,107,0.3)'}}>
-          {busy?'Opening payment...':'Pay Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+' & Activate'}
+          {busy?'Setting up subscription...':'Subscribe Rs '+(billing==='monthly'?PLANS[plan].monthly:PLANS[plan].yearly).toLocaleString('en-IN')+'/'+(billing==='monthly'?'mo':'yr')+' - Auto-renewing'}
         </button>
         <div style={{textAlign:'center',marginTop:14,fontSize:11,color:'rgba(255,255,255,0.25)'}}>
-          Secured by Razorpay &nbsp;&nbsp; UPI, Cards, NetBanking, Wallets
+          Auto-renewing subscription via Razorpay &nbsp;&nbsp; UPI Autopay, Cards
           <br/>support@easymedicalsolutions.in &nbsp;&nbsp; 7013211742
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:20,marginTop:14}}>
@@ -3146,8 +3187,7 @@ const AnalyticsDash=({db})=>{
 
   return(
     <div>
-      <SmartReminders db={db}/> 
-      <div style={{borderRadius:16,overflow:'hidden',marginBottom:12,background:'linear-gradient(135deg,#0f172a,#1e3a5f)',padding:'16px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:10}}>TODAY - REAL AND ACTUAL INCOME</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>REAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#4ade80'}}>{fmt(todayTotal-todayComm)}</div></div><div style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'10px'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:4}}>ACTUAL INCOME</div><div style={{fontSize:22,fontWeight:900,color:'#34d399'}}>{fmt(todayTotal-todayComm-todayExpTotal)}</div></div></div><div style={{fontSize:11,color:'rgba(255,255,255,0.4)',display:'flex',justifyContent:'space-between'}}><span>Gross: {fmt(todayTotal)}</span><span style={{color:'#fbbf24'}}>Comm: -{fmt(todayComm)}</span><span style={{color:'#f87171'}}>Exp: -{fmt(todayExpTotal)}</span></div></div>
+      <SmartReminders db={db}/>
             {/* TODAY STRIP */}
       <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)',borderRadius:16,padding:'16px',marginBottom:14,color:'#fff'}}>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:10}}>Today  {new Date(today+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
