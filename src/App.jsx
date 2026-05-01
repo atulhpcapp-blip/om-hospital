@@ -2881,7 +2881,7 @@ const PaymentPage=({onBack=null})=>{
   const [busy,setBusy]=useState(false)
   const [err,setErr]=useState('')
   const SUPABASE_URL='https://wlgbhrmycequuiabpwqf.supabase.co'
-  const RZP_KEY='rzp_live_Siv0viAUFpkbJg'
+  const RZP_KEY='rzp_live_Sk2iKfvRngPIJH'
   const PLANS={
     starter:{label:'Starter',monthly:600,yearly:6000,desc:'Unlimited patients, IP & OP, Referral commissions, 5 staff'},
     pro:{label:'Pro',monthly:900,yearly:9000,desc:'Everything + Area reports, Consultant module, All reports, Unlimited staff',popular:true},
