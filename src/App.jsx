@@ -2463,6 +2463,17 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>
       </div>
     </div>
+    <SecL>Payment mode breakdown</SecL>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
+      {[{k:'cash',l:'Cash',bg:'#f0fdf4',c:'#16a34a'},{k:'upi',l:'UPI / Scan',bg:'#eff6ff',c:'#2563eb'},{k:'card',l:'Card',bg:'#fdf4ff',c:'#7c3aed'},{k:'bank',l:'Bank',bg:'#fff7ed',c:'#d97706'},{k:'credit',l:'Credit (Due)',bg:'#fef2f2',c:'#dc2626'}].map(m=>{
+        const amt=dI.filter(e=>e.payment===m.k).reduce((a,e)=>a+(e.amount||0),0)
+        if(!amt)return null
+        return(<div key={m.k} style={{background:m.bg,borderRadius:12,padding:'10px 12px'}}>
+          <div style={{fontSize:10,color:m.c,fontWeight:700,marginBottom:4}}>{m.l}</div>
+          <div style={{fontSize:16,fontWeight:800,color:m.c}}>{fmt(amt)}</div>
+        </div>)
+      })}
+    </div>
     <SecL>Doctor referrals</SecL>
     <ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>
   </>)
