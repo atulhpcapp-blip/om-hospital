@@ -495,6 +495,12 @@ const SuperAdminDashboard=({onPreview=null})=>{
           <div><div style={{fontWeight:700,fontSize:15}}> Super Admin</div><div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>All hospitals</div></div>
           <button onClick={()=>supabase.auth.signOut()} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>Logout</button>
         </div>
+        <div style={{padding:'8px 12px',background:'#111',borderBottom:'1px solid #1f2937'}}>
+          <input value={saSearch} onChange={e=>setSaSearch(e.target.value)} placeholder="Search hospital or city..." style={{width:'100%',padding:'7px 12px',borderRadius:10,border:'1px solid #374151',background:'#1f2937',color:'#fff',fontSize:13,outline:'none',marginBottom:6}}/>
+          <div style={{display:'flex',gap:5,overflowX:'auto'}}>
+            {['all',...[...new Set(hospitals.map(h=>h.city).filter(Boolean))].sort()].map(city=>(<button key={city} onClick={()=>setCityFilter(city)} style={{padding:'3px 10px',borderRadius:20,border:'none',background:cityFilter===city?'#16a34a':'#374151',color:cityFilter===city?'#fff':'#9ca3af',fontSize:11,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}}>{city==='all'?'All':city}</button>))}
+          </div>
+        </div>
         <div style={{display:'flex',gap:0,marginBottom:-1}}>
           {[{k:'list',l:'Hospitals'},{k:'add',l:'+ Add'},{k:'settings',l:' Settings'}].map(t=>(<button key={t.k} onClick={()=>{setView(t.k);setMsg(null)}} style={{padding:'9px 14px',fontSize:12,fontWeight:600,border:'none',background:'none',color:view===t.k?'#fff':'#6b7280',borderBottom:view===t.k?'2px solid #fff':'2px solid transparent',cursor:'pointer'}}>{t.l}</button>))}
         </div>
@@ -504,7 +510,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
             {[{label:'Total',value:hospitals.length},{label:'Active',value:hospitals.filter(h=>h.is_active).length,color:'#16a34a'},{label:'Trial',value:hospitals.filter(h=>h.plan==='trial').length,color:'#b45309'},{label:'Paid',value:hospitals.filter(h=>h.plan!=='trial'&&h.is_active).length,color:'#1d4ed8'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>{m.label}</div><div style={{fontSize:22,fontWeight:700,color:m.color||'#111'}}>{m.value}</div></div>))}
           </div>
-          {loading?<div style={{textAlign:'center',padding:32,color:'#ccc'}}>Loading...</div>:hospitals.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No hospitals yet</div>:hospitals.map(h=>(
+          {loading?<div style={{textAlign:'center',padding:32,color:'#ccc'}}>Loading...</div>:hospitals.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No hospitals yet</div>:hospitals.filter(h=>{const q=(saSearch||'').toLowerCase();return(!q||h.name?.toLowerCase().includes(q)||h.city?.toLowerCase().includes(q))&&(cityFilter==='all'||h.city===cityFilter)}).map(h=>(
             <Card key={h.id} style={{cursor:'pointer'}} >
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>openHosp(h)}>
                 <div><div style={{fontSize:14,fontWeight:700}}>{h.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{h.city||'-'} - {fmtD(h.created_at?.split('T')[0])}</div><div style={{marginTop:6,display:'flex',gap:6,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:(planClr[h.plan]||planClr.trial)[0],color:(planClr[h.plan]||planClr.trial)[1],fontWeight:700}}>{h.plan}</span>{!h.is_active&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>Suspended</span>}</div></div>
@@ -1246,6 +1252,31 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <PBtn style={{background:'#16a34a'}} onClick={async()=>{const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return};const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const comm=p.ref_doctor?Math.round(amt*pkgRate):0;await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''});setPyF({...pyF,amt:''})}}>Save package payment</PBtn>
         </Card></>)}
         {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>{cr&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}<button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
+        {p.insurance_type&&(<>
+          <SecL>Insurance</SecL>
+          <Card>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+              <div><div style={{fontSize:13,fontWeight:700}}>{p.insurance_type}</div>
+                {p.insurance_policy_no&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>Policy: {p.insurance_policy_no}</div>}
+                {p.insurance_expected>0&&<div style={{fontSize:11,color:'#2563eb',marginTop:2}}>Expected: {fmt(p.insurance_expected)}</div>}
+              </div>
+              <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:700,
+                background:p.insurance_status==='approved'?'#f0fdf4':p.insurance_status==='rejected'?'#fef2f2':'#fffbeb',
+                color:p.insurance_status==='approved'?'#16a34a':p.insurance_status==='rejected'?'#dc2626':'#d97706'
+              }}>{p.insurance_status==='approved'?'Approved':p.insurance_status==='rejected'?'Rejected':'Pending'}</span>
+            </div>
+            {p.insurance_expected>0&&(()=>{
+              const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
+              const insPend=p.insurance_expected-insRec
+              return(<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 0',marginTop:4,borderTop:'1px solid #e5e7eb'}}>
+                <div><div style={{fontSize:11,color:'#94a3b8'}}>Received: {fmt(insRec)}</div>
+                  {insPend>0&&<div style={{fontSize:11,color:'#d97706',fontWeight:700}}>Pending: {fmt(insPend)}</div>}
+                </div>
+                <span style={{fontSize:12,fontWeight:800,color:insPend>0?'#d97706':'#16a34a'}}>{insPend>0?'Partial':'Complete'}</span>
+              </div>)
+            })()}
+          </Card>
+        </>)}
         {p.payments&&p.payments.length>0&&(<><SecL>Package payments received</SecL><Card>{p.payments.map(py=>(<div key={py.id} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:500}}>{fmtD(py.date)} - {py.payment}</div>{py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(py.commission)} - Net: {fmt(py.amount-py.commission)}</div>}</div><div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}><span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(py.amount)}</span><DBtn onClick={()=>{if(window.confirm('Delete this payment?'))actions.deletePayment(p.id,py.id)}}>Delete</DBtn></div></div></div>))}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700}}><span>Total received</span><span style={{color:'#16a34a'}}>{fmt((p.payments||[]).reduce((a,py)=>a+py.amount,0))}</span></div></Card></>)}
         <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}><button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}} onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records?')){actions.deletePatient(p.id);setIpv('list')}}}>Delete this patient and all records</button></div>
     </div>
