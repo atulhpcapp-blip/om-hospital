@@ -3,7 +3,7 @@ import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
 const ECATS=[{key:'ref_paid',label:'Referral commission paid'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'consultant_fee',label:'Consultant fee paid'},{key:'municipality',label:'Municipality'},{key:'biomedical_bags',label:'Biomedical waste bags'},{key:'stationary',label:'Stationary'},{key:'washroom_cleaner',label:'Washroom cleaner'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)'},{key:'misc',label:'Miscellaneous'}]
-const PMODES=['cash','upi','card','credit','other']
+const PMODES=['cash','upi','card','bank','credit','insurance']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
 const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,vc:0}
