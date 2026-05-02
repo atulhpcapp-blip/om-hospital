@@ -1268,11 +1268,33 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             {p.insurance_expected>0&&(()=>{
               const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
               const insPend=p.insurance_expected-insRec
-              return(<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 0',marginTop:4,borderTop:'1px solid #e5e7eb'}}>
-                <div><div style={{fontSize:11,color:'#94a3b8'}}>Received: {fmt(insRec)}</div>
-                  {insPend>0&&<div style={{fontSize:11,color:'#d97706',fontWeight:700}}>Pending: {fmt(insPend)}</div>}
+              const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+              const copay=Math.max(totalBill-p.insurance_expected,0)
+              const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+              const copayPending=Math.max(copay-cashRec,0)
+              return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #e5e7eb'}}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:6}}>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:9,color:'#94a3b8',fontWeight:700}}>TOTAL BILL</div>
+                    <div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
+                  </div>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:9,color:'#2563eb',fontWeight:700}}>INS PAYS</div>
+                    <div style={{fontSize:13,fontWeight:800,color:'#2563eb'}}>{fmt(p.insurance_expected)}</div>
+                  </div>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:9,color:'#7c3aed',fontWeight:700}}>CO-PAY</div>
+                    <div style={{fontSize:13,fontWeight:800,color:'#7c3aed'}}>{fmt(copay)}</div>
+                  </div>
                 </div>
-                <span style={{fontSize:12,fontWeight:800,color:insPend>0?'#d97706':'#16a34a'}}>{insPend>0?'Partial':'Complete'}</span>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                  <div>
+                    <div style={{color:'#94a3b8'}}>Ins received: {fmt(insRec)}</div>
+                    {insPend>0&&<div style={{color:'#d97706',fontWeight:700}}>Ins pending: {fmt(insPend)}</div>}
+                    {copayPending>0&&<div style={{color:'#dc2626',fontWeight:700}}>Co-pay pending: {fmt(copayPending)}</div>}
+                  </div>
+                  <span style={{fontSize:12,fontWeight:800,color:insPend===0&&copayPending===0?'#16a34a':'#d97706',alignSelf:'center'}}>{insPend===0&&copayPending===0?'Settled':'Pending'}</span>
+                </div>
               </div>)
             })()}
           </Card>
@@ -2329,6 +2351,117 @@ const IncomeChartReport=({db})=>{
   </>)
 }
 
+/*  INSURANCE REPORT  */
+const InsuranceReport=({db,actions})=>{
+  const [filter,setFilter]=useState('all')
+  
+  // Get all IP patients with insurance
+  const insPatients=db.ip_patients.filter(p=>p.insurance_type&&p.insurance_type.trim())
+  
+  // Calculate totals per patient
+  const insData=insPatients.map(p=>{
+    const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
+    const cashPayments=(p.payments||[]).filter(py=>py.mode!=='insurance')
+    const insReceived=insPayments.reduce((a,py)=>a+(py.amount||0),0)
+    const cashReceived=cashPayments.reduce((a,py)=>a+(py.amount||0),0)
+    const totalIncome=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+    const totalPaid=insReceived+cashReceived
+    const expectedFromIns=p.insurance_expected||0
+    const insPending=Math.max(expectedFromIns-insReceived,0)
+    const patientCopay=Math.max(totalIncome-expectedFromIns,0)
+    const copayPending=Math.max(patientCopay-cashReceived,0)
+    const status=p.insurance_status||'pending'
+    return{p,insReceived,cashReceived,totalIncome,totalPaid,expectedFromIns,insPending,patientCopay,copayPending,status,insPayments}
+  })
+  
+  const filtered=filter==='all'?insData:insData.filter(d=>d.status===filter)
+  
+  // Summary stats
+  const totalExpected=insData.reduce((a,d)=>a+d.expectedFromIns,0)
+  const totalInsReceived=insData.reduce((a,d)=>a+d.insReceived,0)
+  const totalInsPending=insData.reduce((a,d)=>a+d.insPending,0)
+  const totalCopayPending=insData.reduce((a,d)=>a+d.copayPending,0)
+  const pendingApprovals=insData.filter(d=>d.status==='pending').length
+  const rejected=insData.filter(d=>d.status==='rejected').length
+
+  return(<>
+    {/* Summary cards */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+      {[
+        {l:'Total expected from insurance',v:fmt(totalExpected),c:'#2563eb',bg:'#eff6ff'},
+        {l:'Received from insurance',v:fmt(totalInsReceived),c:'#16a34a',bg:'#f0fdf4'},
+        {l:'Pending from insurance',v:fmt(totalInsPending),c:'#d97706',bg:'#fffbeb'},
+        {l:'Co-pay pending from patients',v:fmt(totalCopayPending),c:'#dc2626',bg:'#fef2f2'},
+      ].map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'12px'}}>
+        <div style={{fontSize:10,color:m.c,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
+        <div style={{fontSize:20,fontWeight:800,color:m.c}}>{m.v}</div>
+      </div>))}
+    </div>
+    
+    {/* Alert row */}
+    {(pendingApprovals>0||rejected>0)&&<div style={{display:'flex',gap:8,marginBottom:16}}>
+      {pendingApprovals>0&&<div style={{flex:1,background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'8px 12px',fontSize:12}}>
+        <span style={{fontWeight:700,color:'#d97706'}}>⏳ {pendingApprovals} pending approval{pendingApprovals>1?'s':''}</span>
+        <div style={{color:'#92400e',marginTop:2}}>Follow up with TPA/insurer</div>
+      </div>}
+      {rejected>0&&<div style={{flex:1,background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'8px 12px',fontSize:12}}>
+        <span style={{fontWeight:700,color:'#dc2626'}}>❌ {rejected} rejected claim{rejected>1?'s':''}</span>
+        <div style={{color:'#991b1b',marginTop:2}}>Review and resubmit</div>
+      </div>}
+    </div>}
+    
+    {/* Filter */}
+    <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+      {[{k:'all',l:'All'},{k:'pending',l:'Pending'},{k:'approved',l:'Approved'},{k:'rejected',l:'Rejected'}].map(f=>(
+        <button key={f.k} onClick={()=>setFilter(f.k)} style={{padding:'5px 14px',borderRadius:20,border:'none',
+          background:filter===f.k?'#16a34a':'#f1f5f9',color:filter===f.k?'#fff':'#64748b',fontSize:12,fontWeight:600,cursor:'pointer'}}>{f.l}</button>
+      ))}
+    </div>
+    
+    {/* Patient list */}
+    {filtered.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No insurance patients found</div>}
+    {filtered.map(({p,insReceived,totalIncome,expectedFromIns,insPending,patientCopay,copayPending,status})=>(
+      <div key={p.id} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.name}</div>
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{p.insurance_type}{p.insurance_policy_no?' — '+p.insurance_policy_no:''}</div>
+            <div style={{fontSize:11,color:'#94a3b8'}}>Admitted: {fmtD(p.admission_date)}{p.discharge_date?' | Discharged: '+fmtD(p.discharge_date):' | Active'}</div>
+          </div>
+          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:700,flexShrink:0,
+            background:status==='approved'?'#f0fdf4':status==='rejected'?'#fef2f2':'#fffbeb',
+            color:status==='approved'?'#16a34a':status==='rejected'?'#dc2626':'#d97706'
+          }}>{status==='approved'?'Approved':status==='rejected'?'Rejected':'Pending'}</span>
+        </div>
+        
+        {/* Bill breakdown */}
+        <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',fontSize:12}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+            <div><div style={{color:'#94a3b8',marginBottom:2}}>Total bill</div><div style={{fontWeight:700,color:'#0f172a',fontSize:14}}>{fmt(totalIncome)}</div></div>
+            <div><div style={{color:'#94a3b8',marginBottom:2}}>Insurance pays</div><div style={{fontWeight:700,color:'#2563eb',fontSize:14}}>{fmt(expectedFromIns)}</div></div>
+            <div><div style={{color:'#94a3b8',marginBottom:2}}>Patient co-pay</div><div style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{fmt(patientCopay)}</div></div>
+          </div>
+          <div style={{borderTop:'1px solid #e2e8f0',paddingTop:8,display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{display:'flex',justifyContent:'space-between'}}>
+              <span style={{color:'#94a3b8'}}>Insurance received</span>
+              <span style={{fontWeight:600,color:'#16a34a'}}>{fmt(insReceived)}</span>
+            </div>
+            {insPending>0&&<div style={{display:'flex',justifyContent:'space-between'}}>
+              <span style={{color:'#d97706',fontWeight:600}}>Insurance pending</span>
+              <span style={{fontWeight:700,color:'#d97706'}}>{fmt(insPending)}</span>
+            </div>}
+            {copayPending>0&&<div style={{display:'flex',justifyContent:'space-between'}}>
+              <span style={{color:'#dc2626',fontWeight:600}}>Co-pay pending from patient</span>
+              <span style={{fontWeight:700,color:'#dc2626'}}>{fmt(copayPending)}</span>
+            </div>}
+            {insPending===0&&copayPending===0&&<div style={{textAlign:'center',color:'#16a34a',fontWeight:700,fontSize:13}}>✓ Fully settled</div>}
+          </div>
+        </div>
+      </div>
+    ))}
+  </>)
+}
+
 /*  REPORTS TAB  */
 /*  AREA-WISE REPORT  */
 const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
@@ -2817,7 +2950,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'}]
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
     return(<div style={{marginBottom:12}}>
@@ -2852,6 +2985,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
       {rv==='expenses'&&<ExpensesReport db={db}/>}
       {rv==='realincome'&&<RealIncomeReport db={db}/>}
       {rv==='area'&&<AreaReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
+      {rv==='insurance'&&<InsuranceReport db={db} actions={actions}/>}
       {rv==='lostdrs'&&<LostDoctorsReport db={db}/>}
       {rv==='supplies'&&<SuppliesReport db={db} actions={actions}/>}
       {rv==='incomechart'&&<IncomeChartReport db={db}/>}
