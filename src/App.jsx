@@ -363,6 +363,8 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const [selUsers,setSelUsers]=useState([])
   const [hospData,setHospData]=useState(null)
   const [dataLoading,setDataLoading]=useState(false)
+  const [saSearch,setSaSearch]=useState('')
+  const [cityFilter,setCityFilter]=useState('all')
   const [nH,setNH]=useState({name:'',city:'',phone:'',plan:'trial',adminName:'',adminUser:'',adminPass:''})
   const [busy,setBusy]=useState(false)
   const [msg,setMsg]=useState(null)
@@ -3004,10 +3006,11 @@ export default function App(){
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
         <button onClick={async()=>{
           const safe={name:editIPPatient.name,phone:editIPPatient.phone||'',diagnosis:editIPPatient.dx||'',room:editIPPatient.room||'',ref_doctor:editIPPatient.ref||'',admission_date:editIPPatient.adm||''}
-          let {error}=await supabase.from('ip_patients').update({...safe,patient_area:editIPPatient.patient_area||''}).eq('id',editIPPatient.id)
+          const full={...safe,patient_area:editIPPatient.patient_area||'',insurance_type:editIPPatient.insurance_type||'',insurance_policy_no:editIPPatient.insurance_policy_no||'',insurance_expected:editIPPatient.insurance_expected||0,insurance_status:editIPPatient.insurance_status||'pending'}
+          let {error}=await supabase.from('ip_patients').update(full).eq('id',editIPPatient.id)
           if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}
           if(error){alert('Save failed: '+error.message);return}
-          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editIPPatient.id?{...p,...safe,patient_area:editIPPatient.patient_area||''}:p)}))
+          setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editIPPatient.id?{...p,...full}:p)}))
           setEditIPPatient(null)
         }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
@@ -3022,6 +3025,17 @@ export default function App(){
           <option value="">- No referral / Self patient -</option>
           {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
         </FSel>
+        <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid #f0f0f0'}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:8}}>Insurance details (optional)</div>
+          <FInp label="Insurance company / TPA name" type="text" value={editIPPatient.insurance_type||''} onChange={e=>setEditIPPatient(p=>({...p,insurance_type:e.target.value}))} placeholder="e.g. Star Health, CGHS, ESI"/>
+          <FInp label="Policy / Authorization number" type="text" value={editIPPatient.insurance_policy_no||''} onChange={e=>setEditIPPatient(p=>({...p,insurance_policy_no:e.target.value}))} placeholder="Policy number"/>
+          <FInp label="Expected amount (Rs)" type="number" value={editIPPatient.insurance_expected||''} onChange={e=>setEditIPPatient(p=>({...p,insurance_expected:parseFloat(e.target.value)||0}))} placeholder="0"/>
+          <FSel label="Approval status" value={editIPPatient.insurance_status||'pending'} onChange={e=>setEditIPPatient(p=>({...p,insurance_status:e.target.value}))}>
+            <option value="pending">Pending approval</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </FSel>
+        </div>
         <button onClick={()=>setEditIPPatient(null)} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:16}}>Cancel</button>
       </div>
     </div>
@@ -3407,6 +3421,26 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
 const SmartReminders=({db})=>{
   const [dismissed,setDismissed]=useState([])
   try{
+    const srToday=todayStr()
+    const srThisMonth=srToday.slice(0,7)
+    const srLastMonth=(()=>{const d=new Date();d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7)})()
+    const srInc=db.income||[]
+    const srExps=(db.expenses||[]).filter(e=>e.category!=='ref_paid')
+    
+    // Low revenue alert — this month vs last month
+    const thisMonthInc=srInc.filter(e=>e.date?.startsWith(srThisMonth)).reduce((a,e)=>a+(e.amount||0),0)
+    const lastMonthInc=srInc.filter(e=>e.date?.startsWith(srLastMonth)).reduce((a,e)=>a+(e.amount||0),0)
+    const revDrop=lastMonthInc>0&&thisMonthInc<lastMonthInc*0.7  // 30% drop
+    
+    // High expenses alert — expenses > 60% of income this month
+    const thisMonthExp=srExps.filter(e=>e.date?.startsWith(srThisMonth)).reduce((a,e)=>a+(e.amount||0),0)
+    const expHigh=thisMonthInc>0&&thisMonthExp>thisMonthInc*0.6
+    
+    // Today low revenue — today income < 30% of daily average
+    const daysInMonth=new Date().getDate()
+    const dailyAvg=thisMonthInc/Math.max(daysInMonth,1)
+    const todayInc=srInc.filter(e=>e.date===srToday).reduce((a,e)=>a+(e.amount||0),0)
+    const todayLow=daysInMonth>5&&todayInc<dailyAvg*0.3&&new Date().getHours()>14
     const today=todayStr()
     const yest=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0]})()
     const inc=db.income||[]
