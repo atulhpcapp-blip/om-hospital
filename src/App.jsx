@@ -1138,7 +1138,6 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
 }
 
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab,setEditIPPatient})=>{
-  const [ipSubTab,setIpSubTab]=useState('overview')
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
   const [ipSearch,setIpSearch]=useState('')
@@ -1170,14 +1169,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       <div>
         {prevTab&&<button onClick={()=>{setPrevTab(null);setTab(prevTab);setIpv('list')}} style={{color:'#16a34a',fontSize:13,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,cursor:'pointer',marginBottom:8,display:'block',padding:'6px 14px',fontWeight:600}}>Back to Daily Report</button>}
         <button onClick={()=>{setPrevTab(null);setIpv('list')}} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>All patients</button>
-        {/* Sub-tabs */}
-        <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}}>
-          {[{k:'overview',l:'Overview'},{k:'charges',l:'Charges'},{k:'insurance',l:'Insurance',show:!!p.insurance_type},{k:'payments',l:'Payments'}].filter(t=>t.show!==false).map(t=>(
-            <button key={t.k} onClick={()=>setIpSubTab(t.k)} style={{padding:'7px 16px',borderRadius:20,border:'none',background:ipSubTab===t.k?'#16a34a':'#f1f5f9',color:ipSubTab===t.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
-              {t.k==='insurance'&&'🏥 '}{t.l}
-            </button>
-          ))}
-        </div>
+
         <Card>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
             <div>
@@ -1262,8 +1254,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         </Card></>)}
         {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>{cr&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}<button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
         {p.insurance_type&&(<>
-          {ipSubTab==='insurance'&&<InsuranceTab p={p} db={db} setDb={setDb}/>}
-          <Card style={{display:ipSubTab==='insurance'?'none':'block'}}>
+
+          <Card>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
               <div><div style={{fontSize:13,fontWeight:700}}>{p.insurance_type}</div>
                 {p.insurance_policy_no&&<div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>Policy: {p.insurance_policy_no}</div>}
