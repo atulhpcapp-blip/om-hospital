@@ -2915,6 +2915,20 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
+          <div style={{height:1,background:'#e9d5ff',margin:'6px 0'}}/>
+          <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,marginBottom:4}}>Payment modes</div>
+          {(()=>{
+            const labEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
+            return(<div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {['cash','upi','card','insurance','credit'].map(m=>{
+                const amt=labEnts.filter(e=>e.payment===m).reduce((a,e)=>a+e.amount,0)
+                if(!amt)return null
+                const styles={cash:{bg:'#f0fdf4',c:'#16a34a'},upi:{bg:'#eff6ff',c:'#2563eb'},card:{bg:'#fdf4ff',c:'#7c3aed'},insurance:{bg:'#dbeafe',c:'#1d4ed8'},credit:{bg:'#fef2f2',c:'#dc2626'}}
+                const s=styles[m]||{bg:'#f1f5f9',c:'#64748b'}
+                return(<span key={m} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:s.bg,color:s.c,fontWeight:700}}>{m==='upi'?'UPI/Scan':m[0].toUpperCase()+m.slice(1)} {fmt(amt)}</span>)
+              })}
+            </div>)
+          })()}
         </div>
       </div>
     </div>
