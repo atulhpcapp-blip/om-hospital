@@ -1365,7 +1365,23 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             </div>
           </div>)})()}
         </div>
-        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());const ok=await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn,patient_area:pF.patient_area?.trim()||''});if(ok!==false){setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''})}}}>Admit patient</PBtn>
+        {/* ADMIT TYPE SELECTION */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#374151',marginBottom:8}}>Admission type</div>
+          <div style={{display:'flex',gap:8}}>
+            {[{k:'cash',l:'Cash / Regular',icon:'💵'},{k:'insurance',l:'Insurance',icon:'🏥'}].map(t=>(
+              <button key={t.k} onClick={()=>setPF({...pF,admit_type:t.k})} style={{flex:1,padding:'10px',borderRadius:12,border:pF.admit_type===t.k?'2px solid #16a34a':'1.5px solid #e5e7eb',background:pF.admit_type===t.k?'#f0fdf4':'#fff',cursor:'pointer',fontSize:13,fontWeight:pF.admit_type===t.k?700:500,color:pF.admit_type===t.k?'#16a34a':'#64748b'}}>{t.icon} {t.l}</button>
+            ))}
+          </div>
+        </div>
+        {pF.admit_type==='insurance'&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:12,padding:'12px',marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#1d4ed8',marginBottom:10}}>🏥 Insurance details</div>
+          <FInp label="Insurance company / TPA" type="text" value={pF.insurance_type} onChange={e=>setPF({...pF,insurance_type:e.target.value})} placeholder="e.g. Star Health, CGHS, ESI, Medi-Assist"/>
+          <FInp label="Policy / Pre-auth number" type="text" value={pF.insurance_policy_no} onChange={e=>setPF({...pF,insurance_policy_no:e.target.value})} placeholder="Policy or authorization number"/>
+          <FInp label="Pre-approved amount (Rs)" type="number" value={pF.insurance_expected} onChange={e=>setPF({...pF,insurance_expected:e.target.value})} placeholder="Amount approved by insurer"/>
+          {pF.insurance_expected>0&&<div style={{background:'#dbeafe',borderRadius:8,padding:'8px',fontSize:12,color:'#1e40af',marginTop:4}}>Initial approval: {fmt(parseFloat(pF.insurance_expected))} — more approvals can be added later</div>}
+        </div>}
+        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());const ok=await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn,patient_area:pF.patient_area?.trim()||'',insurance_type:pF.admit_type==='insurance'?pF.insurance_type:'',insurance_policy_no:pF.admit_type==='insurance'?pF.insurance_policy_no:'',insurance_expected:pF.admit_type==='insurance'&&pF.insurance_expected?parseFloat(pF.insurance_expected):0,insurance_status:pF.admit_type==='insurance'?'pending':''});if(ok!==false){setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:''})}}}>Admit patient</PBtn>
       </Card>
     </div>
   )
@@ -2864,6 +2880,21 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
+          <div style={{height:1,background:'#bae6fd',margin:'6px 0'}}/>
+          <div style={{fontSize:10,color:'#0369a1',fontWeight:700,marginBottom:4}}>Payment modes</div>
+          {(()=>{
+            const segInc=dI.filter(e=>!['op_l','ip_l'].includes(e.type))
+            const segCash=segInc.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
+            const segUpi=segInc.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
+            const segIns=segInc.filter(e=>e.payment==='insurance').reduce((a,e)=>a+e.amount,0)
+            const segCredit=segInc.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
+            return(<div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {segCash>0&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(segCash)}</span>}
+              {segUpi>0&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(segUpi)}</span>}
+              {segIns>0&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>Insurance {fmt(segIns)}</span>}
+              {segCredit>0&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(segCredit)}</span>}
+            </div>)
+          })()}
         </div>
       </div>
       {/* Laboratory */}
@@ -2933,6 +2964,52 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>
         <div style={{marginTop:10,fontSize:12,color:'#94a3b8',textAlign:'center'}}>Tap any bar to jump to that date</div>
       </div>)
+    })()}
+    {/* INSURANCE DAILY CARD */}
+    {(()=>{
+      const insPatients=db.ip_patients.filter(p=>p.insurance_type&&p.admission_date<=rd&&(!p.discharge_date||p.discharge_date>=rd))
+      if(insPatients.length===0)return null
+      return(<>
+        <SecL>Insurance patients today</SecL>
+        {insPatients.map(p=>{
+          const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+          const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
+          const insPend=Math.max((p.insurance_expected||0)-insRec,0)
+          const copay=Math.max(totalBill-(p.insurance_expected||0),0)
+          const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+          const copayPend=Math.max(copay-cashRec,0)
+          return(<div key={p.id} style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:12,padding:'12px',marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+              <div><div style={{fontSize:13,fontWeight:700,color:'#1e40af'}}>{p.name}</div>
+                <div style={{fontSize:11,color:'#3b82f6'}}>{p.insurance_type}{p.insurance_policy_no?' — '+p.insurance_policy_no:''}</div>
+              </div>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:700,
+                background:p.insurance_status==='approved'?'#f0fdf4':p.insurance_status==='rejected'?'#fef2f2':'#fffbeb',
+                color:p.insurance_status==='approved'?'#16a34a':p.insurance_status==='rejected'?'#dc2626':'#d97706'
+              }}>{p.insurance_status==='approved'?'Approved':p.insurance_status==='rejected'?'Rejected':'Pending'}</span>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:6}}>
+              <div style={{textAlign:'center',background:'rgba(255,255,255,0.7)',borderRadius:8,padding:'6px'}}>
+                <div style={{fontSize:9,color:'#64748b',fontWeight:700}}>TOTAL BILL</div>
+                <div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
+              </div>
+              <div style={{textAlign:'center',background:'rgba(255,255,255,0.7)',borderRadius:8,padding:'6px'}}>
+                <div style={{fontSize:9,color:'#2563eb',fontWeight:700}}>INS APPROVED</div>
+                <div style={{fontSize:13,fontWeight:800,color:'#2563eb'}}>{fmt(p.insurance_expected||0)}</div>
+              </div>
+              <div style={{textAlign:'center',background:'rgba(255,255,255,0.7)',borderRadius:8,padding:'6px'}}>
+                <div style={{fontSize:9,color:'#7c3aed',fontWeight:700}}>CO-PAY</div>
+                <div style={{fontSize:13,fontWeight:800,color:'#7c3aed'}}>{fmt(copay)}</div>
+              </div>
+            </div>
+            <div style={{fontSize:11,display:'flex',flexDirection:'column',gap:3}}>
+              {insPend>0&&<div style={{display:'flex',justifyContent:'space-between',color:'#d97706'}}><span>Insurance pending</span><span style={{fontWeight:700}}>{fmt(insPend)}</span></div>}
+              {copayPend>0&&<div style={{display:'flex',justifyContent:'space-between',color:'#dc2626'}}><span>Co-pay pending</span><span style={{fontWeight:700}}>{fmt(copayPend)}</span></div>}
+              {insPend===0&&copayPend===0&&<div style={{color:'#16a34a',fontWeight:700,textAlign:'center'}}>✓ Fully settled</div>}
+            </div>
+          </div>)
+        })}
+      </>)
     })()}
     <SecL>Doctor referrals</SecL>
     <ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>
@@ -3044,7 +3121,7 @@ export default function App(){
   const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:''})
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
-  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''})
+  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:''})
   const [cF,setCF]=useState({date:todayStr(),type:'ip',amt:'',pay:'cash',notes:''})
   const [pyF,setPyF]=useState({date:todayStr(),amt:'',pay:'cash'})
   const [exD,setExD]=useState(todayStr())
