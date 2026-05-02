@@ -1138,6 +1138,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
 }
 
 const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab,setEditIPPatient})=>{
+  const [ipSubTab,setIpSubTab]=useState('overview')
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
   const [ipSearch,setIpSearch]=useState('')
@@ -1169,6 +1170,14 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       <div>
         {prevTab&&<button onClick={()=>{setPrevTab(null);setTab(prevTab);setIpv('list')}} style={{color:'#16a34a',fontSize:13,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,cursor:'pointer',marginBottom:8,display:'block',padding:'6px 14px',fontWeight:600}}>Back to Daily Report</button>}
         <button onClick={()=>{setPrevTab(null);setIpv('list')}} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>All patients</button>
+        {/* Sub-tabs */}
+        <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}}>
+          {[{k:'overview',l:'Overview'},{k:'charges',l:'Charges'},{k:'insurance',l:'Insurance',show:!!p.insurance_type},{k:'payments',l:'Payments'}].filter(t=>t.show!==false).map(t=>(
+            <button key={t.k} onClick={()=>setIpSubTab(t.k)} style={{padding:'7px 16px',borderRadius:20,border:'none',background:ipSubTab===t.k?'#16a34a':'#f1f5f9',color:ipSubTab===t.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+              {t.k==='insurance'&&'🏥 '}{t.l}
+            </button>
+          ))}
+        </div>
         <Card>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
             <div>
@@ -1265,6 +1274,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 color:p.insurance_status==='approved'?'#16a34a':p.insurance_status==='rejected'?'#dc2626':'#d97706'
               }}>{p.insurance_status==='approved'?'Approved':p.insurance_status==='rejected'?'Rejected':'Pending'}</span>
             </div>
+            {/* Insurance update UI */}
             {p.insurance_expected>0&&(()=>{
               const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
               const insPend=p.insurance_expected-insRec
@@ -2364,6 +2374,237 @@ const IncomeChartReport=({db})=>{
         </div>
       </Card>
     </>}
+  </>)
+}
+
+/*  INSURANCE UPDATE PANEL  */
+const InsuranceUpdatePanel=({p,db,actions,setDb})=>{
+  const [open,setOpen]=useState(false)
+  const [status,setStatus]=useState(p.insurance_status||'pending')
+  const [newApproved,setNewApproved]=useState('')
+  const [insPayAmt,setInsPayAmt]=useState('')
+  const [insPayDate,setInsPayDate]=useState(todayStr())
+  const [insPayNote,setInsPayNote]=useState('')
+  const [busy,setBusy]=useState(false)
+
+  if(!p.insurance_type)return null
+
+  const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+  const totalApproved=p.insurance_expected||0
+  const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
+  const insPend=Math.max(totalApproved-insRec,0)
+  const copay=Math.max(totalBill-totalApproved,0)
+  const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+  const copayPend=Math.max(copay-cashRec,0)
+
+  const save=async()=>{
+    setBusy(true)
+    const newExp=newApproved?parseFloat(newApproved):totalApproved
+    // Update insurance status and approved amount
+    const {error}=await supabase.from('ip_patients').update({
+      insurance_status:status,
+      insurance_expected:newExp
+    }).eq('id',p.id)
+    if(error){alert('Update failed: '+error.message);setBusy(false);return}
+
+    // Record insurance payment if amount entered
+    let newPayments=[...(p.payments||[])]
+    if(insPayAmt&&parseFloat(insPayAmt)>0){
+      newPayments=[...newPayments,{
+        id:uid(),
+        date:insPayDate,
+        amount:parseFloat(insPayAmt),
+        mode:'insurance',
+        note:insPayNote||'Insurance payment'
+      }]
+      await supabase.from('ip_patients').update({payments:newPayments}).eq('id',p.id)
+    }
+
+    setDb(d=>({...d,ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,
+      insurance_status:status,
+      insurance_expected:newExp,
+      payments:newPayments
+    }:pt)}))
+    setOpen(false)
+    setNewApproved('')
+    setInsPayAmt('')
+    setInsPayNote('')
+    setBusy(false)
+  }
+
+  return(<div style={{marginBottom:8}}>
+    {!open?(<button onClick={()=>setOpen(true)} style={{width:'100%',padding:'8px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,fontSize:12,fontWeight:700,color:'#1d4ed8',cursor:'pointer'}}>Update Insurance Status / Add Payment</button>)
+    :(<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:12,padding:'14px',marginBottom:8}}>
+        <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Update Insurance</div>
+
+        {/* Current summary */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:12,background:'#fff',borderRadius:8,padding:'8px'}}>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:9,color:'#94a3b8',fontWeight:700}}>TOTAL BILL</div>
+            <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
+          </div>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:9,color:'#2563eb',fontWeight:700}}>APPROVED</div>
+            <div style={{fontSize:14,fontWeight:800,color:'#2563eb'}}>{fmt(totalApproved)}</div>
+          </div>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:9,color:'#7c3aed',fontWeight:700}}>CO-PAY</div>
+            <div style={{fontSize:14,fontWeight:800,color:'#7c3aed'}}>{fmt(copay)}</div>
+          </div>
+        </div>
+
+        {/* Status update */}
+        <FSel label="Approval status" value={status} onChange={e=>setStatus(e.target.value)}>
+          <option value="pending">Pending approval</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </FSel>
+
+        {/* Update approved amount */}
+        <FInp label={'Update approved amount (current: '+fmt(totalApproved)+')'} type="number" value={newApproved} onChange={e=>setNewApproved(e.target.value)} placeholder={'Current: '+fmt(totalApproved)+' — enter new if changed'}/>
+        {newApproved&&parseFloat(newApproved)>0&&<div style={{background:'#eff6ff',borderRadius:8,padding:'8px',fontSize:12,color:'#1e40af',marginBottom:8}}>
+          New approved: {fmt(parseFloat(newApproved))} — New co-pay: {fmt(Math.max(totalBill-parseFloat(newApproved),0))}
+        </div>}
+
+        {/* Record insurance payment received */}
+        <div style={{borderTop:'1px solid #e5e7eb',paddingTop:10,marginTop:4}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:8}}>Record insurance payment received</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FInp label="Amount (Rs)" type="number" value={insPayAmt} onChange={e=>setInsPayAmt(e.target.value)} placeholder="Amount received"/>
+            <FInp label="Date" type="date" value={insPayDate} onChange={e=>setInsPayDate(e.target.value)}/>
+          </div>
+          <FInp label="Note (optional)" type="text" value={insPayNote} onChange={e=>setInsPayNote(e.target.value)} placeholder="e.g. First installment, Pre-auth 1"/>
+          {insPayAmt&&insPend>0&&<div style={{fontSize:11,color:'#d97706',marginBottom:8}}>
+            After this payment — insurance pending: {fmt(Math.max(insPend-parseFloat(insPayAmt||0),0))}
+          </div>}
+        </div>
+
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <PBtn onClick={save} disabled={busy} style={{flex:2}}>{busy?'Saving...':'Save'}</PBtn>
+          <button onClick={()=>setOpen(false)} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,cursor:'pointer',color:'#aaa'}}>Cancel</button>
+        </div>
+      </div>)}
+  </div>)
+}
+
+/*  INSURANCE TAB COMPONENT  */
+const InsuranceTab=({p,db,setDb})=>{
+  const [status,setStatus]=useState(p.insurance_status||'pending')
+  const [newApproved,setNewApproved]=useState(String(p.insurance_expected||0))
+  const [insPayAmt,setInsPayAmt]=useState('')
+  const [insPayDate,setInsPayDate]=useState(todayStr())
+  const [insPayNote,setInsPayNote]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [saved,setSaved]=useState(false)
+
+  const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+  const approved=parseFloat(newApproved)||0
+  const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
+  const insRec=insPayments.reduce((a,py)=>a+(py.amount||0),0)
+  const insPend=Math.max(approved-insRec,0)
+  const copay=Math.max(totalBill-approved,0)
+  const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+  const copayPend=Math.max(copay-cashRec,0)
+
+  const saveStatus=async()=>{
+    setBusy(true)
+    const {error}=await supabase.from('ip_patients').update({
+      insurance_status:status,
+      insurance_expected:approved
+    }).eq('id',p.id)
+    if(error){alert('Update failed: '+error.message);setBusy(false);return}
+    setDb(d=>({...d,ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,insurance_status:status,insurance_expected:approved}:pt)}))
+    setSaved(true);setTimeout(()=>setSaved(false),2000)
+    setBusy(false)
+  }
+
+  const addPayment=async()=>{
+    if(!insPayAmt||parseFloat(insPayAmt)<=0){alert('Enter amount');return}
+    setBusy(true)
+    const newPmt={id:uid(),date:insPayDate,amount:parseFloat(insPayAmt),mode:'insurance',note:insPayNote||'Insurance payment received'}
+    const newPayments=[...(p.payments||[]),newPmt]
+    const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',p.id)
+    if(error){alert('Failed: '+error.message);setBusy(false);return}
+    setDb(d=>({...d,ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,payments:newPayments}:pt)}))
+    setInsPayAmt('');setInsPayNote('');setBusy(false)
+  }
+
+  return(<>
+    {/* Status summary */}
+    <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.insurance_type}</div>
+          {p.insurance_policy_no&&<div style={{fontSize:11,color:'#94a3b8'}}>Policy: {p.insurance_policy_no}</div>}
+        </div>
+        <span style={{fontSize:12,padding:'4px 12px',borderRadius:20,fontWeight:700,
+          background:status==='approved'?'#f0fdf4':status==='rejected'?'#fef2f2':'#fffbeb',
+          color:status==='approved'?'#16a34a':status==='rejected'?'#dc2626':'#d97706'
+        }}>{status==='approved'?'Approved':status==='rejected'?'Rejected':'Pending'}</span>
+      </div>
+      {/* Bill breakdown */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
+        <div style={{textAlign:'center',background:'#f8fafc',borderRadius:8,padding:'8px'}}>
+          <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,marginBottom:3}}>TOTAL BILL</div>
+          <div style={{fontSize:16,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
+        </div>
+        <div style={{textAlign:'center',background:'#eff6ff',borderRadius:8,padding:'8px'}}>
+          <div style={{fontSize:9,color:'#2563eb',fontWeight:700,marginBottom:3}}>INS APPROVED</div>
+          <div style={{fontSize:16,fontWeight:800,color:'#2563eb'}}>{fmt(approved)}</div>
+        </div>
+        <div style={{textAlign:'center',background:'#fdf4ff',borderRadius:8,padding:'8px'}}>
+          <div style={{fontSize:9,color:'#7c3aed',fontWeight:700,marginBottom:3}}>PATIENT CO-PAY</div>
+          <div style={{fontSize:16,fontWeight:800,color:'#7c3aed'}}>{fmt(copay)}</div>
+        </div>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:4,fontSize:12}}>
+        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#94a3b8'}}>Insurance received so far</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(insRec)}</span></div>
+        {insPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#d97706',fontWeight:600}}>Insurance still pending</span><span style={{fontWeight:700,color:'#d97706'}}>{fmt(insPend)}</span></div>}
+        {copayPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#dc2626',fontWeight:600}}>Co-pay pending from patient</span><span style={{fontWeight:700,color:'#dc2626'}}>{fmt(copayPend)}</span></div>}
+        {insPend===0&&copayPend===0&&totalBill>0&&<div style={{textAlign:'center',color:'#16a34a',fontWeight:700}}>✅ Fully settled</div>}
+      </div>
+    </div>
+
+    {/* Update approval */}
+    <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Update approval</div>
+      <FSel label="Status" value={status} onChange={e=>setStatus(e.target.value)}>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+      </FSel>
+      <FInp label="Total approved amount (Rs)" type="number" value={newApproved} onChange={e=>setNewApproved(e.target.value)} placeholder="e.g. 25000"/>
+      {parseFloat(newApproved)>0&&<div style={{background:'#eff6ff',borderRadius:8,padding:'8px',fontSize:12,color:'#1e40af',marginBottom:8}}>
+        If approved {fmt(parseFloat(newApproved))} — patient co-pay: {fmt(Math.max(totalBill-parseFloat(newApproved),0))}
+      </div>}
+      <GBtn onClick={saveStatus} disabled={busy}>{busy?'Saving...':saved?'Saved ✓':'Save status & amount'}</GBtn>
+    </div>
+
+    {/* Insurance payments received */}
+    <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Record insurance payment received</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        <FInp label="Amount (Rs)" type="number" value={insPayAmt} onChange={e=>setInsPayAmt(e.target.value)} placeholder="Amount received"/>
+        <FInp label="Date" type="date" value={insPayDate} onChange={e=>setInsPayDate(e.target.value)}/>
+      </div>
+      <FInp label="Note" type="text" value={insPayNote} onChange={e=>setInsPayNote(e.target.value)} placeholder="e.g. Pre-auth 1, Final settlement"/>
+      <GBtn onClick={addPayment} disabled={busy}>{busy?'Saving...':'Record insurance payment'}</GBtn>
+    </div>
+
+    {/* Payment history */}
+    {insPayments.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px'}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Insurance payments history</div>
+      {insPayments.map((py,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+        <div><div style={{fontSize:13,fontWeight:600}}>{py.note||'Insurance payment'}</div>
+          <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(py.date)}</div>
+        </div>
+        <div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(py.amount)}</div>
+      </div>))}
+      <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #e5e7eb'}}>
+        <span style={{fontSize:13,fontWeight:700}}>Total received</span>
+        <span style={{fontSize:14,fontWeight:800,color:'#16a34a'}}>{fmt(insRec)}</span>
+      </div>
+    </div>}
   </>)
 }
 
