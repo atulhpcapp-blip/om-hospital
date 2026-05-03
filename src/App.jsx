@@ -3147,46 +3147,23 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   </table>)
 
   const pageStyle=`
-    @page {
-      size: A4 portrait;
-      margin: 10mm 10mm 10mm 10mm;
-    }
+    @page { size: A4 portrait; margin: 12mm; }
     @media print {
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      .no-print { display: none !important; }
-      .app-header { display: none !important; }
-      .app-wrapper { max-width: 100% !important; }
-      html, body { width: 100%; margin: 0 !important; padding: 0 !important; background: #fff !important; }
-      .print-container { padding-top: 0 !important; }
-      .page {
-        width: 100%;
-        padding: 6mm 6mm;
-        margin: 0;
-        page-break-after: always;
-        border: none !important;
-        box-shadow: none !important;
-        min-height: auto;
-      }
-      table { page-break-inside: auto; }
-      tr { page-break-inside: avoid; page-break-after: auto; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+      html { width: 100% !important; }
+      body { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; background: white !important; }
+      body > * { display: none !important; }
+      body > #print-root { display: block !important; }
+      .app-header, .no-print { display: none !important; }
+      .page { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; page-break-after: always; }
+      table { page-break-inside: auto; width: 100%; }
+      tr { page-break-inside: avoid; }
     }
-    .page {
-      width: 176mm;
-      min-height: 257mm;
-      padding: 6mm 8mm;
-      box-sizing: border-box;
-      font-family: Arial, sans-serif;
-      font-size: 10pt;
-      color: #000;
-      margin: 0 auto 20px auto;
-      background: #fff;
-      border: 1px solid #ddd;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 6px; }
-    td, th { border: 0.5px solid #888; padding: 3px 5px; font-size: 9pt; line-height: 1.3; }
+    .page { font-family: Arial, sans-serif; font-size: 10pt; color: #000; background: #fff; width: 172mm; margin: 0 auto 20px auto; padding: 8mm; border: 1px solid #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 5px; }
+    td, th { border: 0.5px solid #888; padding: 3px 5px; font-size: 9pt; line-height: 1.3; vertical-align: top; }
     th { background: #f0f0f0; font-weight: 700; text-align: left; }
-    .section-head td { font-weight: 700; background: #e0e0e0; font-size: 9pt; letter-spacing: 0.5px; }
+    .section-head td { font-weight: 700; background: #e0e0e0; letter-spacing: 0.3px; }
     .total-row td { font-weight: 700; background: #f5f5f5; }
     .grand-total td { font-weight: 700; font-size: 11pt; border: 1.5px solid #000; }
   `
@@ -3320,19 +3297,107 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     </div>}
   </>)
 
-  if(printMode)return(<div style={{background:'#f0f0f0',minHeight:'100vh'}}>
-    <style>{pageStyle}</style>
-    <div className="no-print" style={{position:'fixed',top:0,left:0,right:0,zIndex:100,background:'#1e293b',padding:'10px 16px',display:'flex',gap:8,alignItems:'center'}}>
-      <button onClick={()=>window.print()} style={{padding:'8px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Print / Save PDF</button>
-      <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back</button>
-      <span style={{color:'#94a3b8',fontSize:12}}>A4 size — prints on letterhead</span>
+  const fmtN=n=>n?'Rs '+parseFloat(n).toLocaleString('en-IN',{minimumFractionDigits:2}):'Rs 0.00'
+  const fmtDN=d=>{if(!d)return'—';try{const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return d}}
+
+  const openPrintWindow=html=>{
+    const win=window.open('','_blank')
+    if(!win){alert('Please allow popups for this site');return}
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Bill - ${p.name}</title><style>
+      @page{size:A4 portrait;margin:12mm}
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0;padding:0;background:#fff}
+      .page{width:100%;page-break-after:always;padding:0}
+      table{border-collapse:collapse;width:100%;margin-bottom:5px}
+      td,th{border:0.5px solid #888;padding:3px 5px;font-size:9pt;line-height:1.4;vertical-align:top}
+      th{background:#f0f0f0;font-weight:700;text-align:left}
+      .sh td{font-weight:700;background:#e0e0e0}
+      .tr td{font-weight:700;background:#f5f5f5}
+      .gt td{font-weight:700;font-size:11pt;border:1.5px solid #000}
+      .btn{position:fixed;top:8px;right:8px;padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
+      @media print{.btn{display:none!important}}
+    </style></head><body>
+    <button class="btn" onclick="window.print()">🖨 Print</button>
+    ${html}
+    </body></html>`)
+    win.document.close()
+  }
+
+  const getBillHTML=()=>{
+    let h=''
+    h+=`<div class="page">`
+    h+=`<div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:8px;border-bottom:2px solid #000;padding-bottom:6px">IP Bill Cum Receipt</div>`
+    h+=`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:10pt"><div><div><b>Consultant:</b> ${consultations[0]?.doctor||p.ref_doctor||'—'}</div><div><b>D.O.A:</b> ${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</div>${p.discharge_date?'<div><b>D.O.D:</b> '+fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:'')+'</div>':''}</div><div style="text-align:right"><div><b>Bill No:</b> ${p.reg_no||'—'}-${todayStr().replace(/-/g,'').slice(2)}</div><div><b>Date:</b> ${fmtDN(todayStr())}</div>${p.insurance_type?'<div><b>Insurance:</b> '+p.insurance_type+'</div>':''}</div></div>`
+    h+=`<table style="margin-bottom:6px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>Room</th><th>Payment Type</th></tr></thead><tbody><tr><td><b>${p.name}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${p.room||'—'}</td><td>${p.insurance_type?'Insurance':'Cash'}</td></tr></tbody></table>`
+    if(p.diagnosis)h+=`<div style="font-size:9pt;margin-bottom:5px"><b>Diagnosis:</b> ${p.diagnosis}</div>`
+    h+=`<table><thead><tr><th style="width:50%">Particulars</th><th style="text-align:right;width:10%">Qty</th><th style="text-align:right;width:18%">Rate</th><th style="text-align:right;width:22%">Amount</th></tr></thead><tbody>`
+    if(pharmaTotal>0){
+      h+=`<tr class="sh"><td colspan="4">MEDICINES</td></tr>`
+      pharmaDays.filter(d=>d.items.some(i=>i.name)).forEach(day=>{
+        const dt=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
+        h+=`<tr><td style="padding-left:12px">${day.billNo||'—'} — ${fmtDN(day.date)}</td><td></td><td></td><td style="text-align:right">${fmtN(dt)}</td></tr>`
+      })
+      h+=`<tr class="tr"><td colspan="3" style="text-align:right">Medicines Total</td><td style="text-align:right">${fmtN(pharmaTotal)}</td></tr>`
+    }
+    if(labTotal>0){
+      h+=`<tr class="sh"><td colspan="4">INVESTIGATION CHARGES</td></tr>`
+      labTests.filter(i=>i.name).forEach(i=>{const a=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);h+=`<tr><td style="padding-left:12px">${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate)||0)}</td><td style="text-align:right">${fmtN(a)}</td></tr>`})
+      h+=`<tr class="tr"><td colspan="3" style="text-align:right">Investigation Total</td><td style="text-align:right">${fmtN(labTotal)}</td></tr>`
+    }
+    if(consultTotal>0){
+      h+=`<tr class="sh"><td colspan="4">CONSULTATION</td></tr>`
+      consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).forEach(i=>{h+=`<tr><td style="padding-left:12px">Consultation (${i.doctor})</td><td style="text-align:right">${i.qty}</td><td style="text-align:right">${fmtN(parseFloat(i.rate))}</td><td style="text-align:right">${fmtN(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>`})
+    }
+    if(roomTotal>0){roomCharges.filter(i=>i.name&&parseFloat(i.qty)&&parseFloat(i.rate)).forEach(i=>{h+=`<tr><td style="font-weight:600">${i.name}</td><td style="text-align:right">${i.qty}</td><td style="text-align:right">${fmtN(parseFloat(i.rate))}</td><td style="text-align:right">${fmtN(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>`})}
+    if(otherTotal>0){
+      h+=`<tr class="sh"><td colspan="4">OTHERS</td></tr>`
+      otherCharges.filter(i=>i.name&&parseFloat(i.rate)).forEach(i=>{h+=`<tr><td style="padding-left:12px">${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate))}</td><td style="text-align:right">${fmtN((parseFloat(i.qty)||1)*parseFloat(i.rate))}</td></tr>`})
+    }
+    h+=`<tr class="gt"><td colspan="3" style="text-align:right">Grand Total</td><td style="text-align:right">${fmtN(grandTotal)}</td></tr>`
+    if(insApproved>0){h+=`<tr><td colspan="3" style="text-align:right;color:#1d4ed8">Insurance Approved (${p.insurance_type})</td><td style="text-align:right;color:#1d4ed8">- ${fmtN(insApproved)}</td></tr><tr class="tr"><td colspan="3" style="text-align:right">Patient Co-pay</td><td style="text-align:right">${fmtN(Math.max(grandTotal-insApproved,0))}</td></tr>`}
+    if(advAmt>0)h+=`<tr><td colspan="3" style="text-align:right">Advance Paid</td><td style="text-align:right">- ${fmtN(advAmt)}</td></tr>`
+    if(discAmt>0)h+=`<tr><td colspan="3" style="text-align:right">Discount</td><td style="text-align:right">- ${fmtN(discAmt)}</td></tr>`
+    if(advAmt+discAmt>0)h+=`<tr class="gt"><td colspan="3" style="text-align:right">Final Settlement</td><td style="text-align:right">${fmtN(finalAmt)}</td></tr>`
+    h+=`</tbody></table>`
+    h+=`<div style="font-size:9pt;margin:6px 0"><b>Amount in words:</b> RUPEES ${toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>`
+    h+=`<div style="display:flex;justify-content:space-around;margin-top:20px"><div style="text-align:center;width:35%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Authorised Signatory</div></div><div style="text-align:center;width:35%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Cashier</div></div></div></div>`
+    if(pharmaTotal>0){
+      h+=`<div class="page"><div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;letter-spacing:3px">MEDICINES</div>`
+      h+=`<table style="margin-bottom:8px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead><tbody><tr><td><b>${p.name.toUpperCase()}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</td><td>${p.discharge_date?fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'Active'}</td></tr></tbody></table>`
+      h+=`<table><thead><tr><th style="width:10%">Bill No</th><th style="width:10%">Date</th><th style="width:40%">Product</th><th style="width:12%">Batch</th><th style="width:10%">Expiry</th><th style="text-align:right;width:8%">Qty</th><th style="text-align:right;width:10%">Amount</th></tr></thead><tbody>`
+      pharmaDays.forEach(day=>{day.items.filter(i=>i.name).forEach((item,ii)=>{h+=`<tr><td style="font-weight:${ii===0?700:400};color:${ii===0?'#000':'#aaa'}">${ii===0?(day.billNo||'—'):''}</td><td style="color:${ii===0?'#000':'#aaa'}">${ii===0?fmtDN(day.date):''}</td><td>${item.name}</td><td>${item.batch||''}</td><td>${item.expiry||''}</td><td style="text-align:right">${item.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(item.amount)||0)}</td></tr>`})})
+      h+=`<tr class="tr"><td colspan="6" style="text-align:right">Total</td><td style="text-align:right">${fmtN(pharmaTotal)}</td></tr></tbody></table>`
+      h+=`<div style="text-align:right;margin-top:20px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:35%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
+    }
+    if(labTotal>0){
+      h+=`<div class="page"><div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:10px;letter-spacing:2px">INVESTIGATION CHARGES</div>`
+      h+=`<table style="margin-bottom:8px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead><tbody><tr><td><b>${p.name.toUpperCase()}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${fmtDN(p.admission_date)}</td><td>${p.discharge_date?fmtDN(p.discharge_date):'Active'}</td></tr></tbody></table>`
+      h+=`<table><thead><tr><th>Investigation</th><th style="text-align:right;width:10%">Qty</th><th style="text-align:right;width:15%">Rate</th><th style="text-align:right;width:15%">Amount</th></tr></thead><tbody>`
+      labTests.filter(i=>i.name).forEach(i=>{const a=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);h+=`<tr><td>${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate)||0)}</td><td style="text-align:right">${fmtN(a)}</td></tr>`})
+      h+=`<tr class="tr"><td colspan="3" style="text-align:right">Total</td><td style="text-align:right">${fmtN(labTotal)}</td></tr></tbody></table>`
+      h+=`<div style="text-align:right;margin-top:20px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:35%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
+    }
+    return h
+  }
+
+  const getDischargeHTML=()=>`<div class="page"><div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:6px">DISCHARGE SUMMARY</div><table style="margin-bottom:10px"><tbody><tr><td style="font-weight:700;width:25%">Patient Name</td><td>${p.name}</td><td style="font-weight:700;width:15%">Reg No</td><td>${p.reg_no||'—'}</td></tr><tr><td style="font-weight:700">D.O.A</td><td>${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</td><td style="font-weight:700">D.O.D</td><td>${p.discharge_date?fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'—'}</td></tr><tr><td style="font-weight:700">Room</td><td>${p.room||'—'}</td><td style="font-weight:700">Consultant</td><td>${consultations[0]?.doctor||p.ref_doctor||'—'}</td></tr><tr><td style="font-weight:700">Diagnosis</td><td colspan="3">${p.diagnosis||'—'}</td></tr></tbody></table><div style="border:1px solid #ccc;padding:10px;min-height:280px;white-space:pre-wrap;line-height:1.8;font-size:10pt">${dischargeText||'(Discharge summary)'}</div><div style="display:flex;justify-content:space-around;margin-top:30px"><div style="text-align:center;width:40%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Doctor Signature &amp; Stamp</div></div><div style="text-align:center;width:40%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Patient / Attendant</div></div></div></div>`
+
+  const getReceiptHTML=r=>`<div style="max-width:380px;margin:20px auto;border:2px dashed #999;padding:20px"><div style="text-align:center;font-size:14pt;font-weight:700;margin-bottom:10px;border-bottom:1px solid #000;padding-bottom:6px">PAYMENT RECEIPT</div><table style="border:none;margin-bottom:10px"><tbody><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0;width:40%">Receipt No</td><td style="border:none">${r.receipt_no}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Date</td><td style="border:none">${fmtDN(r.receipt_date)}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Patient</td><td style="border:none">${p.name}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Reg No</td><td style="border:none">${p.reg_no||'—'}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Mode</td><td style="border:none">${(r.mode||'Cash')[0].toUpperCase()+(r.mode||'cash').slice(1)}</td></tr>${r.notes?`<tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Note</td><td style="border:none">${r.notes}</td></tr>`:''}</tbody></table><div style="background:#f5f5f5;padding:10px;text-align:center;font-size:18pt;font-weight:700;margin:8px 0">Rs ${parseFloat(r.amount).toLocaleString('en-IN',{minimumFractionDigits:2})}</div><div style="font-size:9pt;text-align:center;margin-bottom:16px">RUPEES ${toWords(Math.floor(r.amount)).toUpperCase()} ONLY</div><div style="text-align:center;margin-top:24px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:60%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
+
+  if(printMode)return(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#374151',zIndex:9999,display:'flex',flexDirection:'column'}}>
+    <div style={{background:'#1e293b',padding:'10px 16px',display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+      <button onClick={()=>{const h=view==='bill'?getBillHTML():view==='discharge'?getDischargeHTML():printReceipt?getReceiptHTML(printReceipt):'';openPrintWindow(h)}} style={{padding:'8px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Open Print Window</button>
+      <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back to Edit</button>
+      <span style={{color:'#94a3b8',fontSize:11}}>A new window opens → click Print there (A4, no margins)</span>
     </div>
-    <div className="print-container" style={{paddingTop:56}}>
-      {view==='bill'&&<BillPrint/>}
-      {view==='discharge'&&<DischargePrint/>}
-      {view==='receipts'&&printReceipt&&<ReceiptPrint r={printReceipt}/>}
+    <div style={{flex:1,overflowY:'auto',padding:16,display:'flex',justifyContent:'center'}}>
+      <div style={{background:'#fff',width:595,minHeight:842,padding:24,boxShadow:'0 4px 20px rgba(0,0,0,0.3)',fontSize:10,fontFamily:'Arial'}}>
+        <div style={{fontSize:13,fontWeight:700,textAlign:'center',borderBottom:'2px solid #000',paddingBottom:8,marginBottom:12}}>IP Bill Cum Receipt — Preview</div>
+        <div style={{fontSize:11,color:'#666',textAlign:'center',marginBottom:8}}>Click "Open Print Window" for clean A4 print</div>
+      </div>
     </div>
   </div>)
+
 
   // ── EDIT VIEW ──  // ── EDIT VIEW ──
   const inpStyle={width:'100%',padding:'7px 8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}
@@ -3523,7 +3588,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </div>
       </>}
     </div>
-  </div>)
+  </div>
+  )
 }
 
 
