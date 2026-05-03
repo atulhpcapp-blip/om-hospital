@@ -3075,181 +3075,167 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     </tr></tbody>
   </table>)
 
-  const BillPrint=()=>(<div style={{fontFamily:'Arial,sans-serif',color:'#000',background:'#fff',padding:'20px',maxWidth:750,margin:'0 auto',fontSize:12}}>
-    {/* Header */}
-    <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:12,borderBottom:'2px solid #000',paddingBottom:8}}>IP Bill Cum Receipt</div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',marginBottom:8,fontSize:12}}>
-      <div><b>Consultant:</b> {consultations[0]?.doctor||'Dr. '+p.ref_doctor||'—'}</div>
-      <div style={{textAlign:'right'}}><b>Bill No:</b> {p.reg_no||'—'}-{todayStr().replace(/-/g,'').slice(2)}</div>
-      <div><b>D.O.A:</b> {fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</div>
-      <div style={{textAlign:'right'}}><b>Date:</b> {fmtD(todayStr())}</div>
-      {p.discharge_date&&<div><b>D.O.D:</b> {fmtD(p.discharge_date)}{p.discharge_time?' '+p.discharge_time:''}</div>}
-      {p.insurance_type&&<div><b>Insurance:</b> {p.insurance_type} | {p.insurance_policy_no||'—'}</div>}
-    </div>
-    <PatientRow/>
-    <div style={{marginBottom:8,fontSize:12}}><b>Payment Type:</b> {p.insurance_type?'Insurance':'Cash'}</div>
+  const pageStyle=`
+    @page { size: A4; margin: 0; }
+    @media print {
+      .no-print { display: none !important; }
+      .app-header { display: none !important; }
+      body { margin: 0; background: #fff; }
+      .page { width: 210mm; min-height: 297mm; padding: 15mm 15mm 10mm 15mm; box-sizing: border-box; page-break-after: always; font-family: Arial, sans-serif; font-size: 11pt; color: #000; }
+    }
+    .page { width: 210mm; min-height: 297mm; padding: 15mm 15mm 10mm 15mm; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 11pt; color: #000; margin: 0 auto; background: #fff; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #999; padding: 4px 6px; font-size: 10pt; }
+    th { background: #f0f0f0; font-weight: 700; }
+    .section-head td { font-weight: 700; background: #e8e8e8; font-size: 10pt; }
+    .total-row td { font-weight: 700; background: #f5f5f5; }
+    .grand-total td { font-weight: 700; font-size: 12pt; border: 2px solid #000; }
+  `
 
-    {/* Main bill table */}
-    <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
-      <thead><tr>{th('Particulars')}{th('Qty',{right:true,style:{textAlign:'right',width:50}})}{th('Rate',{right:true,style:{textAlign:'right',width:80}})}{th('Amount',{right:true,style:{textAlign:'right',width:80}})}</tr></thead>
-      <tbody>
-        {/* Medicines - show date and bill numbers */}
-        {pharmaTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,fontSize:12,background:'#f5f5f5'}}>MEDICINES</td></tr>
-        {pharmaDays.filter(day=>day.items.some(i=>i.name)).map((day,di)=>{
-          const dayTotal=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
-          return(<tr key={di}>
-            {td(day.billNo||('Day '+(di+1)))}
-            {td(fmtD(day.date))}
-            {td('',{style:{textAlign:'right'}})}
-            {td(fmt(dayTotal),{style:{textAlign:'right',fontWeight:600}})}
-          </tr>)
-        })}
-        <tr style={{fontWeight:700,background:'#fafafa'}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Medicines Total</td>{td(fmt(pharmaTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
-        </>}
-        {/* Investigation - show each test */}
-        {labTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,background:'#f5f5f5'}}>INVESTIGATION CHARGES</td></tr>
-        {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}>
-          {td(i.name)}
-          {td(i.qty||1,{style:{textAlign:'right'}})}
-          {td(fmt(parseFloat(i.rate)||0),{style:{textAlign:'right'}})}
-          {td(fmt(amt),{style:{textAlign:'right'}})}
-        </tr>)})}
-        <tr style={{fontWeight:700,background:'#fafafa'}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Investigation Total</td>{td(fmt(labTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
-        </>}
-        {/* Consultation */}
-        {consultTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>CONSULTATION</td></tr>
-        {consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}>
-          {td('Consultation ('+i.doctor+')')}
-          {td(i.qty,{style:{textAlign:'right'}})}
-          {td(fmt(parseFloat(i.rate)),{style:{textAlign:'right'}})}
-          {td(fmt(parseFloat(i.qty)*parseFloat(i.rate)),{style:{textAlign:'right'}})}
-        </tr>)}</>}
-        {/* Room/nursing/monitor */}
-        {roomTotal>0&&roomCharges.filter(i=>parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=>{
-          const isSection=['Room / Bed charges','Observation and Nursing charges','Monitor charges','Consumables'].includes(i.name)
-          return(<tr key={idx}>
-            {td(i.name,{style:{fontWeight:isSection?700:400}})}
-            {td(i.qty,{style:{textAlign:'right'}})}
-            {td(fmt(parseFloat(i.rate)),{style:{textAlign:'right'}})}
-            {td(fmt(parseFloat(i.qty)*parseFloat(i.rate)),{style:{textAlign:'right'}})}
-          </tr>)
-        })}
-        {/* Others */}
-        {otherTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>OTHERS</td></tr>
-        {otherCharges.filter(i=>i.name&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}>
-          {td(i.name)}
-          {td(i.qty||1,{style:{textAlign:'right'}})}
-          {td(fmt(parseFloat(i.rate)),{style:{textAlign:'right'}})}
-          {td(fmt((parseFloat(i.qty)||1)*parseFloat(i.rate)),{style:{textAlign:'right'}})}
-        </tr>)}</>}
-        {/* Grand total */}
-        <tr style={{fontWeight:700,fontSize:13}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'5px 7px',textAlign:'right'}}>Grand Total:</td>{td(fmt(grandTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
-      </tbody>
-    </table>
-    <div style={{fontSize:12,marginBottom:8}}><b>Amount (in words):</b> RUPEES {toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>
-    {/* Settlement */}
-    {(advAmt>0||discAmt>0)&&<table style={{width:'50%',marginLeft:'auto',borderCollapse:'collapse',marginBottom:8,fontSize:12}}>
-      <tbody>
-        {advAmt>0&&<tr>{td('Advance Paid')}{td(fmt(advAmt),{style:{textAlign:'right'}})}</tr>}
-        {discAmt>0&&<tr>{td('Discount')}{td(fmt(discAmt),{style:{textAlign:'right'}})}</tr>}
-        <tr style={{fontWeight:700}}>{td('Final Settlement')}{td(fmt(finalAmt),{style:{textAlign:'right',fontWeight:700}})}</tr>
-      </tbody>
-    </table>}
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:32,fontSize:12,width:'60%'}}>
-      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Authorised Signature</div></div>
-      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Cashier</div></div>
+  const BillPrint=()=>(<>
+    {/* PAGE 1 - MAIN BILL */}
+    <div className="page">
+      {/* Title - no letterhead, just title */}
+      <div style={{textAlign:'center',fontSize:'16pt',fontWeight:700,marginBottom:8,borderBottom:'2px solid #000',paddingBottom:6}}>IP Bill Cum Receipt</div>
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:'10pt'}}>
+        <div>
+          <div><b>Consultant:</b> {consultations[0]?.doctor||p.ref_doctor||'—'}</div>
+          <div><b>D.O.A:</b> {fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</div>
+          {p.discharge_date&&<div><b>D.O.D:</b> {fmtD(p.discharge_date)}{p.discharge_time?' '+p.discharge_time:''}</div>}
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div><b>Bill No:</b> {p.reg_no||'—'}/{todayStr().replace(/-/g,'').slice(2)}</div>
+          <div><b>Date:</b> {fmtD(todayStr())}</div>
+          {p.insurance_type&&<div><b>Insurance:</b> {p.insurance_type}</div>}
+        </div>
+      </div>
+      {/* Patient table */}
+      <table style={{marginBottom:8}}>
+        <thead><tr><th>Name</th><th>ID / Reg No</th><th>Phone</th><th>Room</th><th>Payment</th></tr></thead>
+        <tbody><tr><td><b>{p.name}</b></td><td>{p.reg_no||'—'}</td><td>{p.phone||'—'}</td><td>{p.room||'—'}</td><td>{p.insurance_type?'Insurance':'Cash'}</td></tr></tbody>
+      </table>
+      {p.diagnosis&&<div style={{marginBottom:6,fontSize:'10pt'}}><b>Diagnosis:</b> {p.diagnosis}</div>}
+      
+      {/* Main bill table */}
+      <table style={{marginBottom:8}}>
+        <thead><tr><th style={{width:'55%'}}>Particulars</th><th style={{textAlign:'right',width:'10%'}}>Qty</th><th style={{textAlign:'right',width:'17%'}}>Rate</th><th style={{textAlign:'right',width:'18%'}}>Amount</th></tr></thead>
+        <tbody>
+          {/* Medicines */}
+          {pharmaTotal>0&&<>
+            <tr className="section-head"><td colSpan={4}>MEDICINES</td></tr>
+            {pharmaDays.filter(d=>d.items.some(i=>i.name)).map((day,di)=>{
+              const dayTotal=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
+              return(<tr key={di}><td style={{paddingLeft:16}}>{day.billNo||('Day '+(di+1))} — {fmtD(day.date)}</td><td></td><td></td><td style={{textAlign:'right'}}>{fmt(dayTotal)}</td></tr>)
+            })}
+            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Medicines Total</td><td style={{textAlign:'right'}}>{fmt(pharmaTotal)}</td></tr>
+          </>}
+          {/* Investigation */}
+          {labTotal>0&&<>
+            <tr className="section-head"><td colSpan={4}>INVESTIGATION CHARGES</td></tr>
+            {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td><td style={{textAlign:'right'}}>{fmt(amt)}</td></tr>)})}
+            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Investigation Total</td><td style={{textAlign:'right'}}>{fmt(labTotal)}</td></tr>
+          </>}
+          {/* Consultation */}
+          {consultTotal>0&&<>
+            <tr className="section-head"><td colSpan={4}>CONSULTATION</td></tr>
+            {consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{paddingLeft:16}}>Consultation ({i.doctor})</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
+          </>}
+          {/* Room charges */}
+          {roomTotal>0&&<>
+            {roomCharges.filter(i=>i.name&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{fontWeight:600}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
+          </>}
+          {/* Others */}
+          {otherTotal>0&&<>
+            <tr className="section-head"><td colSpan={4}>OTHERS</td></tr>
+            {otherCharges.filter(i=>i.name&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt((parseFloat(i.qty)||1)*parseFloat(i.rate))}</td></tr>)}
+          </>}
+          {/* Grand total */}
+          <tr className="grand-total"><td colSpan={3} style={{textAlign:'right',fontSize:'12pt'}}>Grand Total</td><td style={{textAlign:'right',fontSize:'12pt'}}>{fmt(grandTotal)}</td></tr>
+          {/* Insurance */}
+          {insApproved>0&&<>
+            <tr><td colSpan={3} style={{textAlign:'right',color:'#1d4ed8'}}>Insurance Approved ({p.insurance_type})</td><td style={{textAlign:'right',color:'#1d4ed8'}}>- {fmt(insApproved)}</td></tr>
+            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Patient Co-pay</td><td style={{textAlign:'right'}}>{fmt(Math.max(grandTotal-insApproved,0))}</td></tr>
+          </>}
+          {/* Advance/discount */}
+          {advAmt>0&&<tr><td colSpan={3} style={{textAlign:'right'}}>Advance Paid</td><td style={{textAlign:'right'}}>- {fmt(advAmt)}</td></tr>}
+          {discAmt>0&&<tr><td colSpan={3} style={{textAlign:'right'}}>Discount</td><td style={{textAlign:'right'}}>- {fmt(discAmt)}</td></tr>}
+          {(advAmt+discAmt)>0&&<tr className="grand-total"><td colSpan={3} style={{textAlign:'right'}}>Final Settlement</td><td style={{textAlign:'right'}}>{fmt(finalAmt)}</td></tr>}
+        </tbody>
+      </table>
+      
+      <div style={{fontSize:'9pt',marginBottom:12}}><b>Amount in words:</b> RUPEES {toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>
+      
+      <div style={{display:'flex',justifyContent:'space-around',marginTop:20}}>
+        <div style={{textAlign:'center',width:'35%'}}><div style={{borderTop:'1px solid #000',paddingTop:6,fontSize:'10pt'}}>Authorised Signatory</div></div>
+        <div style={{textAlign:'center',width:'35%'}}><div style={{borderTop:'1px solid #000',paddingTop:6,fontSize:'10pt'}}>Cashier</div></div>
+      </div>
     </div>
 
-    {/* MEDICINES DETAIL PAGE */}
-    {pharmaTotal>0&&<>
-      <div style={{pageBreakBefore:'always',marginTop:20}}/>
-      <div style={{textAlign:'center',fontSize:20,fontWeight:700,marginBottom:12,letterSpacing:4}}>MEDICINES</div>
-      <PatientRow/>
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12,fontSize:12}}>
-        <thead><tr>{th('Bill No')}{th('Products')}{th('Batch')}{th('Expiry')}{th('Qty',{style:{textAlign:'right'}})}{th('Amount',{style:{textAlign:'right'}})}</tr></thead>
+    {/* PAGE 2 - MEDICINES DATE-WISE */}
+    {pharmaTotal>0&&<div className="page">
+      <div style={{textAlign:'center',fontSize:'18pt',fontWeight:700,marginBottom:10,letterSpacing:3}}>MEDICINES</div>
+      <table style={{marginBottom:6}}>
+        <thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead>
+        <tbody><tr><td><b>{p.name.toUpperCase()}</b></td><td>{p.reg_no||'—'}</td><td>{p.phone||'—'}</td><td>{fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</td><td>{p.discharge_date?fmtD(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'Active'}</td></tr></tbody>
+      </table>
+      <table>
+        <thead><tr><th style={{width:'10%'}}>Bill No</th><th style={{width:'10%'}}>Date</th><th style={{width:'40%'}}>Product</th><th style={{width:'12%'}}>Batch</th><th style={{width:'10%'}}>Expiry</th><th style={{textAlign:'right',width:'8%'}}>Qty</th><th style={{textAlign:'right',width:'10%'}}>Amount</th></tr></thead>
         <tbody>
           {pharmaDays.map((day,di)=>day.items.filter(i=>i.name).map((item,ii)=>(
             <tr key={di+'-'+ii}>
-              {td(ii===0?day.billNo:'')}
-              {td(item.name)}
-              {td(item.batch||'')}
-              {td(item.expiry||'')}
-              {td(item.qty||1,{style:{textAlign:'right'}})}
-              {td(fmt(parseFloat(item.amount)||0),{style:{textAlign:'right'}})}
+              <td style={{fontWeight:ii===0?700:400,color:ii===0?'#000':'#999'}}>{ii===0?(day.billNo||'Day '+(di+1)):''}</td>
+              <td style={{fontWeight:ii===0?700:400,color:ii===0?'#000':'#999'}}>{ii===0?fmtD(day.date):''}</td>
+              <td>{item.name}</td>
+              <td>{item.batch||''}</td>
+              <td>{item.expiry||''}</td>
+              <td style={{textAlign:'right'}}>{item.qty||1}</td>
+              <td style={{textAlign:'right'}}>{fmt(parseFloat(item.amount)||0)}</td>
             </tr>
           )))}
-          <tr style={{fontWeight:700}}><td colSpan={5} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Total</td>{td(fmt(pharmaTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
+          <tr className="total-row"><td colSpan={6} style={{textAlign:'right',fontWeight:700}}>Total</td><td style={{textAlign:'right',fontWeight:700}}>{fmt(pharmaTotal)}</td></tr>
         </tbody>
       </table>
-      <div style={{textAlign:'right',marginTop:8,fontSize:12,borderTop:'1px solid #000',paddingTop:8}}>Authorized Signature</div>
-    </>}
+      <div style={{textAlign:'right',marginTop:20}}><div style={{display:'inline-block',borderTop:'1px solid #000',paddingTop:6,width:'35%',textAlign:'center',fontSize:'10pt'}}>Authorised Signature</div></div>
+    </div>}
 
-    {/* LAB DETAIL PAGE */}
-    {labTotal>0&&<>
-      <div style={{pageBreakBefore:'always',marginTop:20}}/>
-      <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:12,letterSpacing:2}}>INVESTIGATION CHARGES</div>
-      <PatientRow/>
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12,fontSize:12}}>
-        <thead><tr>{th('Name')}{th('Qty',{style:{textAlign:'right'}})}{th('Rate',{style:{textAlign:'right'}})}{th('Amount',{style:{textAlign:'right'}})}</tr></thead>
+    {/* PAGE 3 - INVESTIGATION DATE-WISE */}
+    {labTotal>0&&<div className="page">
+      <div style={{textAlign:'center',fontSize:'16pt',fontWeight:700,marginBottom:10,letterSpacing:2}}>INVESTIGATION CHARGES</div>
+      <table style={{marginBottom:6}}>
+        <thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead>
+        <tbody><tr><td><b>{p.name.toUpperCase()}</b></td><td>{p.reg_no||'—'}</td><td>{p.phone||'—'}</td><td>{fmtD(p.admission_date)}</td><td>{p.discharge_date?fmtD(p.discharge_date):'Active'}</td></tr></tbody>
+      </table>
+      <table>
+        <thead><tr><th>Investigation</th><th style={{textAlign:'right',width:'10%'}}>Qty</th><th style={{textAlign:'right',width:'15%'}}>Rate</th><th style={{textAlign:'right',width:'15%'}}>Amount</th></tr></thead>
         <tbody>
-          {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||parseFloat(i.amount)||0);return(<tr key={idx}>
-            {td(i.name)}
-            {td(i.qty||1,{style:{textAlign:'right'}})}
-            {td(fmt(parseFloat(i.rate)||0),{style:{textAlign:'right'}})}
-            {td(fmt(amt),{style:{textAlign:'right'}})}
+          {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}>
+            <td>{i.name}</td>
+            <td style={{textAlign:'right'}}>{i.qty||1}</td>
+            <td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td>
+            <td style={{textAlign:'right'}}>{fmt(amt)}</td>
           </tr>)})}
-          <tr style={{fontWeight:700}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Total</td>{td(fmt(labTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
+          <tr className="total-row"><td colSpan={3} style={{textAlign:'right',fontWeight:700}}>Total</td><td style={{textAlign:'right',fontWeight:700}}>{fmt(labTotal)}</td></tr>
         </tbody>
       </table>
-    </>}
-  </div>)
+      <div style={{textAlign:'right',marginTop:20}}><div style={{display:'inline-block',borderTop:'1px solid #000',paddingTop:6,width:'35%',textAlign:'center',fontSize:'10pt'}}>Authorised Signature</div></div>
+    </div>}
+  </>)
 
-  const ReceiptPrint=({r})=>(<div style={{fontFamily:'Arial,sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:420,margin:'0 auto',fontSize:13,border:'2px dashed #ccc'}}>
-    <div style={{textAlign:'center',fontSize:14,fontWeight:700,marginBottom:12,borderBottom:'1px solid #000',paddingBottom:8}}>PAYMENT RECEIPT</div>
-    <div style={{marginBottom:12}}>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Receipt No:</b></span><span>{r.receipt_no}</span></div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Date:</b></span><span>{fmtD(r.receipt_date)}</span></div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Patient:</b></span><span>{p.name}</span></div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Reg No:</b></span><span>{p.reg_no||'—'}</span></div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Mode:</b></span><span>{(r.mode||'Cash')[0].toUpperCase()+(r.mode||'cash').slice(1)}</span></div>
-      {r.notes&&<div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Note:</b></span><span>{r.notes}</span></div>}
+  if(printMode)return(<div style={{background:'#f0f0f0',minHeight:'100vh'}}>
+    <style>{pageStyle}</style>
+    <div className="no-print" style={{position:'fixed',top:0,left:0,right:0,zIndex:100,background:'#1e293b',padding:'10px 16px',display:'flex',gap:8,alignItems:'center'}}>
+      <button onClick={()=>window.print()} style={{padding:'8px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Print / Save PDF</button>
+      <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back</button>
+      <span style={{color:'#94a3b8',fontSize:12}}>A4 size — prints on letterhead</span>
     </div>
-    <div style={{background:'#f0f0f0',padding:'10px',textAlign:'center',fontSize:20,fontWeight:700,borderRadius:4,marginBottom:12}}>₹ {fmt(r.amount)}</div>
-    <div style={{fontSize:11,textAlign:'center',marginBottom:16}}>RUPEES {toWords(Math.floor(r.amount)).toUpperCase()} ONLY</div>
-    <div style={{marginTop:24,textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6,width:'60%',margin:'0 auto',fontSize:12}}>Authorised Signature</div></div>
-  </div>)
-
-  const DischargePrint=()=>(<div style={{fontFamily:'Arial,sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:720,margin:'0 auto',fontSize:12}}>
-    <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:12,borderBottom:'2px solid #000',paddingBottom:8}}>DISCHARGE SUMMARY</div>
-    <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12,fontSize:12}}>
-      <tbody>
-        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,width:'50%'}}>Patient Name</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.name}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Reg No</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.reg_no||'—'}</td></tr>
-        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Date of Admission</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{fmtD(p.admission_date)}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Time</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.admission_time||'—'}</td></tr>
-        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Date of Discharge</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.discharge_date?fmtD(p.discharge_date):'—'}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Time</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.discharge_time||'—'}</td></tr>
-        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Room</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.room||'—'}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Consultant</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.ref_doctor||'—'}</td></tr>
-      </tbody>
-    </table>
-    <div style={{border:'1px solid #ccc',borderRadius:4,padding:'12px',minHeight:300,whiteSpace:'pre-wrap',lineHeight:1.8}}>{dischargeText||'(Discharge summary will appear here)'}</div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginTop:32,fontSize:12}}>
-      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Doctor Signature & Stamp</div></div>
-      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Patient / Attendant</div></div>
-    </div>
-  </div>)
-
-  if(printMode)return(<div>
-    <div className="no-print" style={{position:'fixed',top:0,left:0,right:0,zIndex:100,background:'#fff',padding:'8px 16px',display:'flex',gap:8,borderBottom:'1px solid #e5e7eb'}}>
-      <button onClick={()=>window.print()} style={{padding:'8px 20px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Print / Save PDF</button>
-      <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #e5e7eb',borderRadius:8,cursor:'pointer',fontSize:14}}>← Back</button>
-    </div>
-    <div style={{marginTop:56}}>
+    <div style={{paddingTop:56}}>
       {view==='bill'&&<BillPrint/>}
       {view==='discharge'&&<DischargePrint/>}
       {view==='receipts'&&printReceipt&&<ReceiptPrint r={printReceipt}/>}
     </div>
-    <style>{`@media print{.no-print{display:none!important}body{margin:0}}`}</style>
   </div>)
 
-  // ── EDIT VIEW ──
+  // ── EDIT VIEW ──  // ── EDIT VIEW ──
   const inpStyle={width:'100%',padding:'7px 8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}
 
   return(<div style={{background:'#f8fafc',minHeight:'100vh'}}>
