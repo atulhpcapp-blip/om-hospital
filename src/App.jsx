@@ -2974,11 +2974,29 @@ const toWords=n=>{
 
 const AutoInput=({value,onChange,placeholder,suggestions,style})=>{
   const [show,setShow]=useState(false)
-  const filtered=value.length>=3?suggestions.filter(s=>s.toLowerCase().includes(value.toLowerCase())).slice(0,6):[]
+  const [localSugg,setLocalSugg]=useState([])
+  // Update suggestions when value changes (3+ chars)
+  useEffect(()=>{
+    if(value.length>=3&&suggestions&&suggestions.length>0){
+      const f=suggestions.filter(s=>s.toLowerCase().includes(value.toLowerCase())).slice(0,8)
+      setLocalSugg(f)
+      if(f.length>0)setShow(true)
+    } else {
+      setLocalSugg([])
+      setShow(false)
+    }
+  },[value,suggestions])
   return(<div style={{position:'relative'}}>
-    <input value={value} onChange={e=>{onChange(e.target.value);setShow(true)}} onBlur={()=>setTimeout(()=>setShow(false),200)} placeholder={placeholder} style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',...(style||{})}}/>
-    {show&&filtered.length>0&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e2e8f0',borderRadius:8,zIndex:99,boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
-      {filtered.map((s,i)=>(<div key={i} onMouseDown={()=>{onChange(s);setShow(false)}} style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f5f5f5'}}>{s}</div>))}
+    <input
+      value={value}
+      onChange={e=>onChange(e.target.value)}
+      onFocus={()=>{if(value.length>=3&&localSugg.length>0)setShow(true)}}
+      onBlur={()=>setTimeout(()=>setShow(false),300)}
+      placeholder={placeholder}
+      style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',...(style||{})}}
+    />
+    {show&&localSugg.length>0&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #bfdbfe',borderRadius:8,zIndex:999,boxShadow:'0 6px 20px rgba(0,0,0,0.15)',maxHeight:200,overflowY:'auto'}}>
+      {localSugg.map((s,i)=>(<div key={i} onMouseDown={e=>{e.preventDefault();onChange(s);setShow(false)}} style={{padding:'10px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f5f5f5',background:i===0?'#f0f9ff':'#fff'}}>{s}</div>))}
     </div>}
   </div>)
 }
@@ -3014,9 +3032,15 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   // Lab tests
   const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:''}])
 
-  // Saved items for autocomplete
+  const [billId,setBillId]=useState(null)
+  const [billSaving,setBillSaving]=useState(false)
+  const [billSaved,setBillSaved]=useState(false)
+  const [editMode,setEditMode]=useState(false)
+
+  // Load saved bill and autocomplete items
   useEffect(()=>{
     if(!hospId)return
+    // Load saved items for autocomplete
     supabase.from('saved_items').select('*').eq('hospital_id',hospId).then(({data})=>{
       if(data)setSavedItems({
         medicine:data.filter(x=>x.category==='medicine').map(x=>x.name),
@@ -3024,10 +3048,57 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         service:data.filter(x=>x.category==='service').map(x=>x.name)
       })
     })
+    // Load receipts
     supabase.from('ip_receipts').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).then(({data})=>{
       setReceipts(data||[]);setLoadingReceipts(false)
     })
+    // Load existing bill for this patient
+    supabase.from('ip_bills').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(1).then(({data})=>{
+      if(data&&data.length>0){
+        const bill=data[0]
+        setBillId(bill.id)
+        const items=bill.items||{}
+        if(items.consultations)setConsultations(items.consultations)
+        if(items.roomCharges)setRoomCharges(items.roomCharges)
+        if(items.otherCharges)setOtherCharges(items.otherCharges)
+        if(items.pharmaDays)setPharmaDays(items.pharmaDays)
+        if(items.labTests)setLabTests(items.labTests)
+        if(items.advance)setAdvance(items.advance)
+        if(items.discount)setDiscount(items.discount)
+        if(items.dischargeText)setDischargeText(items.dischargeText)
+        setBillSaved(true)
+      }
+    })
   },[hospId])
+
+  const saveBill=async()=>{
+    setBillSaving(true)
+    const items={consultations,roomCharges,otherCharges,pharmaDays,labTests,advance,discount,dischargeText}
+    const billData={hospital_id:hospId,patient_id:p.id,bill_date:todayStr(),total:grandTotal,items,status:'draft'}
+    if(billId){
+      await supabase.from('ip_bills').update(billData).eq('id',billId)
+    } else {
+      const {data}=await supabase.from('ip_bills').insert(billData).select().single()
+      if(data)setBillId(data.id)
+    }
+    setBillSaved(true)
+    setEditMode(false)
+    setBillSaving(false)
+  }
+
+  const saveDischarge=async()=>{
+    setBillSaving(true)
+    const items={consultations,roomCharges,otherCharges,pharmaDays,labTests,advance,discount,dischargeText}
+    const billData={hospital_id:hospId,patient_id:p.id,bill_date:todayStr(),total:grandTotal,items,status:'draft'}
+    if(billId){
+      await supabase.from('ip_bills').update(billData).eq('id',billId)
+    } else {
+      const {data}=await supabase.from('ip_bills').insert(billData).select().single()
+      if(data)setBillId(data.id)
+    }
+    setBillSaved(true)
+    setBillSaving(false)
+  }
 
   const saveItem=async(cat,name)=>{
     if(!name||name.length<2)return
@@ -3078,28 +3149,31 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const pageStyle=`
     @page {
       size: A4 portrait;
-      margin: 12mm 12mm 12mm 12mm;
+      margin: 10mm 10mm 10mm 10mm;
     }
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       .no-print { display: none !important; }
-      html, body { width: 210mm; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      .app-header { display: none !important; }
+      .app-wrapper { max-width: 100% !important; }
+      html, body { width: 100%; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      .print-container { padding-top: 0 !important; }
       .page {
         width: 100%;
-        padding: 0;
+        padding: 6mm 6mm;
         margin: 0;
         page-break-after: always;
-        page-break-inside: avoid;
         border: none !important;
         box-shadow: none !important;
+        min-height: auto;
       }
       table { page-break-inside: auto; }
       tr { page-break-inside: avoid; page-break-after: auto; }
     }
     .page {
-      width: 186mm;
+      width: 176mm;
       min-height: 257mm;
-      padding: 8mm 10mm;
+      padding: 6mm 8mm;
       box-sizing: border-box;
       font-family: Arial, sans-serif;
       font-size: 10pt;
@@ -3253,7 +3327,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back</button>
       <span style={{color:'#94a3b8',fontSize:12}}>A4 size — prints on letterhead</span>
     </div>
-    <div style={{paddingTop:56}}>
+    <div className="print-container" style={{paddingTop:56}}>
       {view==='bill'&&<BillPrint/>}
       {view==='discharge'&&<DischargePrint/>}
       {view==='receipts'&&printReceipt&&<ReceiptPrint r={printReceipt}/>}
@@ -3266,7 +3340,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   return(<div style={{background:'#f8fafc',minHeight:'100vh'}}>
     <div style={{background:'#0f172a',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,position:'sticky',top:0,zIndex:10}}>
       <button onClick={onClose} style={{color:'#94a3b8',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>← Back</button>
-      <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:'#fff'}}>{p.name} — Billing</div></div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:14,fontWeight:700,color:'#fff'}}>{p.name} — Billing</div>
+        {billSaved&&<div style={{fontSize:11,color:'#4ade80'}}>✓ Bill saved</div>}
+      </div>
+      {billSaved&&<button onClick={()=>setEditMode(true)} style={{color:'#fbbf24',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>✏️ Edit</button>}
     </div>
     <div style={{padding:'16px'}}>
       <div style={{display:'flex',gap:4,marginBottom:16,overflowX:'auto'}}>
@@ -3394,7 +3472,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>
           {(advAmt+discAmt)>0&&<div style={{color:'#4ade80',fontSize:16,fontWeight:700,display:'flex',justifyContent:'space-between',borderTop:'1px solid rgba(255,255,255,0.2)',paddingTop:8}}><span>Final Settlement</span><span>{fmt(finalAmt)}</span></div>}
         </div>
-        <GBtn onClick={()=>setPrintMode(true)}>🖨 Print IP Bill</GBtn>
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <GBtn onClick={saveBill} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved&&!editMode?'✓ Saved — Update':'💾 Save Bill'}</GBtn>
+          <GBtn onClick={()=>setPrintMode(true)} style={{flex:1,background:'#1d4ed8'}}>🖨 Print</GBtn>
+        </div>
+        {billSaved&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',marginTop:4}}>Bill saved — will reload next time you open billing</div>}
       </>}
 
       {/* ── RECEIPTS ── */}
@@ -3435,7 +3517,10 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           <div style={{fontSize:12,color:'#94a3b8',marginBottom:8}}>Type or paste complete discharge summary</div>
           <textarea value={dischargeText} onChange={e=>setDischargeText(e.target.value)} placeholder="Chief complaint:&#10;History:&#10;Examination:&#10;Investigations:&#10;Diagnosis:&#10;Treatment given:&#10;Condition at discharge:&#10;Advice:&#10;Follow-up:" style={{width:'100%',minHeight:400,padding:'12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,lineHeight:1.8,outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
         </div>
-        <GBtn onClick={()=>setPrintMode(true)}>🖨 Print Discharge Summary</GBtn>
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <GBtn onClick={saveDischarge} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved?'✓ Saved — Update':'💾 Save'}</GBtn>
+          <GBtn onClick={()=>setPrintMode(true)} style={{flex:1,background:'#1d4ed8'}}>🖨 Print</GBtn>
+        </div>
       </>}
     </div>
   </div>)
@@ -4304,8 +4389,8 @@ export default function App(){
   const TAB_COLORS={dash:{active:'#6366f1',bg:'#eef2ff'},entry:{active:'#16a34a',bg:'#f0fdf4'},ip:{active:'#2563eb',bg:'#eff6ff'},op:{active:'#7c3aed',bg:'#f5f3ff'},exp:{active:'#dc2626',bg:'#fff1f2'},rep:{active:'#d97706',bg:'#fffbeb'},credit:{active:'#c2410c',bg:'#fff7ed'},refdrs:{active:'#0891b2',bg:'#ecfeff'},consult:{active:'#7c3aed',bg:'#f5f3ff'},admin:{active:'#475569',bg:'#f8fafc'}}
   const tc=TAB_COLORS[tab]||{active:'#16a34a',bg:'#f0fdf4'}
   return(
-    <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
-      <div style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:10,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+    <div className="app-wrapper" style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
+      <div className="app-header" style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:10,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{width:34,height:34,borderRadius:10,background:tc.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
