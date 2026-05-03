@@ -3076,20 +3076,45 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   </table>)
 
   const pageStyle=`
-    @page { size: A4; margin: 0; }
-    @media print {
-      .no-print { display: none !important; }
-      .app-header { display: none !important; }
-      body { margin: 0; background: #fff; }
-      .page { width: 210mm; min-height: 297mm; padding: 15mm 15mm 10mm 15mm; box-sizing: border-box; page-break-after: always; font-family: Arial, sans-serif; font-size: 11pt; color: #000; }
+    @page {
+      size: A4 portrait;
+      margin: 12mm 12mm 12mm 12mm;
     }
-    .page { width: 210mm; min-height: 297mm; padding: 15mm 15mm 10mm 15mm; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 11pt; color: #000; margin: 0 auto; background: #fff; }
-    table { border-collapse: collapse; width: 100%; }
-    td, th { border: 1px solid #999; padding: 4px 6px; font-size: 10pt; }
-    th { background: #f0f0f0; font-weight: 700; }
-    .section-head td { font-weight: 700; background: #e8e8e8; font-size: 10pt; }
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .no-print { display: none !important; }
+      html, body { width: 210mm; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      .page {
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        page-break-after: always;
+        page-break-inside: avoid;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+    }
+    .page {
+      width: 186mm;
+      min-height: 257mm;
+      padding: 8mm 10mm;
+      box-sizing: border-box;
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      color: #000;
+      margin: 0 auto 20px auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 6px; }
+    td, th { border: 0.5px solid #888; padding: 3px 5px; font-size: 9pt; line-height: 1.3; }
+    th { background: #f0f0f0; font-weight: 700; text-align: left; }
+    .section-head td { font-weight: 700; background: #e0e0e0; font-size: 9pt; letter-spacing: 0.5px; }
     .total-row td { font-weight: 700; background: #f5f5f5; }
-    .grand-total td { font-weight: 700; font-size: 12pt; border: 2px solid #000; }
+    .grand-total td { font-weight: 700; font-size: 11pt; border: 1.5px solid #000; }
   `
 
   const BillPrint=()=>(<>
@@ -3321,7 +3346,20 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
             <button onClick={()=>{const n=[...pharmaDays];n[di].items=[...n[di].items,{name:'',qty:'',amount:'',batch:'',expiry:''}];setPharmaDays(n)}} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add medicine</button>
             <div style={{textAlign:'right',fontSize:12,fontWeight:700,color:'#16a34a',marginTop:6}}>Day total: {fmt(day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0))}</div>
           </div>))}
-          <button onClick={()=>setPharmaDays([...pharmaDays,{billNo:'',date:todayStr(),items:[{name:'',qty:'',amount:'',batch:'',expiry:''}]}])} style={{width:'100%',padding:'8px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:13,cursor:'pointer',color:'#64748b',fontWeight:600}}>+ Add another day</button>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <button onClick={()=>setPharmaDays([...pharmaDays,{billNo:'',date:todayStr(),items:[{name:'',qty:'',amount:'',batch:'',expiry:''}]}])} style={{padding:'8px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:13,cursor:'pointer',color:'#64748b',fontWeight:600}}>+ Add new day (blank)</button>
+            <button onClick={()=>{
+              const prev=pharmaDays[pharmaDays.length-1]
+              if(!prev)return
+              // Copy previous day items, clear amounts for re-entry
+              const copiedItems=prev.items.map(i=>({...i,amount:'',batch:'',expiry:''}))
+              // Next date = prev date + 1 day
+              const nextDate=new Date(prev.date+'T00:00:00')
+              nextDate.setDate(nextDate.getDate()+1)
+              const nextDateStr=nextDate.toISOString().split('T')[0]
+              setPharmaDays([...pharmaDays,{billNo:'',date:nextDateStr,items:copiedItems}])
+            }} style={{padding:'8px',background:'#eff6ff',border:'1px dashed #93c5fd',borderRadius:8,fontSize:13,cursor:'pointer',color:'#1d4ed8',fontWeight:600}}>📋 Repeat previous day</button>
+          </div>
         </div>
 
         {/* Lab tests */}
