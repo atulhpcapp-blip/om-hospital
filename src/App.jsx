@@ -3214,19 +3214,40 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         {/* Pharmacy */}
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
           <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>💊 Pharmacy</div>
-          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 0.7fr 0.7fr auto',gap:6,marginBottom:4}}>
-            {['Medicine','MRP','Qty','Disc',''].map(h=><div key={h} style={{fontSize:10,color:'#94a3b8',fontWeight:700}}>{h}</div>)}
-          </div>
-          {pharmaItems.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 0.7fr 0.7fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
-            <AutoInput value={item.name} onChange={v=>{const n=[...pharmaItems];n[i]={...n[i],name:v};setPharmaItems(n)}} placeholder="Medicine name" suggestions={savedItems.medicine}/>
-            <input inputMode="decimal" value={item.mrp||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],mrp:e.target.value};setPharmaItems(n)}} placeholder="MRP" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],qty:e.target.value};setPharmaItems(n)}} placeholder="Qty" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input inputMode="decimal" value={item.disc||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],disc:e.target.value};setPharmaItems(n)}} placeholder="Disc" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <button onClick={()=>{saveItem('medicine',item.name);setPharmaItems(pharmaItems.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>
-          </div>))}
+          {pharmaItems.map((item,i)=>{
+            const qty=parseFloat(item.qty)||1
+            const mrp=parseFloat(item.mrp)||0
+            const disc=parseFloat(item.disc)||0
+            const net=qty*(mrp-disc)
+            return(<div key={i} style={{background:'#f8fafc',borderRadius:10,padding:'10px',marginBottom:8,border:'1px solid #e2e8f0'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#64748b'}}>Medicine {i+1}</div>
+                <button onClick={()=>{saveItem('medicine',item.name);setPharmaItems(pharmaItems.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:14,fontWeight:700}}>✕ Remove</button>
+              </div>
+              <AutoInput value={item.name} onChange={v=>{const n=[...pharmaItems];n[i]={...n[i],name:v};setPharmaItems(n)}} placeholder="Medicine / item name" suggestions={savedItems.medicine}/>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:8}}>
+                <div>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:3}}>MRP (per unit)</div>
+                  <input inputMode="decimal" value={item.mrp} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],mrp:e.target.value};setPharmaItems(n)}} placeholder="0.00" style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none'}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:3}}>Quantity</div>
+                  <input inputMode="decimal" value={item.qty} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],qty:e.target.value};setPharmaItems(n)}} placeholder="1" style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none'}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:3}}>Discount/unit</div>
+                  <input inputMode="decimal" value={item.disc} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],disc:e.target.value};setPharmaItems(n)}} placeholder="0.00" style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none'}}/>
+                </div>
+              </div>
+              {mrp>0&&<div style={{display:'flex',justifyContent:'space-between',marginTop:8,paddingTop:6,borderTop:'1px solid #e2e8f0',fontSize:12}}>
+                <span style={{color:'#64748b'}}>{qty} × (₹{mrp} - ₹{disc} disc)</span>
+                <span style={{fontWeight:700,color:'#16a34a'}}>= {fmt(net)}</span>
+              </div>}
+            </div>)
+          })}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
-            <button onClick={()=>setPharmaItems([...pharmaItems,{name:'',mrp:'',qty:'',disc:''}])} style={{padding:'5px 10px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b'}}>+ Add medicine</button>
-            <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Total: {fmt(pharmaTotal)}</span>
+            <button onClick={()=>setPharmaItems([...pharmaItems,{name:'',mrp:'',qty:'',disc:''}])} style={{padding:'7px 14px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b',fontWeight:600}}>+ Add medicine</button>
+            <span style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Total: {fmt(pharmaTotal)}</span>
           </div>
         </div>
 
