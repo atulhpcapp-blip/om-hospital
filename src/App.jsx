@@ -3093,12 +3093,29 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
       <thead><tr>{th('Particulars')}{th('Qty',{right:true,style:{textAlign:'right',width:50}})}{th('Rate',{right:true,style:{textAlign:'right',width:80}})}{th('Amount',{right:true,style:{textAlign:'right',width:80}})}</tr></thead>
       <tbody>
-        {/* Medicines row */}
-        {pharmaTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,fontSize:12}}>MEDICINES</td></tr>
-        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px'}}></td><td style={{border:'1px solid #ccc'}}></td><td style={{border:'1px solid #ccc'}}></td>{td(fmt(pharmaTotal),{style:{textAlign:'right',fontWeight:700}})}</tr></>}
-        {/* Lab row */}
-        {labTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>INVESTIGATION CHARGES</td></tr>
-        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px'}}></td><td style={{border:'1px solid #ccc'}}></td><td style={{border:'1px solid #ccc'}}></td>{td(fmt(labTotal),{style:{textAlign:'right',fontWeight:700}})}</tr></>}
+        {/* Medicines - show date and bill numbers */}
+        {pharmaTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,fontSize:12,background:'#f5f5f5'}}>MEDICINES</td></tr>
+        {pharmaDays.filter(day=>day.items.some(i=>i.name)).map((day,di)=>{
+          const dayTotal=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
+          return(<tr key={di}>
+            {td(day.billNo||('Day '+(di+1)))}
+            {td(fmtD(day.date))}
+            {td('',{style:{textAlign:'right'}})}
+            {td(fmt(dayTotal),{style:{textAlign:'right',fontWeight:600}})}
+          </tr>)
+        })}
+        <tr style={{fontWeight:700,background:'#fafafa'}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Medicines Total</td>{td(fmt(pharmaTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
+        </>}
+        {/* Investigation - show each test */}
+        {labTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,background:'#f5f5f5'}}>INVESTIGATION CHARGES</td></tr>
+        {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}>
+          {td(i.name)}
+          {td(i.qty||1,{style:{textAlign:'right'}})}
+          {td(fmt(parseFloat(i.rate)||0),{style:{textAlign:'right'}})}
+          {td(fmt(amt),{style:{textAlign:'right'}})}
+        </tr>)})}
+        <tr style={{fontWeight:700,background:'#fafafa'}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Investigation Total</td>{td(fmt(labTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
+        </>}
         {/* Consultation */}
         {consultTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>CONSULTATION</td></tr>
         {consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}>
@@ -3138,10 +3155,9 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         <tr style={{fontWeight:700}}>{td('Final Settlement')}{td(fmt(finalAmt),{style:{textAlign:'right',fontWeight:700}})}</tr>
       </tbody>
     </table>}
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginTop:32,fontSize:12}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:32,fontSize:12,width:'60%'}}>
       <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Authorised Signature</div></div>
       <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Cashier</div></div>
-      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Patient / Attendant</div></div>
     </div>
 
     {/* MEDICINES DETAIL PAGE */}
