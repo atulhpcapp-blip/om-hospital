@@ -2719,7 +2719,7 @@ const InsuranceReport=({db,actions})=>{
 }
 
 /*  INSURANCE MAIN TAB  */
-const InsuranceMainTab=({db,setDb,gotoIP})=>{
+const InsuranceMainTab=({db,setDb,gotoIP,hospital})=>{
   const [filter,setFilter]=useState('active')
   const [selPat,setSelPat]=useState(null)
   const [status,setStatus]=useState('')
@@ -2774,7 +2774,7 @@ const InsuranceMainTab=({db,setDb,gotoIP})=>{
     const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',selPat.id)
     if(error){alert('Failed: '+error.message);setBusy(false);return}
     // Also add to income table so it appears in daily/real income reports
-    const incEntry={id:uid(),hospital_id:selPat.hospital_id||db.ip_patients.find(x=>x.id===selPat.id)?.hospital_id,date:insPayDate,type:'ip',amount:amt,patient_id:selPat.id,patient_name:selPat.name,payment:'insurance',notes:insPayNote||'Insurance payment',ref_doctor:''}
+    const incEntry={id:uid(),hospital_id:hospital?.id||selPat.hospital_id,date:insPayDate,type:'ip',amount:amt,patient_id:selPat.id,patient_name:selPat.name,payment:'insurance',notes:insPayNote||'Insurance payment',ref_doctor:''}
     await supabase.from('income').insert(incEntry)
     setDb(d=>({...d,
       ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p),
@@ -3828,7 +3828,7 @@ export default function App(){
         {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
         {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions}/>}
-        {tab==='ins'&&<InsuranceMainTab db={db} setDb={setDb} gotoIP={(id)=>{setTab('ip');setTimeout(()=>gotoIP(id),100)}}/>}
+        {tab==='ins'&&<InsuranceMainTab db={db} setDb={setDb} hospital={hospital} gotoIP={(id)=>{setTab('ip');setTimeout(()=>gotoIP(id),100)}}/>}
         {tab==='credit'&&<CreditTab db={db} actions={actions}/>}
         {tab==='refdrs'&&<RefDoctorsTab db={db} actions={actions}/>}
         {tab==='consult'&&<ConsultantsTab db={db} actions={actions}/>}
