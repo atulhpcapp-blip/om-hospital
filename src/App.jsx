@@ -3201,8 +3201,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Room / Nursing charges</div>
           {bedCharges.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             <input value={item.name} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],name:e.target.value};setBedCharges(n)}} placeholder="Description" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input type="number" value={item.amount} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],amount:e.target.value};setBedCharges(n)}} placeholder="Rate/day" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input type="number" value={item.days} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],days:e.target.value};setBedCharges(n)}} placeholder="Days" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input inputMode="decimal" value={item.amount||''} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],amount:e.target.value};setBedCharges(n)}} placeholder="Rate/day" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input inputMode="decimal" value={item.days||''} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],days:e.target.value};setBedCharges(n)}} placeholder="Days" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
             {i>=3?<button onClick={()=>setBedCharges(bedCharges.filter((_,j)=>j!==i))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>:<div/>}
           </div>))}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
@@ -3219,9 +3219,9 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>
           {pharmaItems.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 0.7fr 0.7fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             <AutoInput value={item.name} onChange={v=>{const n=[...pharmaItems];n[i]={...n[i],name:v};setPharmaItems(n)}} placeholder="Medicine name" suggestions={savedItems.medicine}/>
-            <input type="number" value={item.mrp} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],mrp:e.target.value};setPharmaItems(n)}} placeholder="0" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input type="number" value={item.qty||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],qty:e.target.value};setPharmaItems(n)}} placeholder="1" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input type="number" value={item.disc||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],disc:e.target.value};setPharmaItems(n)}} placeholder="0" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input inputMode="decimal" value={item.mrp||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],mrp:e.target.value};setPharmaItems(n)}} placeholder="MRP" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],qty:e.target.value};setPharmaItems(n)}} placeholder="Qty" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input inputMode="decimal" value={item.disc||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],disc:e.target.value};setPharmaItems(n)}} placeholder="Disc" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
             <button onClick={()=>{saveItem('medicine',item.name);setPharmaItems(pharmaItems.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>
           </div>))}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
@@ -3235,7 +3235,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>🧪 Laboratory</div>
           {labItems.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             <AutoInput value={item.name} onChange={v=>{const n=[...labItems];n[i]={...n[i],name:v};setLabItems(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
-            <input type="number" value={item.price} onChange={e=>{const n=[...labItems];n[i]={...n[i],price:e.target.value};setLabItems(n)}} placeholder="Price" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input inputMode="decimal" value={item.price||''} onChange={e=>{const n=[...labItems];n[i]={...n[i],price:e.target.value};setLabItems(n)}} placeholder="Price" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
             <button onClick={()=>{saveItem('lab',item.name);setLabItems(labItems.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>
           </div>))}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
@@ -3249,7 +3249,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>⚙️ Other services</div>
           {services.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             <AutoInput value={item.name} onChange={v=>{const n=[...services];n[i]={...n[i],name:v};setServices(n)}} placeholder="e.g. O2 charges, ICU, Ambulance" suggestions={savedItems.service}/>
-            <input type="number" value={item.amount} onChange={e=>{const n=[...services];n[i]={...n[i],amount:e.target.value};setServices(n)}} placeholder="Amount" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input inputMode="decimal" value={item.amount||''} onChange={e=>{const n=[...services];n[i]={...n[i],amount:e.target.value};setServices(n)}} placeholder="Amount" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
             <button onClick={()=>{saveItem('service',item.name);setServices(services.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>
           </div>))}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
