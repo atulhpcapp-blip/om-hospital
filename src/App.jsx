@@ -2990,6 +2990,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [pharmaItems,setPharmaItems]=useState([{name:'',mrp:'',qty:'1',disc:'0'}])
   const [labItems,setLabItems]=useState([{name:'',price:''}])
   const [services,setServices]=useState([{name:'',amount:''}])
+  const [advance,setAdvance]=useState('')
+  const [discount,setDiscount]=useState('')
 
   // Totals
   const bedTotal=bedCharges.reduce((a,i)=>a+(parseFloat(i.amount)||0)*(parseFloat(i.days)||1),0)
@@ -3049,20 +3051,22 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const typeLabel={op:'OP Consultation',ip:'IP Charges',ip_r:'IP Pharmacy',op_r:'OP Pharmacy',ip_l:'IP Lab',op_l:'OP Lab',ip_p:'IP Package',vc:'Visiting Consultant'}
 
   // ── PRINT VIEWS ──
-  const PrintHeader=()=>(<div style={{textAlign:'center',borderBottom:'2px solid #000',paddingBottom:12,marginBottom:16}}>
-    <div style={{fontSize:22,fontWeight:700}}>{hospName}</div>
-    {hospital?.city&&<div style={{fontSize:13}}>{hospital.city}</div>}
-    {hospital?.phone&&<div style={{fontSize:13}}>Ph: {hospital.phone}</div>}
-  </div>)
+  const PrintHeader=()=>(<div style={{borderBottom:'2px solid #000',paddingBottom:8,marginBottom:12}}/>)
 
-  const PatientInfo=()=>(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:16,fontSize:13}}>
-    <div><b>Patient:</b> {p.name}</div><div><b>Reg No:</b> {p.reg_no||'—'}</div>
-    <div><b>Phone:</b> {p.phone||'—'}</div><div><b>Room:</b> {p.room||'—'}</div>
-    <div><b>Admission:</b> {fmtD(p.admission_date)}</div><div><b>Discharge:</b> {p.discharge_date?fmtD(p.discharge_date):'Active'}</div>
-    <div><b>Duration:</b> {days} day{days!==1?'s':''}</div><div><b>Ref Doctor:</b> {p.ref_doctor||'Self'}</div>
-    {p.diagnosis&&<div style={{gridColumn:'1/-1'}}><b>Diagnosis:</b> {p.diagnosis}</div>}
-    {p.insurance_type&&<div style={{gridColumn:'1/-1',background:'#eff6ff',padding:'4px 8px',borderRadius:4}}><b>Insurance:</b> {p.insurance_type} {p.insurance_policy_no?'| '+p.insurance_policy_no:''} | Status: {p.insurance_status||'pending'}</div>}
-  </div>)
+  const PatientInfo=()=>(<>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:12,fontSize:13,border:'1px solid #ccc',padding:'10px',borderRadius:4}}>
+      <div><b>Patient Name:</b> {p.name}</div>
+      <div><b>Reg No:</b> {p.reg_no||'—'}</div>
+      <div><b>Date of Admission:</b> {fmtD(p.admission_date)}</div>
+      <div><b>Time of Admission:</b> {p.admission_time||'—'}</div>
+      <div><b>Date of Discharge:</b> {p.discharge_date?fmtD(p.discharge_date):'—'}</div>
+      <div><b>Time of Discharge:</b> {p.discharge_time||'—'}</div>
+      <div><b>Room / Bed:</b> {p.room||'—'}</div>
+      <div><b>Ref Doctor:</b> {p.ref_doctor||'Self'}</div>
+      {p.diagnosis&&<div style={{gridColumn:'1/-1'}}><b>Diagnosis:</b> {p.diagnosis}</div>}
+      {p.insurance_type&&<div style={{gridColumn:'1/-1'}}><b>Insurance:</b> {p.insurance_type} {p.insurance_policy_no?'| Policy: '+p.insurance_policy_no:''}</div>}
+    </div>
+  </>)
 
   const FinalBillPrint=()=>(<div style={{fontFamily:'Arial, sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:720,margin:'0 auto',fontSize:13}}>
     <PrintHeader/>
@@ -3114,11 +3118,24 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </>}
       </tbody>
     </table>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginTop:32,fontSize:12}}>
+    {/* Footer settlement */}
+    <table style={{width:'100%',borderCollapse:'collapse',marginTop:8}}>
+      <tbody>
+        <tr style={{fontWeight:700,fontSize:14}}><td style={{border:'2px solid #000',padding:'6px 8px'}}>TOTAL BILL</td><td style={{border:'2px solid #000',padding:'6px 8px',textAlign:'right'}}>{fmt(grandTotal)}</td></tr>
+        {insApproved>0&&<>
+          <tr><td style={{border:'1px solid #ccc',padding:'5px 8px',color:'#1d4ed8'}}>Insurance approved ({p.insurance_type})</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right',color:'#1d4ed8'}}>- {fmt(insApproved)}</td></tr>
+          <tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Patient co-pay</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(Math.max(grandTotal-insApproved,0))}</td></tr>
+        </>}
+        {(parseFloat(advance)||0)>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Advance paid</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>- {fmt(parseFloat(advance)||0)}</td></tr>}
+        {(parseFloat(discount)||0)>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Discount given</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>- {fmt(parseFloat(discount)||0)}</td></tr>}
+        {((parseFloat(advance)||0)+(parseFloat(discount)||0))>0&&<tr style={{fontWeight:700,fontSize:14,background:'#f0f0f0'}}><td style={{border:'2px solid #000',padding:'6px 8px'}}>FINAL SETTLEMENT</td><td style={{border:'2px solid #000',padding:'6px 8px',textAlign:'right'}}>{fmt(grandTotal-(parseFloat(advance)||0)-(parseFloat(discount)||0))}</td></tr>}
+      </tbody>
+    </table>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginTop:40,fontSize:12}}>
       <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Authorised Signatory</div></div>
+      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Cashier</div></div>
       <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Patient / Attendant</div></div>
     </div>
-    <div style={{textAlign:'center',marginTop:12,fontSize:10,color:'#888'}}>Generated {fmtD(todayStr())} — {hospName}</div>
   </div>)
 
   const ReceiptPrint=({r})=>(<div style={{fontFamily:'Arial, sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:400,margin:'0 auto',fontSize:13,border:'2px dashed #ccc'}}>
@@ -3241,17 +3258,24 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>
         </div>
 
-        {/* Grand total summary */}
-        <div style={{background:'#0f172a',borderRadius:14,padding:'16px',marginBottom:16}}>
-          <div style={{display:'flex',justifyContent:'space-between',color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:4}}><span>Room/Nursing</span><span>{fmt(bedTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:4}}><span>Pharmacy</span><span>{fmt(pharmaTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:4}}><span>Laboratory</span><span>{fmt(labTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:8}}><span>Other services</span><span>{fmt(serviceTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',borderTop:'1px solid rgba(255,255,255,0.2)',paddingTop:8,fontSize:16,fontWeight:700,color:'#fff'}}><span>Grand Total</span><span>{fmt(grandTotal)}</span></div>
-          {insApproved>0&&<>
-            <div style={{display:'flex',justifyContent:'space-between',color:'#60a5fa',fontSize:12,marginTop:4}}><span>Insurance approved</span><span>- {fmt(insApproved)}</span></div>
-            <div style={{display:'flex',justifyContent:'space-between',color:'#a78bfa',fontSize:13,fontWeight:700,marginTop:4}}><span>Patient co-pay</span><span>{fmt(Math.max(grandTotal-insApproved,0))}</span></div>
+        {/* Grand total + advance + discount */}
+        <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Bill summary</div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:3}}><span>Room/Nursing</span><span>{fmt(bedTotal)}</span></div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:3}}><span>Pharmacy</span><span>{fmt(pharmaTotal)}</span></div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:3}}><span>Laboratory</span><span>{fmt(labTotal)}</span></div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:8}}><span>Other services</span><span>{fmt(serviceTotal)}</span></div>
+          <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:15,borderTop:'2px solid #0f172a',paddingTop:8,marginBottom:12}}><span>Total Bill</span><span>{fmt(grandTotal)}</span></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FInp label="Advance paid (Rs)" type="number" value={advance} onChange={e=>setAdvance(e.target.value)} placeholder="0"/>
+            <FInp label="Discount given (Rs)" type="number" value={discount} onChange={e=>setDiscount(e.target.value)} placeholder="0"/>
+          </div>
+          {(parseFloat(advance)||parseFloat(discount))>0&&<>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#16a34a',marginBottom:3}}><span>Advance paid</span><span>- {fmt(parseFloat(advance)||0)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#d97706',marginBottom:3}}><span>Discount</span><span>- {fmt(parseFloat(discount)||0)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:15,borderTop:'2px solid #0f172a',paddingTop:8}}><span>Final Settlement</span><span style={{color:'#dc2626'}}>{fmt(grandTotal-(parseFloat(advance)||0)-(parseFloat(discount)||0))}</span></div>
           </>}
+          {insApproved>0&&<div style={{marginTop:8,fontSize:12,color:'#1d4ed8'}}>Insurance approved: {fmt(insApproved)} | Patient co-pay: {fmt(Math.max(grandTotal-insApproved,0))}</div>}
         </div>
         <GBtn onClick={()=>{setView('bill');setPrintMode(true)}}>🖨 Print Final Bill</GBtn>
       </>}
@@ -4100,7 +4124,7 @@ export default function App(){
         <button onClick={()=>setEditIPPatient(null)} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer'}}>Cancel</button>
         <div style={{fontSize:15,fontWeight:700}}>Edit patient info</div>
         <button onClick={async()=>{
-          const safe={name:editIPPatient.name,phone:editIPPatient.phone||'',diagnosis:editIPPatient.dx||'',room:editIPPatient.room||'',ref_doctor:editIPPatient.ref||'',admission_date:editIPPatient.adm||''}
+          const safe={name:editIPPatient.name,phone:editIPPatient.phone||'',diagnosis:editIPPatient.dx||'',room:editIPPatient.room||'',ref_doctor:editIPPatient.ref||'',admission_date:editIPPatient.adm||'',admission_time:editIPPatient.admission_time||'',discharge_time:editIPPatient.discharge_time||''}
           const full={...safe,patient_area:editIPPatient.patient_area||'',insurance_type:editIPPatient.insurance_type||'',insurance_policy_no:editIPPatient.insurance_policy_no||'',insurance_expected:editIPPatient.insurance_expected||0,insurance_status:editIPPatient.insurance_status||'pending'}
           let {error}=await supabase.from('ip_patients').update(full).eq('id',editIPPatient.id)
           if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}
@@ -4112,7 +4136,14 @@ export default function App(){
       <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
         <FInp label="Patient name" type="text" value={editIPPatient.name||''} onChange={e=>setEditIPPatient(p=>({...p,name:e.target.value}))}/>
         <FInp label="Phone" type="tel" value={editIPPatient.phone||''} onChange={e=>setEditIPPatient(p=>({...p,phone:e.target.value}))}/>
-        <FInp label="Admission date" type="date" value={editIPPatient.adm||''} onChange={e=>setEditIPPatient(p=>({...p,adm:e.target.value}))}/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <FInp label="Admission date" type="date" value={editIPPatient.adm||''} onChange={e=>setEditIPPatient(p=>({...p,adm:e.target.value}))}/>
+          <FInp label="Admission time" type="time" value={editIPPatient.admission_time||''} onChange={e=>setEditIPPatient(p=>({...p,admission_time:e.target.value}))}/>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <FInp label="Discharge date (if discharged)" type="date" value={editIPPatient.discharge_date||''} onChange={e=>setEditIPPatient(p=>({...p,discharge_date:e.target.value}))}/>
+          <FInp label="Discharge time" type="time" value={editIPPatient.discharge_time||''} onChange={e=>setEditIPPatient(p=>({...p,discharge_time:e.target.value}))}/>
+        </div>
         <FInp label="Ward / Room" type="text" value={editIPPatient.room||''} onChange={e=>setEditIPPatient(p=>({...p,room:e.target.value}))}/>
         <FInp label="Diagnosis" type="text" value={editIPPatient.dx||''} onChange={e=>setEditIPPatient(p=>({...p,dx:e.target.value}))}/>
         <FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur" value={editIPPatient.patient_area||''} onChange={e=>setEditIPPatient(p=>({...p,patient_area:e.target.value}))}/>
