@@ -2959,6 +2959,19 @@ const InsuranceMainTab=({db,setDb,gotoIP,hospital})=>{
 }
 
 /*  IP BILLING MODULE  */
+const toWords=n=>{
+  const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen']
+  const b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety']
+  if(!n||n===0)return'Zero'
+  const t=Math.floor(n)
+  if(t>=10000000)return toWords(Math.floor(t/10000000))+' Crore '+(t%10000000?toWords(t%10000000):'')
+  if(t>=100000)return toWords(Math.floor(t/100000))+' Lakh '+(t%100000?toWords(t%100000):'')
+  if(t>=1000)return toWords(Math.floor(t/1000))+' Thousand '+(t%1000?toWords(t%1000):'')
+  if(t>=100)return toWords(Math.floor(t/100))+' Hundred '+(t%100?toWords(t%100):'')
+  if(t>=20)return b[Math.floor(t/10)]+(t%10?' '+a[t%10]:'')
+  return a[t]
+}
+
 const AutoInput=({value,onChange,placeholder,suggestions,style})=>{
   const [show,setShow]=useState(false)
   const filtered=value.length>=3?suggestions.filter(s=>s.toLowerCase().includes(value.toLowerCase())).slice(0,6):[]
@@ -2976,69 +2989,56 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [savedItems,setSavedItems]=useState({medicine:[],lab:[],service:[]})
   const [receipts,setReceipts]=useState([])
   const [loadingReceipts,setLoadingReceipts]=useState(true)
-  const [dischargeText,setDischargeText]=useState('')
   const [savingReceipt,setSavingReceipt]=useState(false)
   const [newReceipt,setNewReceipt]=useState({amount:'',mode:'cash',date:todayStr(),notes:''})
-  const hospId=hospital?.id||p.hospital_id
-
-  // Bill sections
-  const [bedCharges,setBedCharges]=useState([
-    {name:'Room / Bed charges',amount:'',days:'1'},
-    {name:'Observation / Nursing charges',amount:'',days:'1'},
-    {name:'Doctor visit charges',amount:'',days:'1'},
-  ])
-  const [pharmaItems,setPharmaItems]=useState([{name:'',mrp:'',qty:'',disc:''}])
-  const [labItems,setLabItems]=useState([{name:'',price:''}])
-  const [services,setServices]=useState([{name:'',amount:''}])
+  const [dischargeText,setDischargeText]=useState('')
   const [advance,setAdvance]=useState('')
   const [discount,setDiscount]=useState('')
-
-  // Totals
-  const bedTotal=bedCharges.reduce((a,i)=>a+(parseFloat(i.amount)||0)*(parseFloat(i.days)||1),0)
-  const pharmaTotal=pharmaItems.reduce((a,i)=>a+(parseFloat(i.qty)||1)*((parseFloat(i.mrp)||0)-(parseFloat(i.disc)||0)),0)
-  const labTotal=labItems.reduce((a,i)=>a+(parseFloat(i.price)||0),0)
-  const serviceTotal=services.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
-  const grandTotal=bedTotal+pharmaTotal+labTotal+serviceTotal
-
-  const existingBills=db.income.filter(e=>e.patient_id===p.id)
-  const existingTotal=existingBills.reduce((a,e)=>a+(e.amount||0),0)
-  const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
-  const cashPayments=(p.payments||[]).filter(py=>py.mode!=='insurance')
-  const insRec=insPayments.reduce((a,py)=>a+(py.amount||0),0)
-  const cashRec=cashPayments.reduce((a,py)=>a+(py.amount||0),0)
-  const insApproved=p.insurance_expected||0
-  const days=p.discharge_date?Math.ceil((new Date(p.discharge_date)-new Date(p.admission_date))/(1000*60*60*24))||1:Math.ceil((new Date()-new Date(p.admission_date))/(1000*60*60*24))||1
+  const [printReceipt,setPrintReceipt]=useState(null)
+  const hospId=hospital?.id||p.hospital_id
   const hospName=hospital?.name||'Hospital'
 
-  // Load saved items and receipts
+  // Main bill sections matching the format
+  const [consultations,setConsultations]=useState([{doctor:'Dr. '+p.ref_doctor||'',qty:'',rate:''}])
+  const [roomCharges,setRoomCharges]=useState([
+    {name:'Room / Bed charges',qty:'',rate:''},
+    {name:'Observation and Nursing charges',qty:'',rate:''},
+    {name:'Monitor charges',qty:'',rate:''},
+    {name:'Consumables',qty:'',rate:''},
+  ])
+  const [otherCharges,setOtherCharges]=useState([{name:'',qty:'',rate:''}])
+
+  // Pharmacy - date-wise entries
+  const [pharmaDays,setPharmaDays]=useState([{billNo:'',date:todayStr(),items:[{name:'',qty:'',amount:''}]}])
+
+  // Lab tests
+  const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:''}])
+
+  // Saved items for autocomplete
   useEffect(()=>{
     if(!hospId)return
     supabase.from('saved_items').select('*').eq('hospital_id',hospId).then(({data})=>{
-      if(data){
-        setSavedItems({
-          medicine:data.filter(x=>x.category==='medicine').map(x=>x.name),
-          lab:data.filter(x=>x.category==='lab').map(x=>x.name),
-          service:data.filter(x=>x.category==='service').map(x=>x.name)
-        })
-      }
+      if(data)setSavedItems({
+        medicine:data.filter(x=>x.category==='medicine').map(x=>x.name),
+        lab:data.filter(x=>x.category==='lab').map(x=>x.name),
+        service:data.filter(x=>x.category==='service').map(x=>x.name)
+      })
     })
     supabase.from('ip_receipts').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).then(({data})=>{
       setReceipts(data||[]);setLoadingReceipts(false)
     })
   },[hospId])
 
-  const saveItem=async(category,name)=>{
+  const saveItem=async(cat,name)=>{
     if(!name||name.length<2)return
-    const exists=savedItems[category]?.includes(name)
-    if(exists)return
-    await supabase.from('saved_items').upsert({hospital_id:hospId,category,name},{onConflict:'hospital_id,category,name'})
-    setSavedItems(prev=>({...prev,[category]:[...(prev[category]||[]),name]}))
+    if(savedItems[cat]?.includes(name))return
+    await supabase.from('saved_items').upsert({hospital_id:hospId,category:cat,name},{onConflict:'hospital_id,category,name'})
+    setSavedItems(prev=>({...prev,[cat]:[...(prev[cat]||[]),name]}))
   }
 
   const addReceipt=async()=>{
     if(!newReceipt.amount||parseFloat(newReceipt.amount)<=0){alert('Enter amount');return}
     setSavingReceipt(true)
-    // Generate receipt number
     const rNo='RCP-'+Date.now().toString().slice(-6)
     const rec={hospital_id:hospId,patient_id:p.id,receipt_no:rNo,receipt_date:newReceipt.date,amount:parseFloat(newReceipt.amount),mode:newReceipt.mode,notes:newReceipt.notes}
     const {data,error}=await supabase.from('ip_receipts').insert(rec).select().single()
@@ -3048,99 +3048,148 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     setSavingReceipt(false)
   }
 
-  const typeLabel={op:'OP Consultation',ip:'IP Charges',ip_r:'IP Pharmacy',op_r:'OP Pharmacy',ip_l:'IP Lab',op_l:'OP Lab',ip_p:'IP Package',vc:'Visiting Consultant'}
+  // Totals
+  const pharmaTotal=pharmaDays.reduce((a,day)=>a+day.items.reduce((b,i)=>b+(parseFloat(i.amount)||0),0),0)
+  const labTotal=labTests.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||parseFloat(i.amount)||0),0)
+  const consultTotal=consultations.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
+  const roomTotal=roomCharges.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
+  const otherTotal=otherCharges.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0)
+  const grandTotal=pharmaTotal+labTotal+consultTotal+roomTotal+otherTotal
+  const advAmt=parseFloat(advance)||0
+  const discAmt=parseFloat(discount)||0
+  const finalAmt=grandTotal-advAmt-discAmt
+  const insApproved=p.insurance_expected||0
 
-  // ── PRINT VIEWS ──
-  const PrintHeader=()=>(<div style={{borderBottom:'2px solid #000',paddingBottom:8,marginBottom:12}}/>)
+  const td=(txt,opts={})=>(<td style={{border:'1px solid #ccc',padding:'4px 7px',fontSize:12,...(opts.style||{})}}>{txt}</td>)
+  const th=(txt,opts={})=>(<th style={{border:'1px solid #ccc',padding:'5px 7px',fontSize:12,background:'#f5f5f5',textAlign:opts.right?'right':'left',...(opts.style||{})}}>{txt}</th>)
 
-  const PatientInfo=()=>(<>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:12,fontSize:13,border:'1px solid #ccc',padding:'10px',borderRadius:4}}>
-      <div><b>Patient Name:</b> {p.name}</div>
-      <div><b>Reg No:</b> {p.reg_no||'—'}</div>
-      <div><b>Date of Admission:</b> {fmtD(p.admission_date)}</div>
-      <div><b>Time of Admission:</b> {p.admission_time||'—'}</div>
-      <div><b>Date of Discharge:</b> {p.discharge_date?fmtD(p.discharge_date):'—'}</div>
-      <div><b>Time of Discharge:</b> {p.discharge_time||'—'}</div>
-      <div><b>Room / Bed:</b> {p.room||'—'}</div>
-      <div><b>Ref Doctor:</b> {p.ref_doctor||'Self'}</div>
-      {p.diagnosis&&<div style={{gridColumn:'1/-1'}}><b>Diagnosis:</b> {p.diagnosis}</div>}
-      {p.insurance_type&&<div style={{gridColumn:'1/-1'}}><b>Insurance:</b> {p.insurance_type} {p.insurance_policy_no?'| Policy: '+p.insurance_policy_no:''}</div>}
+  // ── PRINT VIEW ──
+  const PatientRow=()=>(<table style={{width:'100%',borderCollapse:'collapse',marginBottom:8,fontSize:12}}>
+    <thead><tr><th style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'left'}}>Name</th><th style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'left'}}>ID</th><th style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'left'}}>Age</th><th style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'left'}}>Gender</th><th style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'left'}}>Mobile</th></tr></thead>
+    <tbody><tr>
+      {td(p.name.toUpperCase())}
+      {td(p.reg_no||'—')}
+      {td(p.age||'—')}
+      {td(p.gender||'—')}
+      {td(p.phone||'—')}
+    </tr></tbody>
+  </table>)
+
+  const BillPrint=()=>(<div style={{fontFamily:'Arial,sans-serif',color:'#000',background:'#fff',padding:'20px',maxWidth:750,margin:'0 auto',fontSize:12}}>
+    {/* Header */}
+    <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:12,borderBottom:'2px solid #000',paddingBottom:8}}>IP Bill Cum Receipt</div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',marginBottom:8,fontSize:12}}>
+      <div><b>Consultant:</b> {consultations[0]?.doctor||'Dr. '+p.ref_doctor||'—'}</div>
+      <div style={{textAlign:'right'}}><b>Bill No:</b> {p.reg_no||'—'}-{todayStr().replace(/-/g,'').slice(2)}</div>
+      <div><b>D.O.A:</b> {fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</div>
+      <div style={{textAlign:'right'}}><b>Date:</b> {fmtD(todayStr())}</div>
+      {p.discharge_date&&<div><b>D.O.D:</b> {fmtD(p.discharge_date)}{p.discharge_time?' '+p.discharge_time:''}</div>}
+      {p.insurance_type&&<div><b>Insurance:</b> {p.insurance_type} | {p.insurance_policy_no||'—'}</div>}
     </div>
-  </>)
+    <PatientRow/>
+    <div style={{marginBottom:8,fontSize:12}}><b>Payment Type:</b> {p.insurance_type?'Insurance':'Cash'}</div>
 
-  const FinalBillPrint=()=>(<div style={{fontFamily:'Arial, sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:720,margin:'0 auto',fontSize:13}}>
-    <PrintHeader/>
-    <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:16,letterSpacing:2}}>FINAL BILL</div>
-    <PatientInfo/>
-    {/* Bed & Nursing */}
-    {bedCharges.filter(i=>i.name&&parseFloat(i.amount)>0).length>0&&<>
-      <div style={{fontWeight:700,fontSize:13,background:'#f0f0f0',padding:'5px 8px',marginBottom:0}}>Room / Nursing Charges</div>
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
-        <thead><tr style={{background:'#f9f9f9'}}><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'left'}}>Description</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Days</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Rate</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Amount</th></tr></thead>
-        <tbody>{bedCharges.filter(i=>i.name&&parseFloat(i.amount)>0).map((i,idx)=>(<tr key={idx}><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>{i.name}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{i.days}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(parseFloat(i.amount)||0)}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt((parseFloat(i.amount)||0)*(parseFloat(i.days)||1))}</td></tr>))}</tbody>
-      </table>
-    </>}
-    {/* Pharmacy */}
-    {pharmaItems.filter(i=>i.name&&parseFloat(i.mrp)>0).length>0&&<>
-      <div style={{fontWeight:700,fontSize:13,background:'#f0f0f0',padding:'5px 8px',marginBottom:0}}>Pharmacy</div>
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
-        <thead><tr style={{background:'#f9f9f9'}}><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'left'}}>Medicine</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>MRP</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Qty</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Disc</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Net</th></tr></thead>
-        <tbody>{pharmaItems.filter(i=>i.name).map((i,idx)=>(<tr key={idx}><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>{i.name}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(parseFloat(i.mrp)||0)}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{i.qty}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{parseFloat(i.disc)>0?fmt(parseFloat(i.disc)):'-'}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt((parseFloat(i.qty)||1)*((parseFloat(i.mrp)||0)-(parseFloat(i.disc)||0)))}</td></tr>))}</tbody>
-      </table>
-    </>}
-    {/* Lab */}
-    {labItems.filter(i=>i.name&&parseFloat(i.price)>0).length>0&&<>
-      <div style={{fontWeight:700,fontSize:13,background:'#f0f0f0',padding:'5px 8px',marginBottom:0}}>Laboratory</div>
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
-        <thead><tr style={{background:'#f9f9f9'}}><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'left'}}>Test</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Amount</th></tr></thead>
-        <tbody>{labItems.filter(i=>i.name).map((i,idx)=>(<tr key={idx}><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>{i.name}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(parseFloat(i.price)||0)}</td></tr>))}</tbody>
-      </table>
-    </>}
-    {/* Services */}
-    {services.filter(i=>i.name&&parseFloat(i.amount)>0).length>0&&<>
-      <div style={{fontWeight:700,fontSize:13,background:'#f0f0f0',padding:'5px 8px',marginBottom:0}}>Other Services</div>
-      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
-        <thead><tr style={{background:'#f9f9f9'}}><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'left'}}>Service</th><th style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>Amount</th></tr></thead>
-        <tbody>{services.filter(i=>i.name).map((i,idx)=>(<tr key={idx}><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>{i.name}</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(parseFloat(i.amount)||0)}</td></tr>))}</tbody>
-      </table>
-    </>}
-    {/* Grand total */}
-    <table style={{width:'100%',borderCollapse:'collapse',marginBottom:14}}>
+    {/* Main bill table */}
+    <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
+      <thead><tr>{th('Particulars')}{th('Qty',{right:true,style:{textAlign:'right',width:50}})}{th('Rate',{right:true,style:{textAlign:'right',width:80}})}{th('Amount',{right:true,style:{textAlign:'right',width:80}})}</tr></thead>
       <tbody>
-        {bedTotal>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Room / Nursing subtotal</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(bedTotal)}</td></tr>}
-        {pharmaTotal>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Pharmacy subtotal</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(pharmaTotal)}</td></tr>}
-        {labTotal>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Laboratory subtotal</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(labTotal)}</td></tr>}
-        {serviceTotal>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Other services subtotal</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(serviceTotal)}</td></tr>}
-        <tr style={{fontWeight:700,background:'#f0f0f0',fontSize:14}}><td style={{border:'2px solid #000',padding:'6px 8px'}}>GRAND TOTAL</td><td style={{border:'2px solid #000',padding:'6px 8px',textAlign:'right'}}>{fmt(grandTotal)}</td></tr>
-        {insApproved>0&&<>
-          <tr><td style={{border:'1px solid #ccc',padding:'5px 8px',color:'#1d4ed8'}}>Insurance approved ({p.insurance_type})</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right',color:'#1d4ed8'}}>- {fmt(insApproved)}</td></tr>
-          <tr style={{fontWeight:700}}><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Patient co-pay</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(Math.max(grandTotal-insApproved,0))}</td></tr>
-        </>}
+        {/* Medicines row */}
+        {pharmaTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,fontSize:12}}>MEDICINES</td></tr>
+        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px'}}></td><td style={{border:'1px solid #ccc'}}></td><td style={{border:'1px solid #ccc'}}></td>{td(fmt(pharmaTotal),{style:{textAlign:'right',fontWeight:700}})}</tr></>}
+        {/* Lab row */}
+        {labTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>INVESTIGATION CHARGES</td></tr>
+        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px'}}></td><td style={{border:'1px solid #ccc'}}></td><td style={{border:'1px solid #ccc'}}></td>{td(fmt(labTotal),{style:{textAlign:'right',fontWeight:700}})}</tr></>}
+        {/* Consultation */}
+        {consultTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>CONSULTATION</td></tr>
+        {consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}>
+          {td('Consultation ('+i.doctor+')')}
+          {td(i.qty,{style:{textAlign:'right'}})}
+          {td(fmt(parseFloat(i.rate)),{style:{textAlign:'right'}})}
+          {td(fmt(parseFloat(i.qty)*parseFloat(i.rate)),{style:{textAlign:'right'}})}
+        </tr>)}</>}
+        {/* Room/nursing/monitor */}
+        {roomTotal>0&&roomCharges.filter(i=>parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=>{
+          const isSection=['Room / Bed charges','Observation and Nursing charges','Monitor charges','Consumables'].includes(i.name)
+          return(<tr key={idx}>
+            {td(i.name,{style:{fontWeight:isSection?700:400}})}
+            {td(i.qty,{style:{textAlign:'right'}})}
+            {td(fmt(parseFloat(i.rate)),{style:{textAlign:'right'}})}
+            {td(fmt(parseFloat(i.qty)*parseFloat(i.rate)),{style:{textAlign:'right'}})}
+          </tr>)
+        })}
+        {/* Others */}
+        {otherTotal>0&&<><tr><td colSpan={4} style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>OTHERS</td></tr>
+        {otherCharges.filter(i=>i.name&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}>
+          {td(i.name)}
+          {td(i.qty||1,{style:{textAlign:'right'}})}
+          {td(fmt(parseFloat(i.rate)),{style:{textAlign:'right'}})}
+          {td(fmt((parseFloat(i.qty)||1)*parseFloat(i.rate)),{style:{textAlign:'right'}})}
+        </tr>)}</>}
+        {/* Grand total */}
+        <tr style={{fontWeight:700,fontSize:13}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'5px 7px',textAlign:'right'}}>Grand Total:</td>{td(fmt(grandTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
       </tbody>
     </table>
-    {/* Footer settlement */}
-    <table style={{width:'100%',borderCollapse:'collapse',marginTop:8}}>
+    <div style={{fontSize:12,marginBottom:8}}><b>Amount (in words):</b> RUPEES {toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>
+    {/* Settlement */}
+    {(advAmt>0||discAmt>0)&&<table style={{width:'50%',marginLeft:'auto',borderCollapse:'collapse',marginBottom:8,fontSize:12}}>
       <tbody>
-        <tr style={{fontWeight:700,fontSize:14}}><td style={{border:'2px solid #000',padding:'6px 8px'}}>TOTAL BILL</td><td style={{border:'2px solid #000',padding:'6px 8px',textAlign:'right'}}>{fmt(grandTotal)}</td></tr>
-        {insApproved>0&&<>
-          <tr><td style={{border:'1px solid #ccc',padding:'5px 8px',color:'#1d4ed8'}}>Insurance approved ({p.insurance_type})</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right',color:'#1d4ed8'}}>- {fmt(insApproved)}</td></tr>
-          <tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Patient co-pay</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>{fmt(Math.max(grandTotal-insApproved,0))}</td></tr>
-        </>}
-        {(parseFloat(advance)||0)>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Advance paid</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>- {fmt(parseFloat(advance)||0)}</td></tr>}
-        {(parseFloat(discount)||0)>0&&<tr><td style={{border:'1px solid #ccc',padding:'5px 8px'}}>Discount given</td><td style={{border:'1px solid #ccc',padding:'5px 8px',textAlign:'right'}}>- {fmt(parseFloat(discount)||0)}</td></tr>}
-        {((parseFloat(advance)||0)+(parseFloat(discount)||0))>0&&<tr style={{fontWeight:700,fontSize:14,background:'#f0f0f0'}}><td style={{border:'2px solid #000',padding:'6px 8px'}}>FINAL SETTLEMENT</td><td style={{border:'2px solid #000',padding:'6px 8px',textAlign:'right'}}>{fmt(grandTotal-(parseFloat(advance)||0)-(parseFloat(discount)||0))}</td></tr>}
+        {advAmt>0&&<tr>{td('Advance Paid')}{td(fmt(advAmt),{style:{textAlign:'right'}})}</tr>}
+        {discAmt>0&&<tr>{td('Discount')}{td(fmt(discAmt),{style:{textAlign:'right'}})}</tr>}
+        <tr style={{fontWeight:700}}>{td('Final Settlement')}{td(fmt(finalAmt),{style:{textAlign:'right',fontWeight:700}})}</tr>
       </tbody>
-    </table>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginTop:40,fontSize:12}}>
-      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Authorised Signatory</div></div>
+    </table>}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginTop:32,fontSize:12}}>
+      <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Authorised Signature</div></div>
       <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Cashier</div></div>
       <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Patient / Attendant</div></div>
     </div>
+
+    {/* MEDICINES DETAIL PAGE */}
+    {pharmaTotal>0&&<>
+      <div style={{pageBreakBefore:'always',marginTop:20}}/>
+      <div style={{textAlign:'center',fontSize:20,fontWeight:700,marginBottom:12,letterSpacing:4}}>MEDICINES</div>
+      <PatientRow/>
+      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12,fontSize:12}}>
+        <thead><tr>{th('Bill No')}{th('Products')}{th('Batch')}{th('Expiry')}{th('Qty',{style:{textAlign:'right'}})}{th('Amount',{style:{textAlign:'right'}})}</tr></thead>
+        <tbody>
+          {pharmaDays.map((day,di)=>day.items.filter(i=>i.name).map((item,ii)=>(
+            <tr key={di+'-'+ii}>
+              {td(ii===0?day.billNo:'')}
+              {td(item.name)}
+              {td(item.batch||'')}
+              {td(item.expiry||'')}
+              {td(item.qty||1,{style:{textAlign:'right'}})}
+              {td(fmt(parseFloat(item.amount)||0),{style:{textAlign:'right'}})}
+            </tr>
+          )))}
+          <tr style={{fontWeight:700}}><td colSpan={5} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Total</td>{td(fmt(pharmaTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
+        </tbody>
+      </table>
+      <div style={{textAlign:'right',marginTop:8,fontSize:12,borderTop:'1px solid #000',paddingTop:8}}>Authorized Signature</div>
+    </>}
+
+    {/* LAB DETAIL PAGE */}
+    {labTotal>0&&<>
+      <div style={{pageBreakBefore:'always',marginTop:20}}/>
+      <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:12,letterSpacing:2}}>INVESTIGATION CHARGES</div>
+      <PatientRow/>
+      <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12,fontSize:12}}>
+        <thead><tr>{th('Name')}{th('Qty',{style:{textAlign:'right'}})}{th('Rate',{style:{textAlign:'right'}})}{th('Amount',{style:{textAlign:'right'}})}</tr></thead>
+        <tbody>
+          {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||parseFloat(i.amount)||0);return(<tr key={idx}>
+            {td(i.name)}
+            {td(i.qty||1,{style:{textAlign:'right'}})}
+            {td(fmt(parseFloat(i.rate)||0),{style:{textAlign:'right'}})}
+            {td(fmt(amt),{style:{textAlign:'right'}})}
+          </tr>)})}
+          <tr style={{fontWeight:700}}><td colSpan={3} style={{border:'1px solid #ccc',padding:'4px 7px',textAlign:'right'}}>Total</td>{td(fmt(labTotal),{style:{textAlign:'right',fontWeight:700}})}</tr>
+        </tbody>
+      </table>
+    </>}
   </div>)
 
-  const ReceiptPrint=({r})=>(<div style={{fontFamily:'Arial, sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:400,margin:'0 auto',fontSize:13,border:'2px dashed #ccc'}}>
-    <PrintHeader/>
-    <div style={{textAlign:'center',fontSize:14,fontWeight:700,marginBottom:12,letterSpacing:2}}>PAYMENT RECEIPT</div>
+  const ReceiptPrint=({r})=>(<div style={{fontFamily:'Arial,sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:420,margin:'0 auto',fontSize:13,border:'2px dashed #ccc'}}>
+    <div style={{textAlign:'center',fontSize:14,fontWeight:700,marginBottom:12,borderBottom:'1px solid #000',paddingBottom:8}}>PAYMENT RECEIPT</div>
     <div style={{marginBottom:12}}>
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Receipt No:</b></span><span>{r.receipt_no}</span></div>
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Date:</b></span><span>{fmtD(r.receipt_date)}</span></div>
@@ -3149,15 +3198,21 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Mode:</b></span><span>{(r.mode||'Cash')[0].toUpperCase()+(r.mode||'cash').slice(1)}</span></div>
       {r.notes&&<div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span><b>Note:</b></span><span>{r.notes}</span></div>}
     </div>
-    <div style={{background:'#f0f0f0',padding:'10px',textAlign:'center',fontSize:18,fontWeight:700,borderRadius:4,marginBottom:12}}>Rs {fmt(r.amount)}</div>
+    <div style={{background:'#f0f0f0',padding:'10px',textAlign:'center',fontSize:20,fontWeight:700,borderRadius:4,marginBottom:12}}>₹ {fmt(r.amount)}</div>
+    <div style={{fontSize:11,textAlign:'center',marginBottom:16}}>RUPEES {toWords(Math.floor(r.amount)).toUpperCase()} ONLY</div>
     <div style={{marginTop:24,textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6,width:'60%',margin:'0 auto',fontSize:12}}>Authorised Signature</div></div>
-    <div style={{textAlign:'center',marginTop:8,fontSize:10,color:'#888'}}>{hospName}</div>
   </div>)
 
-  const DischargePrint=()=>(<div style={{fontFamily:'Arial, sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:720,margin:'0 auto',fontSize:13}}>
-    <PrintHeader/>
-    <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:16,letterSpacing:2}}>DISCHARGE SUMMARY</div>
-    <PatientInfo/>
+  const DischargePrint=()=>(<div style={{fontFamily:'Arial,sans-serif',color:'#000',background:'#fff',padding:'24px',maxWidth:720,margin:'0 auto',fontSize:12}}>
+    <div style={{textAlign:'center',fontSize:16,fontWeight:700,marginBottom:12,borderBottom:'2px solid #000',paddingBottom:8}}>DISCHARGE SUMMARY</div>
+    <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12,fontSize:12}}>
+      <tbody>
+        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700,width:'50%'}}>Patient Name</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.name}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Reg No</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.reg_no||'—'}</td></tr>
+        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Date of Admission</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{fmtD(p.admission_date)}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Time</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.admission_time||'—'}</td></tr>
+        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Date of Discharge</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.discharge_date?fmtD(p.discharge_date):'—'}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Time</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.discharge_time||'—'}</td></tr>
+        <tr><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Room</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.room||'—'}</td><td style={{border:'1px solid #ccc',padding:'4px 7px',fontWeight:700}}>Consultant</td><td style={{border:'1px solid #ccc',padding:'4px 7px'}}>{p.ref_doctor||'—'}</td></tr>
+      </tbody>
+    </table>
     <div style={{border:'1px solid #ccc',borderRadius:4,padding:'12px',minHeight:300,whiteSpace:'pre-wrap',lineHeight:1.8}}>{dischargeText||'(Discharge summary will appear here)'}</div>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginTop:32,fontSize:12}}>
       <div style={{textAlign:'center'}}><div style={{borderTop:'1px solid #000',paddingTop:6}}>Doctor Signature & Stamp</div></div>
@@ -3165,146 +3220,147 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     </div>
   </div>)
 
-  const [printReceipt,setPrintReceipt]=useState(null)
-
   if(printMode)return(<div>
     <div className="no-print" style={{position:'fixed',top:0,left:0,right:0,zIndex:100,background:'#fff',padding:'8px 16px',display:'flex',gap:8,borderBottom:'1px solid #e5e7eb'}}>
       <button onClick={()=>window.print()} style={{padding:'8px 20px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Print / Save PDF</button>
       <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #e5e7eb',borderRadius:8,cursor:'pointer',fontSize:14}}>← Back</button>
     </div>
     <div style={{marginTop:56}}>
-      {view==='bill'&&<FinalBillPrint/>}
+      {view==='bill'&&<BillPrint/>}
       {view==='discharge'&&<DischargePrint/>}
       {view==='receipts'&&printReceipt&&<ReceiptPrint r={printReceipt}/>}
     </div>
     <style>{`@media print{.no-print{display:none!important}body{margin:0}}`}</style>
   </div>)
 
-  // ── EDIT VIEWS ──
+  // ── EDIT VIEW ──
+  const inpStyle={width:'100%',padding:'7px 8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}
+
   return(<div style={{background:'#f8fafc',minHeight:'100vh'}}>
     <div style={{background:'#0f172a',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,position:'sticky',top:0,zIndex:10}}>
       <button onClick={onClose} style={{color:'#94a3b8',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>← Back</button>
       <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:'#fff'}}>{p.name} — Billing</div></div>
     </div>
     <div style={{padding:'16px'}}>
-      {/* Tabs */}
-      <div style={{display:'flex',gap:4,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
-        {[{k:'bill',l:'📋 Final Bill'},{k:'receipts',l:'🧾 Receipts'},{k:'discharge',l:'📄 Discharge'}].map(t=>(
+      <div style={{display:'flex',gap:4,marginBottom:16,overflowX:'auto'}}>
+        {[{k:'bill',l:'📋 IP Bill'},{k:'receipts',l:'🧾 Receipts'},{k:'discharge',l:'📄 Discharge'}].map(t=>(
           <button key={t.k} onClick={()=>setView(t.k)} style={{flexShrink:0,padding:'8px 14px',borderRadius:12,border:'none',background:view===t.k?'#0f172a':'#f1f5f9',color:view===t.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>
         ))}
       </div>
 
-      {/* FINAL BILL EDITOR */}
+      {/* ── IP BILL EDITOR ── */}
       {view==='bill'&&<>
-        {/* Bed/Nursing charges */}
+        {/* Consultation */}
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Room / Nursing charges</div>
-          {bedCharges.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
-            <input value={item.name} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],name:e.target.value};setBedCharges(n)}} placeholder="Description" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input inputMode="decimal" value={item.amount||''} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],amount:e.target.value};setBedCharges(n)}} placeholder="Rate/day" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input inputMode="decimal" value={item.days||''} onChange={e=>{const n=[...bedCharges];n[i]={...n[i],days:e.target.value};setBedCharges(n)}} placeholder="Days" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            {i>=3?<button onClick={()=>setBedCharges(bedCharges.filter((_,j)=>j!==i))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>:<div/>}
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Consultation</div>
+          {consultations.map((item,i)=>(<div key={i} style={{marginBottom:8}}>
+            <input value={item.doctor} onChange={e=>{const n=[...consultations];n[i]={...n[i],doctor:e.target.value};setConsultations(n)}} placeholder="Doctor name" style={{...inpStyle,marginBottom:6}}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>No. of visits</div><input inputMode="decimal" value={item.qty} onChange={e=>{const n=[...consultations];n[i]={...n[i],qty:e.target.value};setConsultations(n)}} placeholder="0" style={inpStyle}/></div>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Rate per visit</div><input inputMode="decimal" value={item.rate} onChange={e=>{const n=[...consultations];n[i]={...n[i],rate:e.target.value};setConsultations(n)}} placeholder="0" style={inpStyle}/></div>
+              <button onClick={()=>setConsultations(consultations.filter((_,j)=>j!==i))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
+            </div>
+            {item.qty&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#16a34a',fontWeight:700,marginTop:4}}>{fmt(parseFloat(item.qty)*parseFloat(item.rate))}</div>}
           </div>))}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
-            <button onClick={()=>setBedCharges([...bedCharges,{name:'',amount:'',days:'1'}])} style={{padding:'5px 10px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b'}}>+ Add</button>
-            <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Total: {fmt(bedTotal)}</span>
-          </div>
+          <button onClick={()=>setConsultations([...consultations,{doctor:'',qty:'',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add doctor</button>
         </div>
 
-        {/* Pharmacy */}
+        {/* Room/Nursing/Monitor */}
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>💊 Pharmacy</div>
-          {pharmaItems.map((item,i)=>{
-            const qty=parseFloat(item.qty)||1
-            const mrp=parseFloat(item.mrp)||0
-            const disc=parseFloat(item.disc)||0
-            const net=qty*(mrp-disc)
-            return(<div key={i} style={{background:'#f8fafc',borderRadius:10,padding:'10px',marginBottom:8,border:'1px solid #e2e8f0'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-                <div style={{fontSize:11,fontWeight:700,color:'#64748b'}}>Medicine {i+1}</div>
-                <button onClick={()=>{saveItem('medicine',item.name);setPharmaItems(pharmaItems.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:14,fontWeight:700}}>✕ Remove</button>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Room / Nursing / Monitor charges</div>
+          {roomCharges.map((item,i)=>(<div key={i} style={{marginBottom:8}}>
+            <input value={item.name} onChange={e=>{const n=[...roomCharges];n[i]={...n[i],name:e.target.value};setRoomCharges(n)}} placeholder="Charge name" style={{...inpStyle,marginBottom:6}}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Qty / Days</div><input inputMode="decimal" value={item.qty} onChange={e=>{const n=[...roomCharges];n[i]={...n[i],qty:e.target.value};setRoomCharges(n)}} placeholder="0" style={inpStyle}/></div>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Rate</div><input inputMode="decimal" value={item.rate} onChange={e=>{const n=[...roomCharges];n[i]={...n[i],rate:e.target.value};setRoomCharges(n)}} placeholder="0" style={inpStyle}/></div>
+              {i>=4?<button onClick={()=>setRoomCharges(roomCharges.filter((_,j)=>j!==i))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>:<div/>}
+            </div>
+            {item.qty&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#16a34a',fontWeight:700,marginTop:4}}>{fmt(parseFloat(item.qty)*parseFloat(item.rate))}</div>}
+          </div>))}
+          <button onClick={()=>setRoomCharges([...roomCharges,{name:'',qty:'',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add charge</button>
+        </div>
+
+        {/* Others */}
+        <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Other charges</div>
+          {otherCharges.map((item,i)=>(<div key={i} style={{marginBottom:8}}>
+            <AutoInput value={item.name} onChange={v=>{const n=[...otherCharges];n[i]={...n[i],name:v};setOtherCharges(n)}} placeholder="e.g. Dietician charges, Ambulance" suggestions={savedItems.service}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginTop:6}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty} onChange={e=>{const n=[...otherCharges];n[i]={...n[i],qty:e.target.value};setOtherCharges(n)}} placeholder="1" style={inpStyle}/></div>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Rate</div><input inputMode="decimal" value={item.rate} onChange={e=>{const n=[...otherCharges];n[i]={...n[i],rate:e.target.value};setOtherCharges(n)}} placeholder="0" style={inpStyle}/></div>
+              <button onClick={()=>{saveItem('service',item.name);setOtherCharges(otherCharges.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
+            </div>
+          </div>))}
+          <button onClick={()=>setOtherCharges([...otherCharges,{name:'',qty:'',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add</button>
+        </div>
+
+        {/* Pharmacy - date wise */}
+        <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700}}>💊 Medicines (date-wise)</div>
+            <div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>Total: {fmt(pharmaTotal)}</div>
+          </div>
+          {pharmaDays.map((day,di)=>(<div key={di} style={{background:'#f8fafc',borderRadius:10,padding:'10px',marginBottom:10,border:'1px solid #e2e8f0'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:8,marginBottom:8,alignItems:'flex-end'}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Bill No (e.g. OM62)</div><input value={day.billNo} onChange={e=>{const n=[...pharmaDays];n[di]={...n[di],billNo:e.target.value};setPharmaDays(n)}} placeholder="OM62" style={inpStyle}/></div>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Date</div><input type="date" value={day.date} onChange={e=>{const n=[...pharmaDays];n[di]={...n[di],date:e.target.value};setPharmaDays(n)}} style={inpStyle}/></div>
+              {pharmaDays.length>1&&<button onClick={()=>setPharmaDays(pharmaDays.filter((_,j)=>j!==di))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:14,fontWeight:700}}>Remove day</button>}
+            </div>
+            {day.items.map((item,ii)=>(<div key={ii} style={{background:'#fff',borderRadius:8,padding:'8px',marginBottom:6,border:'1px solid #e2e8f0'}}>
+              <AutoInput value={item.name} onChange={v=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],name:v};setPharmaDays(n)}} placeholder="Medicine name" suggestions={savedItems.medicine}/>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto',gap:6,marginTop:6}}>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Batch</div><input value={item.batch||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],batch:e.target.value};setPharmaDays(n)}} placeholder="optional" style={inpStyle}/></div>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Expiry</div><input value={item.expiry||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],expiry:e.target.value};setPharmaDays(n)}} placeholder="MM/YY" style={inpStyle}/></div>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setPharmaDays(n)}} placeholder="1" style={inpStyle}/></div>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Amount</div><input inputMode="decimal" value={item.amount||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],amount:e.target.value};setPharmaDays(n)}} placeholder="0" style={inpStyle}/></div>
               </div>
-              <AutoInput value={item.name} onChange={v=>{const n=[...pharmaItems];n[i]={...n[i],name:v};setPharmaItems(n)}} placeholder="Medicine / item name" suggestions={savedItems.medicine}/>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:8}}>
-                <div>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:3}}>MRP (per unit)</div>
-                  <input inputMode="decimal" value={item.mrp} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],mrp:e.target.value};setPharmaItems(n)}} placeholder="0.00" style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none'}}/>
-                </div>
-                <div>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:3}}>Quantity</div>
-                  <input inputMode="decimal" value={item.qty} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],qty:e.target.value};setPharmaItems(n)}} placeholder="1" style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none'}}/>
-                </div>
-                <div>
-                  <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:3}}>Discount/unit</div>
-                  <input inputMode="decimal" value={item.disc} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],disc:e.target.value};setPharmaItems(n)}} placeholder="0.00" style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none'}}/>
-                </div>
-              </div>
-              {mrp>0&&<div style={{display:'flex',justifyContent:'space-between',marginTop:8,paddingTop:6,borderTop:'1px solid #e2e8f0',fontSize:12}}>
-                <span style={{color:'#64748b'}}>{qty} × (₹{mrp} - ₹{disc} disc)</span>
-                <span style={{fontWeight:700,color:'#16a34a'}}>= {fmt(net)}</span>
-              </div>}
-            </div>)
-          })}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
-            <button onClick={()=>setPharmaItems([...pharmaItems,{name:'',mrp:'',qty:'',disc:''}])} style={{padding:'7px 14px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b',fontWeight:600}}>+ Add medicine</button>
-            <span style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Total: {fmt(pharmaTotal)}</span>
-          </div>
-        </div>
-
-        {/* Lab */}
-        <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>🧪 Laboratory</div>
-          {labItems.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
-            <AutoInput value={item.name} onChange={v=>{const n=[...labItems];n[i]={...n[i],name:v};setLabItems(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
-            <input inputMode="decimal" value={item.price||''} onChange={e=>{const n=[...labItems];n[i]={...n[i],price:e.target.value};setLabItems(n)}} placeholder="Price" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <button onClick={()=>{saveItem('lab',item.name);setLabItems(labItems.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>
+              {day.items.length>1&&<button onClick={()=>{saveItem('medicine',item.name);const n=[...pharmaDays];n[di].items=n[di].items.filter((_,j)=>j!==ii);setPharmaDays(n)}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:11,marginTop:4}}>✕ Remove</button>}
+            </div>))}
+            <button onClick={()=>{const n=[...pharmaDays];n[di].items=[...n[di].items,{name:'',qty:'',amount:'',batch:'',expiry:''}];setPharmaDays(n)}} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add medicine</button>
+            <div style={{textAlign:'right',fontSize:12,fontWeight:700,color:'#16a34a',marginTop:6}}>Day total: {fmt(day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0))}</div>
           </div>))}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
-            <button onClick={()=>setLabItems([...labItems,{name:'',price:''}])} style={{padding:'5px 10px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b'}}>+ Add test</button>
-            <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Total: {fmt(labTotal)}</span>
-          </div>
+          <button onClick={()=>setPharmaDays([...pharmaDays,{billNo:'',date:todayStr(),items:[{name:'',qty:'',amount:'',batch:'',expiry:''}]}])} style={{width:'100%',padding:'8px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:13,cursor:'pointer',color:'#64748b',fontWeight:600}}>+ Add another day</button>
         </div>
 
-        {/* Optional services */}
+        {/* Lab tests */}
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>⚙️ Other services</div>
-          {services.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
-            <AutoInput value={item.name} onChange={v=>{const n=[...services];n[i]={...n[i],name:v};setServices(n)}} placeholder="e.g. O2 charges, ICU, Ambulance" suggestions={savedItems.service}/>
-            <input inputMode="decimal" value={item.amount||''} onChange={e=>{const n=[...services];n[i]={...n[i],amount:e.target.value};setServices(n)}} placeholder="Amount" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <button onClick={()=>{saveItem('service',item.name);setServices(services.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700}}>🧪 Investigation charges</div>
+            <div style={{fontSize:13,fontWeight:700,color:'#7c3aed'}}>Total: {fmt(labTotal)}</div>
+          </div>
+          {labTests.map((item,i)=>(<div key={i} style={{marginBottom:8}}>
+            <AutoInput value={item.name} onChange={v=>{const n=[...labTests];n[i]={...n[i],name:v};setLabTests(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginTop:6}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],qty:e.target.value};setLabTests(n)}} placeholder="1" style={inpStyle}/></div>
+              <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Rate</div><input inputMode="decimal" value={item.rate||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],rate:e.target.value};setLabTests(n)}} placeholder="0" style={inpStyle}/></div>
+              <button onClick={()=>{saveItem('lab',item.name);setLabTests(labTests.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
+            </div>
+            {item.name&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#7c3aed',fontWeight:700,marginTop:2}}>{fmt((parseFloat(item.qty)||1)*parseFloat(item.rate))}</div>}
           </div>))}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
-            <button onClick={()=>setServices([...services,{name:'',amount:''}])} style={{padding:'5px 10px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b'}}>+ Add service</button>
-            <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Total: {fmt(serviceTotal)}</span>
-          </div>
+          <button onClick={()=>setLabTests([...labTests,{name:'',qty:'1',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
         </div>
 
-        {/* Grand total + advance + discount */}
-        <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Bill summary</div>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:3}}><span>Room/Nursing</span><span>{fmt(bedTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:3}}><span>Pharmacy</span><span>{fmt(pharmaTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:3}}><span>Laboratory</span><span>{fmt(labTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#64748b',marginBottom:8}}><span>Other services</span><span>{fmt(serviceTotal)}</span></div>
-          <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:15,borderTop:'2px solid #0f172a',paddingTop:8,marginBottom:12}}><span>Total Bill</span><span>{fmt(grandTotal)}</span></div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            <FInp label="Advance paid (Rs)" type="number" value={advance} onChange={e=>setAdvance(e.target.value)} placeholder="0"/>
-            <FInp label="Discount given (Rs)" type="number" value={discount} onChange={e=>setDiscount(e.target.value)} placeholder="0"/>
+        {/* Grand total + advance/discount */}
+        <div style={{background:'#0f172a',borderRadius:14,padding:'16px',marginBottom:12}}>
+          <div style={{color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:4,display:'flex',justifyContent:'space-between'}}><span>Consultation</span><span>{fmt(consultTotal)}</span></div>
+          <div style={{color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:4,display:'flex',justifyContent:'space-between'}}><span>Room/Nursing/Monitor</span><span>{fmt(roomTotal)}</span></div>
+          <div style={{color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:4,display:'flex',justifyContent:'space-between'}}><span>Medicines</span><span>{fmt(pharmaTotal)}</span></div>
+          <div style={{color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:4,display:'flex',justifyContent:'space-between'}}><span>Investigation</span><span>{fmt(labTotal)}</span></div>
+          <div style={{color:'rgba(255,255,255,0.5)',fontSize:12,marginBottom:8,display:'flex',justifyContent:'space-between'}}><span>Others</span><span>{fmt(otherTotal)}</span></div>
+          <div style={{color:'#fff',fontSize:16,fontWeight:700,display:'flex',justifyContent:'space-between',borderTop:'1px solid rgba(255,255,255,0.2)',paddingTop:8,marginBottom:12}}><span>Grand Total</span><span>{fmt(grandTotal)}</span></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+            <div><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:3}}>Advance paid (Rs)</div><input inputMode="decimal" value={advance} onChange={e=>setAdvance(e.target.value)} placeholder="0" style={{...inpStyle,background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',color:'#fff'}}/></div>
+            <div><div style={{fontSize:10,color:'rgba(255,255,255,0.5)',marginBottom:3}}>Discount (Rs)</div><input inputMode="decimal" value={discount} onChange={e=>setDiscount(e.target.value)} placeholder="0" style={{...inpStyle,background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.2)',color:'#fff'}}/></div>
           </div>
-          {(parseFloat(advance)||parseFloat(discount))>0&&<>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#16a34a',marginBottom:3}}><span>Advance paid</span><span>- {fmt(parseFloat(advance)||0)}</span></div>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#d97706',marginBottom:3}}><span>Discount</span><span>- {fmt(parseFloat(discount)||0)}</span></div>
-            <div style={{display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:15,borderTop:'2px solid #0f172a',paddingTop:8}}><span>Final Settlement</span><span style={{color:'#dc2626'}}>{fmt(grandTotal-(parseFloat(advance)||0)-(parseFloat(discount)||0))}</span></div>
-          </>}
-          {insApproved>0&&<div style={{marginTop:8,fontSize:12,color:'#1d4ed8'}}>Insurance approved: {fmt(insApproved)} | Patient co-pay: {fmt(Math.max(grandTotal-insApproved,0))}</div>}
+          {(advAmt+discAmt)>0&&<div style={{color:'#4ade80',fontSize:16,fontWeight:700,display:'flex',justifyContent:'space-between',borderTop:'1px solid rgba(255,255,255,0.2)',paddingTop:8}}><span>Final Settlement</span><span>{fmt(finalAmt)}</span></div>}
         </div>
-        <GBtn onClick={()=>{setView('bill');setPrintMode(true)}}>🖨 Print Final Bill</GBtn>
+        <GBtn onClick={()=>setPrintMode(true)}>🖨 Print IP Bill</GBtn>
       </>}
 
-      {/* RECEIPTS */}
+      {/* ── RECEIPTS ── */}
       {view==='receipts'&&<>
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Add payment receipt</div>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Generate receipt</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Amount (Rs)" type="number" value={newReceipt.amount} onChange={e=>setNewReceipt({...newReceipt,amount:e.target.value})} placeholder="0"/>
             <FInp label="Date" type="date" value={newReceipt.date} onChange={e=>setNewReceipt({...newReceipt,date:e.target.value})}/>
@@ -3312,14 +3368,14 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           <FSel label="Payment mode" value={newReceipt.mode} onChange={e=>setNewReceipt({...newReceipt,mode:e.target.value})}>
             {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}
           </FSel>
-          <FInp label="Notes (optional)" type="text" value={newReceipt.notes} onChange={e=>setNewReceipt({...newReceipt,notes:e.target.value})} placeholder="e.g. Advance, Partial, Final"/>
+          <FInp label="Notes (optional)" type="text" value={newReceipt.notes} onChange={e=>setNewReceipt({...newReceipt,notes:e.target.value})} placeholder="e.g. Advance, Partial payment, Final"/>
           <GBtn onClick={addReceipt} disabled={savingReceipt}>{savingReceipt?'Saving...':'Generate Receipt'}</GBtn>
         </div>
         {loadingReceipts&&<div style={{textAlign:'center',padding:'20px',color:'#aaa'}}>Loading...</div>}
         {!loadingReceipts&&receipts.length===0&&<div style={{textAlign:'center',padding:'30px',color:'#ccc',fontSize:13}}>No receipts yet</div>}
         {receipts.map(r=>(<div key={r.id} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'12px',marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
-            <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{r.receipt_no}</div>
+            <div style={{fontSize:13,fontWeight:700}}>{r.receipt_no}</div>
             <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(r.receipt_date)} — {(r.mode||'cash')[0].toUpperCase()+(r.mode||'cash').slice(1)}{r.notes?' — '+r.notes:''}</div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -3328,16 +3384,16 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>
         </div>))}
         {receipts.length>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:14}}>
-          <span>Total receipts</span><span style={{color:'#16a34a'}}>{fmt(receipts.reduce((a,r)=>a+r.amount,0))}</span>
+          <span>Total collected</span><span style={{color:'#16a34a'}}>{fmt(receipts.reduce((a,r)=>a+r.amount,0))}</span>
         </div>}
       </>}
 
-      {/* DISCHARGE SUMMARY */}
+      {/* ── DISCHARGE ── */}
       {view==='discharge'&&<>
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Discharge summary</div>
-          <div style={{fontSize:12,color:'#94a3b8',marginBottom:8}}>Type or paste the complete discharge summary below</div>
-          <textarea value={dischargeText} onChange={e=>setDischargeText(e.target.value)} placeholder="Chief complaint:&#10;History of present illness:&#10;Examination findings:&#10;Investigations:&#10;Diagnosis:&#10;Treatment given:&#10;Condition at discharge:&#10;Advice on discharge:&#10;Follow-up:" style={{width:'100%',minHeight:400,padding:'12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,lineHeight:1.7,outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Discharge Summary</div>
+          <div style={{fontSize:12,color:'#94a3b8',marginBottom:8}}>Type or paste complete discharge summary</div>
+          <textarea value={dischargeText} onChange={e=>setDischargeText(e.target.value)} placeholder="Chief complaint:&#10;History:&#10;Examination:&#10;Investigations:&#10;Diagnosis:&#10;Treatment given:&#10;Condition at discharge:&#10;Advice:&#10;Follow-up:" style={{width:'100%',minHeight:400,padding:'12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,lineHeight:1.8,outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
         </div>
         <GBtn onClick={()=>setPrintMode(true)}>🖨 Print Discharge Summary</GBtn>
       </>}
