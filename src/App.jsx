@@ -2518,12 +2518,8 @@ const InsuranceTab=({p,db,setDb})=>{
     const newPayments=[...(p.payments||[]),newPmt]
     const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',p.id)
     if(error){alert('Failed: '+error.message);setBusy(false);return}
-    // Add to income table for reports
-    const incEntry={id:uid(),hospital_id:p.hospital_id,date:insPayDate,type:'ip',amount:amt,patient_id:p.id,patient_name:p.name,payment:'insurance',notes:insPayNote||'Insurance payment',ref_doctor:''}
-    await supabase.from('income').insert(incEntry)
     setDb(d=>({...d,
-      ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,payments:newPayments}:pt),
-      income:[...d.income,incEntry]
+      ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,payments:newPayments}:pt)
     }))
     setInsPayAmt('');setInsPayNote('');setBusy(false)
   }
@@ -2773,12 +2769,8 @@ const InsuranceMainTab=({db,setDb,gotoIP,hospital})=>{
     const newPayments=[...(selPat.payments||[]),newPmt]
     const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',selPat.id)
     if(error){alert('Failed: '+error.message);setBusy(false);return}
-    // Also add to income table so it appears in daily/real income reports
-    const incEntry={id:uid(),hospital_id:hospital?.id||selPat.hospital_id,date:insPayDate,type:'ip',amount:amt,patient_id:selPat.id,patient_name:selPat.name,payment:'insurance',notes:insPayNote||'Insurance payment',ref_doctor:''}
-    await supabase.from('income').insert(incEntry)
     setDb(d=>({...d,
-      ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p),
-      income:[...d.income,incEntry]
+      ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p)
     }))
     setSelPat(p=>({...p,payments:newPayments}))
     setInsPayAmt('');setInsPayNote('')
@@ -3463,9 +3455,25 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     })()}
     {/* INSURANCE DAILY CARD */}
     {(()=>{
-      const insPatients=db.ip_patients.filter(p=>p.insurance_type&&p.admission_date<=rd&&(!p.discharge_date||p.discharge_date>=rd))
+      const insPatients=db.ip_patients.filter(p=>p.insurance_type&&p.insurance_type.trim()&&p.admission_date<=rd&&(!p.discharge_date||p.discharge_date>=rd))
+      const insPaymentsToday=db.ip_patients.flatMap(p=>(p.payments||[]).filter(py=>py.mode==='insurance'&&py.date===rd).map(py=>({...py,patName:p.name,insType:p.insurance_type})))
       if(insPatients.length===0)return null
       return(<>
+        {insPaymentsToday.length>0&&<>
+          <SecL>Insurance payments received today</SecL>
+          <Card style={{border:'1px solid #bfdbfe',background:'#eff6ff'}}>
+            {insPaymentsToday.map((py,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #dbeafe'}}>
+              <div><div style={{fontSize:13,fontWeight:600,color:'#1e40af'}}>{py.patName}</div>
+                <div style={{fontSize:11,color:'#3b82f6'}}>{py.insType} — {py.note||'Insurance payment'}</div>
+              </div>
+              <div style={{fontSize:14,fontWeight:800,color:'#1d4ed8'}}>{fmt(py.amount)}</div>
+            </div>))}
+            <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #bfdbfe',fontWeight:700,fontSize:13}}>
+              <span style={{color:'#1e40af'}}>Total insurance received today</span>
+              <span style={{color:'#1d4ed8'}}>{fmt(insPaymentsToday.reduce((a,py)=>a+py.amount,0))}</span>
+            </div>
+          </Card>
+        </>}
         <SecL>Insurance patients today</SecL>
         {insPatients.map(p=>{
           const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
