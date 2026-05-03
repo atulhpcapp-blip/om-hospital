@@ -3,7 +3,7 @@ import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
 const ECATS=[{key:'ref_paid',label:'Referral commission paid'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'consultant_fee',label:'Consultant fee paid'},{key:'municipality',label:'Municipality'},{key:'biomedical_bags',label:'Biomedical waste bags'},{key:'stationary',label:'Stationary'},{key:'washroom_cleaner',label:'Washroom cleaner'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)'},{key:'misc',label:'Miscellaneous'}]
-const PMODES=['cash','upi','card','bank','credit','insurance','package']
+const PMODES=['cash','upi','card','bank','credit','insurance']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
 const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,ip_p:0.30,vc:0}
@@ -2711,6 +2711,241 @@ const InsuranceReport=({db,actions})=>{
   </>)
 }
 
+/*  INSURANCE MAIN TAB  */
+const InsuranceMainTab=({db,setDb,gotoIP})=>{
+  const [filter,setFilter]=useState('active')
+  const [selPat,setSelPat]=useState(null)
+  const [status,setStatus]=useState('')
+  const [newApproved,setNewApproved]=useState('')
+  const [insPayAmt,setInsPayAmt]=useState('')
+  const [insPayDate,setInsPayDate]=useState(todayStr())
+  const [insPayNote,setInsPayNote]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [saved,setSaved]=useState(false)
+
+  // All IP patients with insurance
+  const allInsPats=db.ip_patients.filter(p=>p.insurance_type&&p.insurance_type.trim())
+  const filtered=filter==='active'?allInsPats.filter(p=>!p.discharge_date):
+    filter==='discharged'?allInsPats.filter(p=>p.discharge_date):allInsPats
+
+  // Summary stats
+  const totalExpected=allInsPats.reduce((a,p)=>a+(p.insurance_expected||0),0)
+  const totalInsRec=allInsPats.reduce((a,p)=>a+(p.payments||[]).filter(py=>py.mode==='insurance').reduce((s,py)=>s+(py.amount||0),0),0)
+  const totalInsPend=Math.max(totalExpected-totalInsRec,0)
+  const pendingApprovals=allInsPats.filter(p=>p.insurance_status==='pending'||!p.insurance_status).length
+
+  const openPat=(p)=>{
+    setSelPat(p)
+    setStatus(p.insurance_status||'pending')
+    setNewApproved(String(p.insurance_expected||0))
+    setInsPayAmt('')
+    setInsPayNote('')
+    setInsPayDate(todayStr())
+  }
+
+  const saveStatus=async()=>{
+    if(!selPat)return
+    setBusy(true)
+    const approved=parseFloat(newApproved)||0
+    const {error}=await supabase.from('ip_patients').update({
+      insurance_status:status,
+      insurance_expected:approved
+    }).eq('id',selPat.id)
+    if(error){alert('Update failed: '+error.message);setBusy(false);return}
+    setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,insurance_status:status,insurance_expected:approved}:p)}))
+    setSelPat(p=>({...p,insurance_status:status,insurance_expected:approved}))
+    setSaved(true);setTimeout(()=>setSaved(false),2000)
+    setBusy(false)
+  }
+
+  const addPayment=async()=>{
+    if(!selPat||!insPayAmt||parseFloat(insPayAmt)<=0){alert('Enter amount');return}
+    setBusy(true)
+    const newPmt={id:uid(),date:insPayDate,amount:parseFloat(insPayAmt),mode:'insurance',note:insPayNote||'Insurance payment received'}
+    const newPayments=[...(selPat.payments||[]),newPmt]
+    const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',selPat.id)
+    if(error){alert('Failed: '+error.message);setBusy(false);return}
+    setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p)}))
+    setSelPat(p=>({...p,payments:newPayments}))
+    setInsPayAmt('');setInsPayNote('')
+    setBusy(false)
+  }
+
+  // Patient detail panel
+  if(selPat){
+    const p=db.ip_patients.find(x=>x.id===selPat.id)||selPat
+    const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+    const bills=db.income.filter(e=>e.patient_id===p.id)
+    const approved=parseFloat(newApproved)||p.insurance_expected||0
+    const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
+    const insRec=insPayments.reduce((a,py)=>a+(py.amount||0),0)
+    const insPend=Math.max(approved-insRec,0)
+    const copay=Math.max(totalBill-approved,0)
+    const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+    const copayPend=Math.max(copay-cashRec,0)
+
+    return(<div style={{background:'#f8fafc',minHeight:'100vh'}}>
+      <div style={{background:'#0f172a',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,position:'sticky',top:0,zIndex:10}}>
+        <button onClick={()=>setSelPat(null)} style={{color:'#94a3b8',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>← Back</button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:700,color:'#fff'}}>{p.name}</div>
+          <div style={{fontSize:11,color:'#64748b'}}>{p.insurance_type}{p.insurance_policy_no?' — '+p.insurance_policy_no:''}</div>
+        </div>
+        <button onClick={()=>gotoIP&&gotoIP(p.id)} style={{fontSize:11,color:'#60a5fa',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>View IP →</button>
+      </div>
+      <div style={{padding:'16px'}}>
+
+        {/* Bill summary */}
+        <div style={{background:'linear-gradient(135deg,#1e3a5f,#1d4ed8)',borderRadius:16,padding:'16px',marginBottom:16}}>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:10}}>Admitted: {fmtD(p.admission_date)}{p.discharge_date?' | Discharged: '+fmtD(p.discharge_date):' | Active'}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>TOTAL BILL</div>
+              <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>{fmt(totalBill)}</div>
+            </div>
+            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>INS APPROVED</div>
+              <div style={{fontSize:16,fontWeight:800,color:'#60a5fa'}}>{fmt(approved)}</div>
+            </div>
+            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>CO-PAY</div>
+              <div style={{fontSize:16,fontWeight:800,color:'#a78bfa'}}>{fmt(copay)}</div>
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:4,fontSize:12}}>
+            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'rgba(255,255,255,0.5)'}}>Insurance received</span><span style={{color:'#4ade80',fontWeight:700}}>{fmt(insRec)}</span></div>
+            {insPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#fbbf24',fontWeight:600}}>Insurance pending</span><span style={{color:'#fbbf24',fontWeight:700}}>{fmt(insPend)}</span></div>}
+            {copayPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#f87171',fontWeight:600}}>Co-pay pending</span><span style={{color:'#f87171',fontWeight:700}}>{fmt(copayPend)}</span></div>}
+            {insPend===0&&copayPend===0&&totalBill>0&&<div style={{textAlign:'center',color:'#4ade80',fontWeight:700}}>✅ Fully settled</div>}
+          </div>
+        </div>
+
+        {/* Bills breakdown */}
+        {bills.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:10}}>Bills added</div>
+          {bills.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f5f5f5'}}>
+            <div><div style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={e.type}/><span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span></div>
+              {e.notes&&<div style={{fontSize:10,color:'#aaa',marginTop:1}}>{e.notes}</div>}
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{fmt(e.amount)}</div>
+              <div style={{fontSize:10,color:e.payment==='insurance'?'#2563eb':e.payment==='credit'?'#dc2626':'#94a3b8'}}>{e.payment}</div>
+            </div>
+          </div>))}
+          <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'2px solid #111',fontWeight:800,fontSize:13}}>
+            <span>Total billed</span><span style={{color:'#0f172a'}}>{fmt(totalBill)}</span>
+          </div>
+        </div>}
+
+        {/* Update approval */}
+        <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Update insurance approval</div>
+          <FSel label="Status" value={status} onChange={e=>setStatus(e.target.value)}>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </FSel>
+          <FInp label="Total approved amount (Rs)" type="number" value={newApproved} onChange={e=>setNewApproved(e.target.value)} placeholder="e.g. 25000"/>
+          {parseFloat(newApproved)>0&&<div style={{background:'#eff6ff',borderRadius:8,padding:'8px 10px',fontSize:12,color:'#1e40af',marginBottom:8}}>
+            Approved: {fmt(parseFloat(newApproved))} — Patient co-pay: {fmt(Math.max(totalBill-parseFloat(newApproved),0))}
+          </div>}
+          <GBtn onClick={saveStatus} disabled={busy}>{busy?'Saving...':saved?'✓ Saved':'Save approval'}</GBtn>
+        </div>
+
+        {/* Record insurance payment */}
+        <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Record insurance payment received</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FInp label="Amount (Rs)" type="number" value={insPayAmt} onChange={e=>setInsPayAmt(e.target.value)} placeholder="0"/>
+            <FInp label="Date" type="date" value={insPayDate} onChange={e=>setInsPayDate(e.target.value)}/>
+          </div>
+          <FInp label="Note" type="text" value={insPayNote} onChange={e=>setInsPayNote(e.target.value)} placeholder="e.g. Pre-auth 1, Final settlement"/>
+          {insPayAmt&&insPend>0&&<div style={{fontSize:11,color:'#d97706',marginBottom:8}}>After this: insurance pending = {fmt(Math.max(insPend-parseFloat(insPayAmt||0),0))}</div>}
+          <GBtn onClick={addPayment} disabled={busy}>{busy?'Saving...':'Record payment'}</GBtn>
+        </div>
+
+        {/* Payment history */}
+        {insPayments.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Insurance payment history</div>
+          {insPayments.map((py,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+            <div><div style={{fontSize:13,fontWeight:600}}>{py.note||'Insurance payment'}</div>
+              <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(py.date)}</div>
+            </div>
+            <div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(py.amount)}</div>
+          </div>))}
+          <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #e5e7eb',fontWeight:700,fontSize:13}}>
+            <span>Total received</span><span style={{color:'#16a34a'}}>{fmt(insRec)}</span>
+          </div>
+        </div>}
+      </div>
+    </div>)
+  }
+
+  // Patient list view
+  return(<>
+    {/* Summary */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+      {[
+        {l:'Total insurance expected',v:fmt(totalExpected),c:'#2563eb',bg:'#eff6ff'},
+        {l:'Insurance received',v:fmt(totalInsRec),c:'#16a34a',bg:'#f0fdf4'},
+        {l:'Insurance pending',v:fmt(totalInsPend),c:'#d97706',bg:'#fffbeb'},
+        {l:'Pending approvals',v:pendingApprovals+' patients',c:'#dc2626',bg:'#fef2f2'},
+      ].map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'12px'}}>
+        <div style={{fontSize:10,color:m.c,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
+        <div style={{fontSize:18,fontWeight:800,color:m.c}}>{m.v}</div>
+      </div>))}
+    </div>
+
+    {/* Filter */}
+    <div style={{display:'flex',gap:6,marginBottom:14}}>
+      {[{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'all',l:'All'}].map(f=>(
+        <button key={f.k} onClick={()=>setFilter(f.k)} style={{padding:'6px 16px',borderRadius:20,border:'none',
+          background:filter===f.k?'#1d4ed8':'#f1f5f9',color:filter===f.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer'}}>{f.l}</button>
+      ))}
+    </div>
+
+    {filtered.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No insurance patients found. Admit a patient under Insurance to get started.</div>}
+    {filtered.map(p=>{
+      const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+      const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
+      const insPend=Math.max((p.insurance_expected||0)-insRec,0)
+      const copay=Math.max(totalBill-(p.insurance_expected||0),0)
+      const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+      const copayPend=Math.max(copay-cashRec,0)
+      const st=p.insurance_status||'pending'
+      return(<div key={p.id} onClick={()=>openPat(p)} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:10,cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.name}</div>
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{p.insurance_type}</div>
+            {p.insurance_policy_no&&<div style={{fontSize:11,color:'#94a3b8'}}>{p.insurance_policy_no}</div>}
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{color:'#16a34a',fontWeight:600}}> Active</span>}</div>
+          </div>
+          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:700,flexShrink:0,
+            background:st==='approved'?'#f0fdf4':st==='rejected'?'#fef2f2':'#fffbeb',
+            color:st==='approved'?'#16a34a':st==='rejected'?'#dc2626':'#d97706'
+          }}>{st==='approved'?'Approved':st==='rejected'?'Rejected':'Pending'}</span>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+          <div style={{textAlign:'center',background:'#f8fafc',borderRadius:8,padding:'6px'}}>
+            <div style={{fontSize:9,color:'#94a3b8',fontWeight:700}}>BILL</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
+          </div>
+          <div style={{textAlign:'center',background:'#eff6ff',borderRadius:8,padding:'6px'}}>
+            <div style={{fontSize:9,color:'#2563eb',fontWeight:700}}>APPROVED</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#2563eb'}}>{fmt(p.insurance_expected||0)}</div>
+          </div>
+          <div style={{textAlign:'center',background:copayPend>0||insPend>0?'#fef2f2':'#f0fdf4',borderRadius:8,padding:'6px'}}>
+            <div style={{fontSize:9,color:copayPend>0||insPend>0?'#dc2626':'#16a34a',fontWeight:700}}>{copayPend>0||insPend>0?'PENDING':'SETTLED'}</div>
+            <div style={{fontSize:13,fontWeight:800,color:copayPend>0||insPend>0?'#dc2626':'#16a34a'}}>{copayPend>0||insPend>0?fmt(insPend+copayPend):'✓'}</div>
+          </div>
+        </div>
+      </div>)
+    })}
+  </>)
+}
+
 /*  REPORTS TAB  */
 /*  AREA-WISE REPORT  */
 const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
@@ -3474,7 +3709,7 @@ export default function App(){
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
-  const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
@@ -3579,6 +3814,7 @@ export default function App(){
         {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
         {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions}/>}
+        {tab==='ins'&&<InsuranceMainTab db={db} setDb={setDb} gotoIP={(id)=>{setTab('ip');setTimeout(()=>gotoIP(id),100)}}/>}
         {tab==='credit'&&<CreditTab db={db} actions={actions}/>}
         {tab==='refdrs'&&<RefDoctorsTab db={db} actions={actions}/>}
         {tab==='consult'&&<ConsultantsTab db={db} actions={actions}/>}
