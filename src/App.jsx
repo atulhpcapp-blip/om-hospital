@@ -2987,7 +2987,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     {name:'Observation / Nursing charges',amount:'',days:'1'},
     {name:'Doctor visit charges',amount:'',days:'1'},
   ])
-  const [pharmaItems,setPharmaItems]=useState([{name:'',mrp:'',qty:'1',disc:'0'}])
+  const [pharmaItems,setPharmaItems]=useState([{name:'',mrp:'',qty:'',disc:''}])
   const [labItems,setLabItems]=useState([{name:'',price:''}])
   const [services,setServices]=useState([{name:'',amount:''}])
   const [advance,setAdvance]=useState('')
@@ -3220,12 +3220,12 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {pharmaItems.map((item,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'2fr 1fr 0.7fr 0.7fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             <AutoInput value={item.name} onChange={v=>{const n=[...pharmaItems];n[i]={...n[i],name:v};setPharmaItems(n)}} placeholder="Medicine name" suggestions={savedItems.medicine}/>
             <input type="number" value={item.mrp} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],mrp:e.target.value};setPharmaItems(n)}} placeholder="0" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input type="number" value={item.qty} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],qty:e.target.value};setPharmaItems(n)}} placeholder="1" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
-            <input type="number" value={item.disc} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],disc:e.target.value};setPharmaItems(n)}} placeholder="0" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input type="number" value={item.qty||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],qty:e.target.value};setPharmaItems(n)}} placeholder="1" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
+            <input type="number" value={item.disc||''} onChange={e=>{const n=[...pharmaItems];n[i]={...n[i],disc:e.target.value};setPharmaItems(n)}} placeholder="0" style={{padding:'7px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}}/>
             <button onClick={()=>{saveItem('medicine',item.name);setPharmaItems(pharmaItems.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:16}}>×</button>
           </div>))}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:4}}>
-            <button onClick={()=>setPharmaItems([...pharmaItems,{name:'',mrp:'',qty:'1',disc:'0'}])} style={{padding:'5px 10px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b'}}>+ Add medicine</button>
+            <button onClick={()=>setPharmaItems([...pharmaItems,{name:'',mrp:'',qty:'',disc:''}])} style={{padding:'5px 10px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b'}}>+ Add medicine</button>
             <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Total: {fmt(pharmaTotal)}</span>
           </div>
         </div>
