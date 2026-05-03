@@ -2513,11 +2513,18 @@ const InsuranceTab=({p,db,setDb})=>{
   const addPayment=async()=>{
     if(!insPayAmt||parseFloat(insPayAmt)<=0){alert('Enter amount');return}
     setBusy(true)
-    const newPmt={id:uid(),date:insPayDate,amount:parseFloat(insPayAmt),mode:'insurance',note:insPayNote||'Insurance payment received'}
+    const amt=parseFloat(insPayAmt)
+    const newPmt={id:uid(),date:insPayDate,amount:amt,mode:'insurance',note:insPayNote||'Insurance payment received'}
     const newPayments=[...(p.payments||[]),newPmt]
     const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',p.id)
     if(error){alert('Failed: '+error.message);setBusy(false);return}
-    setDb(d=>({...d,ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,payments:newPayments}:pt)}))
+    // Add to income table for reports
+    const incEntry={id:uid(),hospital_id:p.hospital_id,date:insPayDate,type:'ip',amount:amt,patient_id:p.id,patient_name:p.name,payment:'insurance',notes:insPayNote||'Insurance payment',ref_doctor:''}
+    await supabase.from('income').insert(incEntry)
+    setDb(d=>({...d,
+      ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,payments:newPayments}:pt),
+      income:[...d.income,incEntry]
+    }))
     setInsPayAmt('');setInsPayNote('');setBusy(false)
   }
 
@@ -2761,11 +2768,18 @@ const InsuranceMainTab=({db,setDb,gotoIP})=>{
   const addPayment=async()=>{
     if(!selPat||!insPayAmt||parseFloat(insPayAmt)<=0){alert('Enter amount');return}
     setBusy(true)
-    const newPmt={id:uid(),date:insPayDate,amount:parseFloat(insPayAmt),mode:'insurance',note:insPayNote||'Insurance payment received'}
+    const amt=parseFloat(insPayAmt)
+    const newPmt={id:uid(),date:insPayDate,amount:amt,mode:'insurance',note:insPayNote||'Insurance payment received'}
     const newPayments=[...(selPat.payments||[]),newPmt]
     const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',selPat.id)
     if(error){alert('Failed: '+error.message);setBusy(false);return}
-    setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p)}))
+    // Also add to income table so it appears in daily/real income reports
+    const incEntry={id:uid(),hospital_id:selPat.hospital_id||db.ip_patients.find(x=>x.id===selPat.id)?.hospital_id,date:insPayDate,type:'ip',amount:amt,patient_id:selPat.id,patient_name:selPat.name,payment:'insurance',notes:insPayNote||'Insurance payment',ref_doctor:''}
+    await supabase.from('income').insert(incEntry)
+    setDb(d=>({...d,
+      ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p),
+      income:[...d.income,incEntry]
+    }))
     setSelPat(p=>({...p,payments:newPayments}))
     setInsPayAmt('');setInsPayNote('')
     setBusy(false)
