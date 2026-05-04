@@ -3665,7 +3665,9 @@ export default function App(){
     const init=async()=>{
       const {data:sa}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
       if(sa){setIsSuperAdmin(true);setLoading(false);return}
-      const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
+      const profRes=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
+      const prof=profRes.data
+      if(profRes.error){console.error('Profile error:',profRes.error);setLoading(false);return}
       if(!prof?.hospital_id){setProfile(prof);setLoading(false);return}
       const hid=prof.hospital_id
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
