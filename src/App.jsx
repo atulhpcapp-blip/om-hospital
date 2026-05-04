@@ -3499,7 +3499,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
               const prev=pharmaDays[pharmaDays.length-1]
               if(!prev)return
               // Copy previous day items, clear amounts for re-entry
-              const copiedItems=prev.items.map(i=>({...i,amount:'',batch:'',expiry:''}))
+              const copiedItems=prev.items.map(i=>({...i}))
               // Next date = prev date + 1 day
               const nextDate=new Date(prev.date+'T00:00:00')
               nextDate.setDate(nextDate.getDate()+1)
@@ -3524,7 +3524,13 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
             </div>
             {item.name&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#7c3aed',fontWeight:700,marginTop:2}}>{fmt((parseFloat(item.qty)||1)*parseFloat(item.rate))}</div>}
           </div>))}
-          <button onClick={()=>setLabTests([...labTests,{name:'',qty:'1',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
+          <div style={{display:'flex',gap:8,marginTop:4}}>
+            <button onClick={()=>setLabTests([...labTests,{name:'',qty:'1',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
+            {labTests.length>0&&labTests.some(i=>i.name)&&<button onClick={()=>{
+              const copied=labTests.filter(i=>i.name).map(i=>({...i}))
+              setLabTests([...labTests,...copied])
+            }} style={{fontSize:12,color:'#7c3aed',background:'none',border:'none',cursor:'pointer'}}>📋 Repeat all tests</button>}
+          </div>
         </div>
 
         {/* Grand total + advance/discount */}
