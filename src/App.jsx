@@ -399,6 +399,14 @@ const SuperAdminDashboard=({onPreview=null})=>{
         return
       }
     }
+    if(nH.phone&&nH.phone.trim().length>=5){
+      const {data:dup}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
+      if(dup&&dup.length>0){
+        alert('❌ Phone '+nH.phone.trim()+' already registered for: '+dup[0].name)
+        setMsg({ok:false,t:'Phone already used by: '+dup[0].name})
+        return
+      }
+    }
     setBusy(true);setMsg(null)
     const planEnd=nH.plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31'
     const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:nH.name,city:nH.city,phone:nH.phone,plan:nH.plan,plan_end:planEnd}]).select().single()
