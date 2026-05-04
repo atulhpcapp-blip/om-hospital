@@ -3228,6 +3228,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     win.document.close()
   }
 
+  const fmtN=n=>n?'Rs '+parseFloat(n).toLocaleString('en-IN',{minimumFractionDigits:2}):'Rs 0.00'
+  const fmtDN=d=>{if(!d)return'—';try{const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}catch{return d}}
   const getBillHTML=()=>{
     let h=''
     h+=`<div class="page">`
@@ -3458,7 +3460,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
           <GBtn onClick={saveBill} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved&&!editMode?'✓ Saved — Update':'💾 Save Bill'}</GBtn>
-          <button onClick={()=>openPrintWindow('<h1>TEST - Print working!</h1><p>Patient: '+p.name+'</p>')} style={{flex:1,padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>🖨 Print Bill</button>
+          <button onClick={()=>openPrintWindow(getBillHTML())} style={{flex:1,padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>🖨 Print Bill</button>
         </div>
         {billSaved&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',marginTop:4}}>Bill saved — will reload next time you open billing</div>}
       </>}
