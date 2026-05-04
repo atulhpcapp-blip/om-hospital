@@ -1060,7 +1060,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
   const todayCash=cashTotal(di);const todayCredit=credTotal(di)
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   const go=async()=>{
-    const amt=parseFloat(iF.amount);if(!amt||amt<=0){alert('Enter a valid amount');return}
+    const amt=parseFloat(iF.amount)||0;if(amt<0){alert('Amount cannot be negative');return}
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
@@ -1233,7 +1233,10 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
               </div>}
             </>}
           </>}
-        <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
+        <div style={{marginBottom:8}}>
+          <FInp label="Amount (Rs) — enter 0 for free consultation" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
+          {(iF.amount===''||iF.amount==='0'||parseFloat(iF.amount||1)===0)&&<div style={{fontSize:11,color:'#16a34a',marginTop:3,fontWeight:600}}>✓ Free / complimentary — will be saved as Rs 0</div>}
+        </div>
         {prev>0&&iF.ref&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
         <FSel label="Payment" value={iF.pay} onChange={e=>setIF({...iF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
