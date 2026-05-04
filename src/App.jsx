@@ -1147,11 +1147,31 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
             </>)}
             {!isIP&&(itype==='op_r'||itype==='op_l')&&iF.pname.trim()&&(()=>{const opEntry=db.income.find(e=>e.type==='op'&&e.patient_name===iF.pname.trim()&&e.ref_doctor);if(!opEntry)return null;const doc=db.ref_doctors.find(d=>d.name===opEntry.ref_doctor);const pctKey=itype==='op_r'?'op_r_pct':'op_l_pct';const pct=doc?doc[pctKey]:null;if(iF.ref!==opEntry.ref_doctor){setIF({...iF,ref:opEntry.ref_doctor,custom_commission:pct!=null?String(pct):''})}return(<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Ref doctor auto-filled: <strong>Dr. {opEntry.ref_doctor}</strong>{pct!=null?' ('+pct+'%)':''}</div>)})()}
             {itype==='vc'&&<>
-              <FSel label="Consultant" value={iF.ref} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,ref:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):iF.consultant_fee})}}>
-                <option value="">- Select or type below -</option>
-                {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} ({d.fee_share_pct}%)</option>)}
-              </FSel>
-              <FInp label="Or type consultant name" type="text" placeholder="e.g. Dr. Sharma" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>
+              <div style={{marginBottom:8}}>
+                <FSel label="Consultant" value={iF.ref} onChange={e=>{if(e.target.value==='__new_vc__'){setIF({...iF,ref:'__new_vc__'})}else{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,ref:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):iF.consultant_fee,newConsName:'',newConsPct:''})}}}>
+                  <option value="">- Select consultant -</option>
+                  {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} ({d.fee_share_pct}%)</option>)}
+                  <option value="__new_vc__">+ Add new consultant...</option>
+                </FSel>
+                {iF.ref==='__new_vc__'&&<div style={{background:'#fdf4ff',border:'1px solid #e9d5ff',borderRadius:10,padding:'10px',marginTop:6}}>
+                  <div style={{fontSize:12,fontWeight:700,color:'#7e22ce',marginBottom:8}}>New visiting consultant</div>
+                  <FInp label="Consultant name" type="text" value={iF.newConsName||''} onChange={e=>setIF({...iF,newConsName:e.target.value})} placeholder="e.g. Dr. Reddy"/>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+                    <FInp label="OP Fee %" type="number" value={iF.newConsPct||''} onChange={e=>setIF({...iF,newConsPct:e.target.value})} placeholder="60"/>
+                    <FInp label="OP Lab %" type="number" value={iF.newConsOpLPct||''} onChange={e=>setIF({...iF,newConsOpLPct:e.target.value})} placeholder="0"/>
+                    <FInp label="OP Pharm %" type="number" value={iF.newConsOpRPct||''} onChange={e=>setIF({...iF,newConsOpRPct:e.target.value})} placeholder="0"/>
+                    <FInp label="IP %" type="number" value={iF.newConsIpPct||''} onChange={e=>setIF({...iF,newConsIpPct:e.target.value})} placeholder="0"/>
+                    <FInp label="IP Lab %" type="number" value={iF.newConsIpLPct||''} onChange={e=>setIF({...iF,newConsIpLPct:e.target.value})} placeholder="0"/>
+                    <FInp label="IP Pharm %" type="number" value={iF.newConsIpRPct||''} onChange={e=>setIF({...iF,newConsIpRPct:e.target.value})} placeholder="0"/>
+                  </div>
+                  <GBtn onClick={async()=>{
+                    if(!iF.newConsName?.trim()){alert('Enter name');return}
+                    const newCon={hospital_id:profile?.hospital_id,name:iF.newConsName.trim(),fee_share_pct:parseFloat(iF.newConsPct)||60,op_l_pct:parseFloat(iF.newConsOpLPct)||0,op_r_pct:parseFloat(iF.newConsOpRPct)||0,ip_pct:parseFloat(iF.newConsIpPct)||0,ip_l_pct:parseFloat(iF.newConsIpLPct)||0,ip_r_pct:parseFloat(iF.newConsIpRPct)||0}
+                    await actions.addConsultant(newCon)
+                    setIF({...iF,ref:newCon.name,consultant_fee:iF.amount?Math.round(parseFloat(iF.amount||0)*newCon.fee_share_pct/100):0,newConsName:'',newConsPct:'',newConsOpLPct:'',newConsOpRPct:'',newConsIpPct:'',newConsIpLPct:'',newConsIpRPct:''})
+                  }}>Save & select</GBtn>
+                </div>}
+              </div>
               <FInp label="Consultant fee to pay (Rs)" type="number" inputMode="numeric" placeholder="Amount you give to consultant" value={iF.consultant_fee||''} onChange={e=>setIF({...iF,consultant_fee:e.target.value})}/>
               {iF.amount&&iF.consultant_fee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13}}>
                 <span style={{color:'#065f46',fontWeight:600}}>Your income: </span>
