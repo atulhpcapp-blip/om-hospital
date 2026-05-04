@@ -4566,7 +4566,7 @@ const ConsultantsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
-  const blank={name:'',phone:'',fee_share_pct:0,op_l_pct:0,op_r_pct:0,ip_pct:0,ip_r_pct:0,ip_l_pct:0}
+  const blank={name:'',phone:'',fee_share_pct:0,op_l_pct:0,op_r_pct:0,ip_pct:0,ip_r_pct:0,ip_l_pct:0,ip_fee_share_pct:0}
   const [form,setForm]=useState(blank)
   const save=async()=>{
     if(!form.name.trim()){alert('Consultant name required');return}
@@ -4575,7 +4575,7 @@ const ConsultantsTab=({db,actions})=>{
     else{await actions.addConsultant(form)}
     setForm(blank);setShowAdd(false);setBusy(false)
   }
-  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0,ip_pct:d.ip_pct||0,ip_r_pct:d.ip_r_pct||0,ip_l_pct:d.ip_l_pct||0});setEditId(d.id);setShowAdd(true)}
+  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0,ip_pct:d.ip_pct||0,ip_r_pct:d.ip_r_pct||0,ip_l_pct:d.ip_l_pct||0,ip_fee_share_pct:d.ip_fee_share_pct||0});setEditId(d.id);setShowAdd(true)}
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add visiting consultant</PBtn>}
     {showAdd&&<Card style={{border:'2px solid #7e22ce'}}>
@@ -4605,9 +4605,18 @@ const ConsultantsTab=({db,actions})=>{
         </div>))}
       </div>
       <div style={{fontSize:11,fontWeight:700,color:'#2563eb',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>IP commission (when admits patients)</div>
+      <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'12px 14px',marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#2563eb',textTransform:'uppercase',marginBottom:8}}>IP consultation fee share</div>
+        <div style={{position:'relative'}}>
+          <input style={{...S.inp,paddingRight:28,borderColor:'#bfdbfe'}} type="number" inputMode="numeric" min="0" max="100" value={form.ip_fee_share_pct||0} onChange={e=>setForm({...form,ip_fee_share_pct:parseFloat(e.target.value)||0})}/>
+          <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#2563eb',fontWeight:700}}>%</span>
+        </div>
+        <div style={{fontSize:11,color:'#3b82f6',marginTop:6}}>Doctor takes this % of IP consultation charges collected.</div>
+        {form.ip_fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#2563eb',fontWeight:600}}>e.g. collect Rs 1500 IP fee - Dr. gets {fmt(1500*form.ip_fee_share_pct/100)} - Hospital keeps {fmt(1500*(1-form.ip_fee_share_pct/100))}</div>}
+      </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-        {[{key:'ip_pct',label:'IP Charges',color:'#2563eb'},{key:'ip_r_pct',label:'IP Pharmacy',color:'#c2410c'},{key:'ip_l_pct',label:'IP Lab',color:'#7e22ce'}].map(c=>(<div key={c.key}>
-          <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label} %</label>
+        {[{key:'ip_pct',label:'IP Ref %',color:'#2563eb'},{key:'ip_r_pct',label:'IP Pharmacy %',color:'#c2410c'},{key:'ip_l_pct',label:'IP Lab %',color:'#7e22ce'}].map(c=>(<div key={c.key}>
+          <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label}</label>
           <div style={{position:'relative'}}>
             <input style={{...S.inp,paddingRight:28}} type="number" inputMode="numeric" min="0" max="100" value={form[c.key]||0} onChange={e=>setForm({...form,[c.key]:parseFloat(e.target.value)||0})}/>
             <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#aaa',fontWeight:700}}>%</span>
@@ -4634,7 +4643,7 @@ const ConsultantsTab=({db,actions})=>{
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-        {[{l:'OP Fee',v:d.fee_share_pct+'%',c:'#7e22ce'},{l:'OP Lab',v:d.op_l_pct+'%',c:'#7e22ce'},{l:'OP Pharm',v:d.op_r_pct+'%',c:'#c2410c'},{l:'IP',v:(d.ip_pct||0)+'%',c:'#2563eb'},{l:'IP Lab',v:(d.ip_l_pct||0)+'%',c:'#7e22ce'},{l:'IP Pharm',v:(d.ip_r_pct||0)+'%',c:'#c2410c'}].map((m,i)=>(
+        {[{l:'OP Fee',v:d.fee_share_pct+'%',c:'#7e22ce'},{l:'OP Lab',v:d.op_l_pct+'%',c:'#7e22ce'},{l:'OP Pharm',v:d.op_r_pct+'%',c:'#c2410c'},{l:'IP Fee',v:(d.ip_fee_share_pct||0)+'%',c:'#2563eb'},{l:'IP',v:(d.ip_pct||0)+'%',c:'#2563eb'},{l:'IP Lab',v:(d.ip_l_pct||0)+'%',c:'#7e22ce'},{l:'IP Pharm',v:(d.ip_r_pct||0)+'%',c:'#c2410c'}].map((m,i)=>(
           <div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'8px',textAlign:'center'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div>
             <div style={{fontSize:16,fontWeight:800,color:m.c}}>{m.v}</div>
