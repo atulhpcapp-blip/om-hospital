@@ -474,6 +474,19 @@ const SuperAdminDashboard=({onPreview=null})=>{
           <button onClick={async()=>{const d=document.getElementById('extDate').value;if(!d){alert('Pick a date');return}await supabase.from('hospitals').update({plan_end:d,is_active:true}).eq('id',sel.id);setSel({...sel,plan_end:d,is_active:true});load();alert('Plan extended to '+d)}} style={{padding:'10px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Extend</button>
         </div>
         <button onClick={async()=>{await supabase.from('hospitals').update({is_active:true}).eq('id',sel.id);setSel({...sel,is_active:true});load();alert('Hospital activated')}} style={{width:'100%',padding:'11px',background:'#f0fdf4',color:'#16a34a',border:'1px solid #bbf7d0',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:8}}>Force Activate</button>
+        <button onClick={async()=>{
+          if(!window.confirm('DELETE hospital: '+sel.name+'?\nThis deletes ALL data permanently.'))return
+          if(!window.confirm('CONFIRM: Permanently delete '+sel.name+' and all patient records?'))return
+          await supabase.from('income').delete().eq('hospital_id',sel.id)
+          await supabase.from('expenses').delete().eq('hospital_id',sel.id)
+          await supabase.from('ip_patients').delete().eq('hospital_id',sel.id)
+          await supabase.from('ref_doctors').delete().eq('hospital_id',sel.id)
+          await supabase.from('consultants').delete().eq('hospital_id',sel.id)
+          await supabase.from('profiles').delete().eq('hospital_id',sel.id)
+          await supabase.from('hospitals').delete().eq('id',sel.id)
+          alert('Hospital deleted.')
+          setView('list');load()
+        }} style={{width:'100%',padding:'11px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:8}}>🗑 Delete Hospital</button>
         <SecL>Preview</SecL>
         <button onClick={async()=>{
           setDataLoading(true)
@@ -3308,10 +3321,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     const win=window.open('','_blank')
     if(!win){alert('Please allow popups for this site');return}
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Bill - ${p.name}</title><style>
-      @page{size:A4 portrait;margin-top:76mm;margin-left:12mm;margin-right:12mm;margin-bottom:12mm}
+      @page{size:A4 portrait;margin:12mm}
       *{box-sizing:border-box}
       body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0;padding:0;background:#fff}
       .page{width:100%;page-break-after:always;padding:0}
+      .page:first-child{padding-top:64mm}
       table{border-collapse:collapse;width:100%;margin-bottom:5px}
       td,th{border:0.5px solid #888;padding:3px 5px;font-size:9pt;line-height:1.4;vertical-align:top}
       th{background:#f0f0f0;font-weight:700;text-align:left}
