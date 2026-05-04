@@ -1077,7 +1077,21 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
       <SecL>Select income type</SecL>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}}>
         {ITYPES.filter(t=>t.key!=='vc').map(t=>{const [bg,tx]=TC[t.key];const on=itype===t.key;return(
-          <button key={t.key} onClick={()=>{setItype(t.key);setIF(f=>({...f,ref:'',custom_commission:'',consultant_name:'',consultant_fee:0}));if((t.key==='op_r'||t.key==='op_l')&&!iF.pname.trim()){const lastOP=[...db.income].reverse().find(e=>e.type==='op'&&e.date===eDate&&e.patient_name);if(lastOP?.patient_name)setIF(f=>({...f,pname:lastOP.patient_name,ref:'',custom_commission:''}));}}} style={{padding:'10px 4px',border:on?`2.5px solid ${tx}`:'1.5px solid #e2e8f0',borderRadius:12,background:on?bg:'#fff',cursor:'pointer',textAlign:'center',boxShadow:on?'0 4px 12px rgba(0,0,0,0.08)':'0 1px 3px rgba(0,0,0,0.04)',transition:'all .15s'}}>
+          <button key={t.key} onClick={()=>{
+                  setItype(t.key);
+                  if(t.key==='op_r'||t.key==='op_l'){
+                    const lastOP=[...db.income].reverse().find(e=>e.type==='op'&&e.date===eDate&&e.patient_name);
+                    if(lastOP){
+                      const refDoc=db.ref_doctors.find(d=>d.name===lastOP.ref_doctor);
+                      const pct=refDoc?(t.key==='op_r'?refDoc.op_r_pct:refDoc.op_l_pct):null;
+                      setIF(f=>({...f,ref:lastOP.ref_doctor||'',custom_commission:(pct&&pct>0)?String(pct):'',pname:f.pname||lastOP.patient_name,consultant_name:'',consultant_fee:0}));
+                    } else {
+                      setIF(f=>({...f,ref:'',custom_commission:'',consultant_name:'',consultant_fee:0}));
+                    }
+                  } else {
+                    setIF(f=>({...f,ref:'',custom_commission:'',consultant_name:'',consultant_fee:0}));
+                  }
+                }} style={{padding:'10px 4px',border:on?`2.5px solid ${tx}`:'1.5px solid #e2e8f0',borderRadius:12,background:on?bg:'#fff',cursor:'pointer',textAlign:'center',boxShadow:on?'0 4px 12px rgba(0,0,0,0.08)':'0 1px 3px rgba(0,0,0,0.04)',transition:'all .15s'}}>
             <div style={{fontSize:12,fontWeight:700,color:on?tx:'#555'}}>{t.label}</div>
             <div style={{fontSize:9,color:on?tx:'#aaa',marginTop:2}}>{t.full}</div>
             {COMM[t.key]>0&&<div style={{fontSize:9,color:on?tx:'#ccc',marginTop:1}}>Ref: {CLBL[t.key]}</div>}
