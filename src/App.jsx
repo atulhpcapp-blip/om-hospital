@@ -1065,7 +1065,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
     let regNo=null;if(!isIP&&itype==='op'){regNo=await genRegNo()}
-    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:(isIP||itype==='vc'||itype==='op_r'||itype==='op_l')?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||''})
+    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:(isIP||itype==='vc')?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||''})
     if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:''})
   }
   return(
@@ -1087,7 +1087,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
       <Card>
         <FInp label="Amount (Rs )" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
         {prev>0&&iF.ref&&itype!=='op'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
-        {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>setIF({...iF,pid:e.target.value})}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
+        {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>{const pat=db.ip_patients.find(p=>p.id===e.target.value);const refDoc=pat?db.ref_doctors.find(d=>d.name===pat.ref_doctor):null;const pctKey=itype==='ip_r'?'ip_r_pct':itype==='ip_l'?'ip_l_pct':'ip_pct';const pct=refDoc?refDoc[pctKey]:null;setIF({...iF,pid:e.target.value,ref:pat?.ref_doctor||'',custom_commission:pct!=null?String(pct):''})}}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
           :<>
             {(itype==='op_r'||itype==='op_l')?(
               <div style={{marginBottom:10}}>
