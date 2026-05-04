@@ -1119,14 +1119,24 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   <FInp label="Doctor name" type="text" value={iF.newRefName||''} onChange={e=>setIF({...iF,newRefName:e.target.value})} placeholder="e.g. Dr. Sharma"/>
                   <FInp label="Area / Location" type="text" value={iF.newRefArea||''} onChange={e=>setIF({...iF,newRefArea:e.target.value})} placeholder="e.g. Kukatpally"/>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                    <FInp label="OP commission %" type="number" value={iF.newRefPct||''} onChange={e=>setIF({...iF,newRefPct:e.target.value})} placeholder="e.g. 30"/>
-                    <FInp label="IP commission %" type="number" value={iF.newRefIpPct||''} onChange={e=>setIF({...iF,newRefIpPct:e.target.value})} placeholder="e.g. 40"/>
+                    <FInp label="IP %" type="number" value={iF.newRefIpPct||''} onChange={e=>setIF({...iF,newRefIpPct:e.target.value})} placeholder="40"/>
+                    <FInp label="IP Pharm %" type="number" value={iF.newRefIpRPct||''} onChange={e=>setIF({...iF,newRefIpRPct:e.target.value})} placeholder="40"/>
+                    <FInp label="IP Lab %" type="number" value={iF.newRefIpLPct||''} onChange={e=>setIF({...iF,newRefIpLPct:e.target.value})} placeholder="50"/>
+                    <FInp label="OP %" type="number" value={iF.newRefPct||''} onChange={e=>setIF({...iF,newRefPct:e.target.value})} placeholder="0"/>
+                    <FInp label="OP Pharm %" type="number" value={iF.newRefOpRPct||''} onChange={e=>setIF({...iF,newRefOpRPct:e.target.value})} placeholder="0"/>
+                    <FInp label="OP Lab %" type="number" value={iF.newRefOpLPct||''} onChange={e=>setIF({...iF,newRefOpLPct:e.target.value})} placeholder="0"/>
                   </div>
                   <GBtn onClick={async()=>{
                     if(!iF.newRefName?.trim()){alert('Enter doctor name');return}
-                    const newDoc={id:uid(),hospital_id:profile?.hospital_id,name:iF.newRefName.trim(),area:iF.newRefArea||'',op_pct:parseFloat(iF.newRefPct)||0,ip_pct:parseFloat(iF.newRefIpPct)||40,ip_r_pct:parseFloat(iF.newRefIpPct)||40,ip_l_pct:50,op_r_pct:0,op_l_pct:0}
+                    const newDoc={id:uid(),hospital_id:profile?.hospital_id,name:iF.newRefName.trim(),area:iF.newRefArea||'',
+                      op_pct:parseFloat(iF.newRefPct)||0,
+                      ip_pct:parseFloat(iF.newRefIpPct)||40,
+                      ip_r_pct:parseFloat(iF.newRefIpRPct)||40,
+                      ip_l_pct:parseFloat(iF.newRefIpLPct)||50,
+                      op_r_pct:parseFloat(iF.newRefOpRPct)||0,
+                      op_l_pct:parseFloat(iF.newRefOpLPct)||0}
                     await actions.addRefDoctor(newDoc)
-                    setIF({...iF,ref:newDoc.name,custom_commission:String(newDoc.op_pct),newRefName:'',newRefPct:'',newRefIpPct:'',newRefArea:''})
+                    setIF({...iF,ref:newDoc.name,custom_commission:String(newDoc.op_pct),newRefName:'',newRefPct:'',newRefIpPct:'',newRefIpRPct:'',newRefIpLPct:'',newRefOpRPct:'',newRefOpLPct:'',newRefArea:''})
                   }}>Save & select doctor</GBtn>
                 </div>}
               </div>
