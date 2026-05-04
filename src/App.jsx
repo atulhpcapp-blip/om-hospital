@@ -3828,6 +3828,16 @@ export default function App(){
   if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage session={session} onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
+  if(!profile&&!isSuperAdmin)return(
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0a1628',padding:24,color:'#fff',textAlign:'center'}}>
+      <div style={{fontSize:24,marginBottom:16}}>⚠️</div>
+      <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>Profile not loading</div>
+      <div style={{fontSize:13,color:'rgba(255,255,255,0.5)',marginBottom:4}}>User ID: {session?.user?.id}</div>
+      <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',marginBottom:20,maxWidth:300}}>Your profile could not be loaded from the database. The Supabase key may have changed.</div>
+      <button onClick={()=>supabase.auth.signOut()} style={{padding:'10px 24px',background:'#dc2626',border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:12}}>Sign Out</button>
+      <button onClick={()=>window.location.reload()} style={{padding:'10px 24px',background:'#1d4ed8',border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>Retry</button>
+    </div>
+  )
   if(isSuperAdmin&&!previewHospital)return<SuperAdminDashboard onPreview={(hosp,db)=>setPreviewHospital({hospital:hosp,db})}/>
   // Super admin previewing a hospital - render full app with their data
   if(isSuperAdmin&&previewHospital)return(
