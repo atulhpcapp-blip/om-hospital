@@ -1080,7 +1080,12 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
           <button key={t.key} onClick={()=>{
                   setItype(t.key);
                   if(t.key==='op_r'||t.key==='op_l'){
-                    const lastOP=[...db.income].reverse().find(e=>e.type==='op'&&e.date===eDate&&e.patient_name);
+                    // Find OP entry for CURRENT patient first, then fall back to last OP today
+                    const currentPname=iF.pname?.trim().toLowerCase()
+                    const matchedOP=currentPname?.length>1
+                      ?[...db.income].reverse().find(e=>e.type==='op'&&e.date===eDate&&e.patient_name?.toLowerCase()===currentPname&&e.ref_doctor)
+                      :null
+                    const lastOP=matchedOP||[...db.income].reverse().find(e=>e.type==='op'&&e.date===eDate&&e.patient_name)
                     if(lastOP){
                       const refDoc=db.ref_doctors.find(d=>d.name===lastOP.ref_doctor);
                       const pct=refDoc?(t.key==='op_r'?refDoc.op_r_pct:refDoc.op_l_pct):null;
