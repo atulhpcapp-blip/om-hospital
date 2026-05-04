@@ -319,7 +319,7 @@ const SettingsPanel=()=>{
 /*  SUPER ADMIN PREVIEW APP  */
 const PreviewApp=({db,hospital,onExit})=>{
   if(!db||!hospital)return null
-  const [tab,setTab]=useState('rep')
+  const [tab,setTab]=useState('dash')
   const [rv,setRv]=useState('daily')
   const [rd,setRd]=useState(todayStr())
   const [rm,setRm]=useState(todayStr().slice(0,7))
@@ -3684,7 +3684,7 @@ export default function App(){
       setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[]})
       setLoading(false)
       if(!tabInitialized){
-        if(prof?.role==='admin'||prof?.role==='management')setTab('rep')
+        if(prof?.role==='admin'||prof?.role==='management')setTab('dash')
         setTabInitialized(true)
       }
     }
