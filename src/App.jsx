@@ -1064,9 +1064,9 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
-    let regNo=null;if(!isIP&&itype==='op'){regNo=await genRegNo()}
-    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:(isIP||itype==='vc')?'':iF.ref.trim(),notes:iF.notes,consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||''})
-    if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:''})
+    let regNo=null;if(!isIP&&itype==='op'){regNo=iF.linkedRegNo?.trim()||await genRegNo()}
+    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:(isIP||itype==='vc')?'':iF.ref.trim(),notes:iF.notes,patient_phone:iF.phone?.trim()||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||''})
+    if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:''})
   }
   return(
     <div>
@@ -1101,17 +1101,47 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
       <Card>
         {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>{const pat=db.ip_patients.find(p=>p.id===e.target.value);const refDoc=pat?db.ref_doctors.find(d=>d.name===pat.ref_doctor):null;const pctKey=itype==='ip_r'?'ip_r_pct':itype==='ip_l'?'ip_l_pct':'ip_pct';const pct=refDoc?refDoc[pctKey]:null;setIF({...iF,pid:e.target.value,ref:pat?.ref_doctor||'',custom_commission:pct!=null?String(pct):''})}}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
           :<>
-            {(itype==='op_r'||itype==='op_l')?(
-              <div style={{marginBottom:10}}>
-                <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>Patient name *</label>
-                <input list="op-patients-list" style={S.inp} placeholder="Type or select patient name" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})} autoCorrect="off" autoCapitalize="words"/>
-                <datalist id="op-patients-list">
-                  {[...new Set(db.income.filter(e=>e.type==='op'&&e.date===eDate&&e.patient_name).map(e=>e.patient_name))].map(n=><option key={n} value={n}/>)}
-                </datalist>
-                {iF.pname&&db.income.find(e=>e.type==='op'&&e.patient_name.toLowerCase()===iF.pname.toLowerCase())&&<div style={{fontSize:11,color:'#16a34a',marginTop:4,fontWeight:600}}>Patient matched - all entries will group together</div>}
-              </div>
-            ):<FInp label="Patient name *" type="text" placeholder="Required" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>}
-            <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
+            {(()=>{
+              // Build patient registry from income history
+              const patReg={}
+              db.income.filter(e=>e.patient_name&&e.reg_no).forEach(e=>{
+                const k=e.patient_name.trim().toLowerCase()
+                if(!patReg[k])patReg[k]={name:e.patient_name,reg_no:e.reg_no,phone:e.patient_phone||'',area:e.patient_area||''}
+              })
+              const patList=Object.values(patReg).sort((a,b)=>a.name.localeCompare(b.name))
+              // Search by name or phone
+              const searchStr=(iF.pname||'').trim().toLowerCase()
+              const phoneSearch=(iF.phone||'').trim()
+              const matched=searchStr.length>=2?patList.filter(p=>
+                p.name.toLowerCase().includes(searchStr)||
+                p.reg_no?.toLowerCase().includes(searchStr)||
+                (phoneSearch.length>=5&&p.phone?.includes(phoneSearch))
+              ).slice(0,5):[]
+              const exactMatch=patList.find(p=>p.name.toLowerCase()===searchStr)
+              return(<>
+                <div style={{marginBottom:8,position:'relative'}}>
+                  <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Patient name *</label>
+                  <input style={S.inp} placeholder="Search by name or type new" value={iF.pname||''} onChange={e=>{
+                    const v=e.target.value
+                    setIF(f=>({...f,pname:v,linkedRegNo:'',phone:f.phone}))
+                  }} autoCorrect="off" autoCapitalize="words"/>
+                  {matched.length>0&&!exactMatch&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e2e8f0',borderRadius:8,zIndex:50,boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
+                    {matched.map((p,i)=><div key={i} onMouseDown={()=>setIF(f=>({...f,pname:p.name,phone:p.phone||f.phone,patient_area:p.area||f.patient_area||'',linkedRegNo:p.reg_no}))} style={{padding:'8px 12px',cursor:'pointer',borderBottom:'1px solid #f5f5f5',fontSize:13}}>
+                      <div style={{fontWeight:600}}>{p.name}</div>
+                      <div style={{fontSize:11,color:'#94a3b8'}}>Reg: {p.reg_no}{p.phone?' · '+p.phone:''}</div>
+                    </div>)}
+                  </div>}
+                </div>
+                {exactMatch||iF.linkedRegNo?<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'6px 10px',marginBottom:8,fontSize:12,color:'#15803d',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>✓ Linked to Reg: <strong>{iF.linkedRegNo||exactMatch?.reg_no}</strong></span>
+                  <button onClick={()=>setIF(f=>({...f,linkedRegNo:'',pname:''}))} style={{fontSize:11,color:'#dc2626',background:'none',border:'none',cursor:'pointer'}}>New patient</button>
+                </div>:null}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <FInp label="Phone" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
+                  <FInp label="Reg No (auto)" type="text" placeholder="auto-generated" value={iF.linkedRegNo||''} onChange={e=>setIF({...iF,linkedRegNo:e.target.value})} style={{background:iF.linkedRegNo?'#f0fdf4':undefined}}/>
+                </div>
+              </>)
+            })()}
             {!isIP&&<FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur, KPHB" value={iF.patient_area||''} onChange={e=>setIF({...iF,patient_area:e.target.value})}/>}
         {!isIP&&itype!=='vc'&&<div style={{marginBottom:8}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
