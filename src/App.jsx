@@ -389,6 +389,10 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
+    if(nH.phone&&nH.phone.trim()){
+      const {data:existing}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
+      if(existing&&existing.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already registered for hospital: '+existing[0].name});return}
+    }
     setBusy(true);setMsg(null)
     const planEnd=nH.plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31'
     const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:nH.name,city:nH.city,phone:nH.phone,plan:nH.plan,plan_end:planEnd}]).select().single()
@@ -3304,7 +3308,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     const win=window.open('','_blank')
     if(!win){alert('Please allow popups for this site');return}
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Bill - ${p.name}</title><style>
-      @page{size:A4 portrait;margin:12mm}
+      @page{size:A4 portrait;margin-top:76mm;margin-left:12mm;margin-right:12mm;margin-bottom:12mm}
       *{box-sizing:border-box}
       body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0;padding:0;background:#fff}
       .page{width:100%;page-break-after:always;padding:0}
@@ -3481,7 +3485,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto',gap:6,marginTop:6}}>
                 <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Batch</div><input value={item.batch||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],batch:e.target.value};setPharmaDays(n)}} placeholder="optional" style={inpStyle}/></div>
                 <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Expiry</div><input value={item.expiry||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],expiry:e.target.value};setPharmaDays(n)}} placeholder="MM/YY" style={inpStyle}/></div>
-                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setPharmaDays(n)}} placeholder="1" style={inpStyle}/></div>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input type="text" inputMode="numeric" value={item.qty===undefined?'':item.qty} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setPharmaDays([...n])}} placeholder="1" style={inpStyle}/></div>
                 <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Amount</div><input inputMode="decimal" value={item.amount||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],amount:e.target.value};setPharmaDays(n)}} placeholder="0" style={inpStyle}/></div>
               </div>
               {day.items.length>1&&<button onClick={()=>{saveItem('medicine',item.name);const n=[...pharmaDays];n[di].items=n[di].items.filter((_,j)=>j!==ii);setPharmaDays(n)}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:11,marginTop:4}}>✕ Remove</button>}
