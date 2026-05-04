@@ -389,14 +389,15 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
-    if(nH.phone&&nH.phone.trim()){
-      const {data:existing}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
-      if(existing&&existing.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already registered for hospital: '+existing[0].name});return}
-    }
-    // Check duplicate phone
-    if(nH.phone&&nH.phone.trim().length>0){
-      const {data:ph}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
-      if(ph&&ph.length>0){setMsg({ok:false,t:'Phone '+nH.phone.trim()+' already registered for: '+ph[0].name});return}
+    // Phone duplicate check
+    if(nH.phone&&nH.phone.trim().length>=5){
+      const ph=nH.phone.trim().replace(/\D/g,'') // normalize to digits only
+      const {data:dup}=await supabase.from('hospitals').select('id,name').ilike('phone','%'+ph+'%')
+      if(dup&&dup.length>0){
+        alert('❌ Phone number already registered for hospital: '+dup[0].name+'\nUse a different number.')
+        setMsg({ok:false,t:'Phone already used by: '+dup[0].name})
+        return
+      }
     }
     setBusy(true);setMsg(null)
     const planEnd=nH.plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31'
@@ -481,15 +482,25 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={async()=>{await supabase.from('hospitals').update({is_active:true}).eq('id',sel.id);setSel({...sel,is_active:true});load();alert('Hospital activated')}} style={{width:'100%',padding:'11px',background:'#f0fdf4',color:'#16a34a',border:'1px solid #bbf7d0',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:8}}>Force Activate</button>
         <button onClick={async()=>{
           if(!window.confirm('DELETE hospital: '+sel.name+'?\nThis deletes ALL data permanently.'))return
-          if(!window.confirm('CONFIRM: Permanently delete '+sel.name+' and all patient records?'))return
-          await supabase.from('income').delete().eq('hospital_id',sel.id)
-          await supabase.from('expenses').delete().eq('hospital_id',sel.id)
-          await supabase.from('ip_patients').delete().eq('hospital_id',sel.id)
-          await supabase.from('ref_doctors').delete().eq('hospital_id',sel.id)
-          await supabase.from('consultants').delete().eq('hospital_id',sel.id)
-          await supabase.from('profiles').delete().eq('hospital_id',sel.id)
-          await supabase.from('hospitals').delete().eq('id',sel.id)
-          alert('Hospital deleted.')
+          if(!window.confirm('FINAL WARNING: Delete '+sel.name+'?'))return
+          // Delete child records first, then hospital
+          const hid=sel.id
+          const r1=await supabase.from('income').delete().eq('hospital_id',hid)
+          const r2=await supabase.from('expenses').delete().eq('hospital_id',hid)
+          const r3=await supabase.from('ip_patients').delete().eq('hospital_id',hid)
+          const r4=await supabase.from('ref_doctors').delete().eq('hospital_id',hid)
+          const r5=await supabase.from('consultants').delete().eq('hospital_id',hid)
+          const r6=await supabase.from('payments').delete().eq('hospital_id',hid)
+          const r7=await supabase.from('saved_items').delete().eq('hospital_id',hid)
+          const r8=await supabase.from('ip_bills').delete().eq('hospital_id',hid)
+          const r9=await supabase.from('ip_receipts').delete().eq('hospital_id',hid)
+          const r10=await supabase.from('profiles').delete().eq('hospital_id',hid)
+          const r11=await supabase.from('hospitals').delete().eq('id',hid)
+          if(r11.error){
+            alert('Delete failed: '+r11.error.message+'\n\nPlease run this SQL in Supabase:\nDELETE FROM hospitals WHERE id=\''+hid+'\'')
+            return
+          }
+          alert('Hospital deleted successfully.')
           setView('list');load()
         }} style={{width:'100%',padding:'11px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:8}}>🗑 Delete Hospital</button>
         <SecL>Preview</SecL>
