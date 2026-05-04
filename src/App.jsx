@@ -389,10 +389,27 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
+    // Phone duplicate check - exact match
+    if(nH.phone&&nH.phone.trim().length>=5){
+      const phoneVal=nH.phone.trim()
+      const {data:dup,error:dupErr}=await supabase.from('hospitals').select('id,name').eq('phone',phoneVal)
+      if(!dupErr&&dup&&dup.length>0){
+        alert('❌ Phone '+phoneVal+' already registered for: '+dup[0].name+'\nUse a different phone number.')
+        setMsg({ok:false,t:'Phone already used by: '+dup[0].name})
+        return
+      }
+    }
     setBusy(true);setMsg(null)
     const planEnd=nH.plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31'
     const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:nH.name,city:nH.city,phone:nH.phone,plan:nH.plan,plan_end:planEnd}]).select().single()
-    if(he){setMsg({ok:false,t:he.message});setBusy(false);return}
+    if(he){
+      if(he.message&&(he.message.includes('unique_phone')||he.message.includes('duplicate key'))){
+        setMsg({ok:false,t:'Phone '+nH.phone+' already registered with another hospital'})
+      } else {
+        setMsg({ok:false,t:he.message})
+      }
+      setBusy(false);return
+    }
     const {data:au,error:ae}=await supabase.auth.signUp({email:toEmail(nH.adminUser),password:nH.adminPass,options:{data:{name:nH.adminName}}})
     if(ae){setMsg({ok:false,t:ae.message});setBusy(false);return}
     await supabase.from('profiles').upsert({id:au.user.id,name:nH.adminName,username:nH.adminUser.toLowerCase(),role:'admin',hospital_id:hosp.id})
@@ -470,6 +487,19 @@ const SuperAdminDashboard=({onPreview=null})=>{
           <button onClick={async()=>{const d=document.getElementById('extDate').value;if(!d){alert('Pick a date');return}await supabase.from('hospitals').update({plan_end:d,is_active:true}).eq('id',sel.id);setSel({...sel,plan_end:d,is_active:true});load();alert('Plan extended to '+d)}} style={{padding:'10px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Extend</button>
         </div>
         <button onClick={async()=>{await supabase.from('hospitals').update({is_active:true}).eq('id',sel.id);setSel({...sel,is_active:true});load();alert('Hospital activated')}} style={{width:'100%',padding:'11px',background:'#f0fdf4',color:'#16a34a',border:'1px solid #bbf7d0',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:8}}>Force Activate</button>
+        <button onClick={async()=>{
+          if(!window.confirm('DELETE hospital: '+sel.name+'?\nThis deletes ALL data permanently.'))return
+          if(!window.confirm('FINAL WARNING: Delete '+sel.name+'?'))return
+          const hid=sel.id
+          // Use RPC function that runs with security definer (bypasses RLS)
+          const {error}=await supabase.rpc('delete_hospital',{hosp_id:hid})
+          if(error){
+            alert('Delete failed: '+error.message+'\nPlease run the delete_hospital SQL function in Supabase first.')
+            return
+          }
+          alert('Hospital deleted successfully.')
+          setView('list');load()
+        }} style={{width:'100%',padding:'11px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:8}}>🗑 Delete Hospital</button>
         <SecL>Preview</SecL>
         <button onClick={async()=>{
           setDataLoading(true)
@@ -2974,11 +3004,29 @@ const toWords=n=>{
 
 const AutoInput=({value,onChange,placeholder,suggestions,style})=>{
   const [show,setShow]=useState(false)
-  const filtered=value.length>=3?suggestions.filter(s=>s.toLowerCase().includes(value.toLowerCase())).slice(0,6):[]
+  const [localSugg,setLocalSugg]=useState([])
+  // Update suggestions when value changes (3+ chars)
+  useEffect(()=>{
+    if(value.length>=3&&suggestions&&suggestions.length>0){
+      const f=suggestions.filter(s=>s.toLowerCase().includes(value.toLowerCase())).slice(0,8)
+      setLocalSugg(f)
+      if(f.length>0)setShow(true)
+    } else {
+      setLocalSugg([])
+      setShow(false)
+    }
+  },[value,suggestions])
   return(<div style={{position:'relative'}}>
-    <input value={value} onChange={e=>{onChange(e.target.value);setShow(true)}} onBlur={()=>setTimeout(()=>setShow(false),200)} placeholder={placeholder} style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',...(style||{})}}/>
-    {show&&filtered.length>0&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e2e8f0',borderRadius:8,zIndex:99,boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
-      {filtered.map((s,i)=>(<div key={i} onMouseDown={()=>{onChange(s);setShow(false)}} style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f5f5f5'}}>{s}</div>))}
+    <input
+      value={value}
+      onChange={e=>onChange(e.target.value)}
+      onFocus={()=>{if(value.length>=3&&localSugg.length>0)setShow(true)}}
+      onBlur={()=>setTimeout(()=>setShow(false),300)}
+      placeholder={placeholder}
+      style={{width:'100%',padding:'8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',...(style||{})}}
+    />
+    {show&&localSugg.length>0&&<div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #bfdbfe',borderRadius:8,zIndex:999,boxShadow:'0 6px 20px rgba(0,0,0,0.15)',maxHeight:200,overflowY:'auto'}}>
+      {localSugg.map((s,i)=>(<div key={i} onMouseDown={e=>{e.preventDefault();onChange(s);setShow(false)}} style={{padding:'10px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f5f5f5',background:i===0?'#f0f9ff':'#fff'}}>{s}</div>))}
     </div>}
   </div>)
 }
@@ -3012,7 +3060,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [pharmaDays,setPharmaDays]=useState([{billNo:'',date:todayStr(),items:[{name:'',qty:'',amount:''}]}])
 
   // Lab tests
-  const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:''}])
+  const [labDays,setLabDays]=useState([{billNo:'',date:todayStr(),items:[{name:'',qty:'1',rate:''}]}])
 
   const [billId,setBillId]=useState(null)
   const [billSaving,setBillSaving]=useState(false)
@@ -3044,9 +3092,10 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         if(items.roomCharges)setRoomCharges(items.roomCharges)
         if(items.otherCharges)setOtherCharges(items.otherCharges)
         if(items.pharmaDays)setPharmaDays(items.pharmaDays)
-        if(items.labTests)setLabTests(items.labTests)
+        if(items.labDays)setLabDays(items.labDays)
         if(items.advance)setAdvance(items.advance)
         if(items.discount)setDiscount(items.discount)
+        if(items.dischargeText)setDischargeText(items.dischargeText)
         setBillSaved(true)
       }
     })
@@ -3054,7 +3103,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   const saveBill=async()=>{
     setBillSaving(true)
-    const items={consultations,roomCharges,otherCharges,pharmaDays,labTests,advance,discount}
+    const items={consultations,roomCharges,otherCharges,pharmaDays,labDays,advance,discount,dischargeText}
     const billData={hospital_id:hospId,patient_id:p.id,bill_date:todayStr(),total:grandTotal,items,status:'draft'}
     if(billId){
       await supabase.from('ip_bills').update(billData).eq('id',billId)
@@ -3064,6 +3113,20 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     }
     setBillSaved(true)
     setEditMode(false)
+    setBillSaving(false)
+  }
+
+  const saveDischarge=async()=>{
+    setBillSaving(true)
+    const items={consultations,roomCharges,otherCharges,pharmaDays,labDays,advance,discount,dischargeText}
+    const billData={hospital_id:hospId,patient_id:p.id,bill_date:todayStr(),total:grandTotal,items,status:'draft'}
+    if(billId){
+      await supabase.from('ip_bills').update(billData).eq('id',billId)
+    } else {
+      const {data}=await supabase.from('ip_bills').insert(billData).select().single()
+      if(data)setBillId(data.id)
+    }
+    setBillSaved(true)
     setBillSaving(false)
   }
 
@@ -3088,7 +3151,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   // Totals
   const pharmaTotal=pharmaDays.reduce((a,day)=>a+day.items.reduce((b,i)=>b+(parseFloat(i.amount)||0),0),0)
-  const labTotal=labTests.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||parseFloat(i.amount)||0),0)
+  const labTotal=labDays.reduce((a,day)=>a+day.items.reduce((b,i)=>b+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0),0)
   const consultTotal=consultations.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
   const roomTotal=roomCharges.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
   const otherTotal=otherCharges.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0)
@@ -3114,192 +3177,130 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   </table>)
 
   const pageStyle=`
-    @page {
-      size: A4 portrait;
-      margin: 10mm 10mm 10mm 10mm;
-    }
+    @page { size: A4 portrait; margin: 12mm; }
     @media print {
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      .no-print { display: none !important; }
-      .app-header { display: none !important; }
-      .app-wrapper { max-width: 100% !important; }
-      html, body { width: 100%; margin: 0 !important; padding: 0 !important; background: #fff !important; }
-      .print-container { padding-top: 0 !important; }
-      .page {
-        width: 100%;
-        padding: 6mm 6mm;
-        margin: 0;
-        page-break-after: always;
-        border: none !important;
-        box-shadow: none !important;
-        min-height: auto;
-      }
-      table { page-break-inside: auto; }
-      tr { page-break-inside: avoid; page-break-after: auto; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+      html { width: 100% !important; }
+      body { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; background: white !important; }
+      body > * { display: none !important; }
+      body > #print-root { display: block !important; }
+      .app-header, .no-print { display: none !important; }
+      .page { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: none !important; box-shadow: none !important; page-break-after: always; }
+      table { page-break-inside: auto; width: 100%; }
+      tr { page-break-inside: avoid; }
     }
-    .page {
-      width: 176mm;
-      min-height: 257mm;
-      padding: 6mm 8mm;
-      box-sizing: border-box;
-      font-family: Arial, sans-serif;
-      font-size: 10pt;
-      color: #000;
-      margin: 0 auto 20px auto;
-      background: #fff;
-      border: 1px solid #ddd;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 6px; }
-    td, th { border: 0.5px solid #888; padding: 3px 5px; font-size: 9pt; line-height: 1.3; }
+    .page { font-family: Arial, sans-serif; font-size: 10pt; color: #000; background: #fff; width: 172mm; margin: 0 auto 20px auto; padding: 8mm; border: 1px solid #ccc; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 5px; }
+    td, th { border: 0.5px solid #888; padding: 3px 5px; font-size: 9pt; line-height: 1.3; vertical-align: top; }
     th { background: #f0f0f0; font-weight: 700; text-align: left; }
-    .section-head td { font-weight: 700; background: #e0e0e0; font-size: 9pt; letter-spacing: 0.5px; }
+    .section-head td { font-weight: 700; background: #e0e0e0; letter-spacing: 0.3px; }
     .total-row td { font-weight: 700; background: #f5f5f5; }
     .grand-total td { font-weight: 700; font-size: 11pt; border: 1.5px solid #000; }
   `
 
-  const BillPrint=()=>(<>
-    {/* PAGE 1 - MAIN BILL */}
-    <div className="page">
-      {/* Title - no letterhead, just title */}
-      <div style={{textAlign:'center',fontSize:'16pt',fontWeight:700,marginBottom:8,borderBottom:'2px solid #000',paddingBottom:6}}>IP Bill Cum Receipt</div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:'10pt'}}>
-        <div>
-          <div><b>Consultant:</b> {consultations[0]?.doctor||p.ref_doctor||'—'}</div>
-          <div><b>D.O.A:</b> {fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</div>
-          {p.discharge_date&&<div><b>D.O.D:</b> {fmtD(p.discharge_date)}{p.discharge_time?' '+p.discharge_time:''}</div>}
-        </div>
-        <div style={{textAlign:'right'}}>
-          <div><b>Bill No:</b> {p.reg_no||'—'}/{todayStr().replace(/-/g,'').slice(2)}</div>
-          <div><b>Date:</b> {fmtD(todayStr())}</div>
-          {p.insurance_type&&<div><b>Insurance:</b> {p.insurance_type}</div>}
-        </div>
-      </div>
-      {/* Patient table */}
-      <table style={{marginBottom:8}}>
-        <thead><tr><th>Name</th><th>ID / Reg No</th><th>Phone</th><th>Room</th><th>Payment</th></tr></thead>
-        <tbody><tr><td><b>{p.name}</b></td><td>{p.reg_no||'—'}</td><td>{p.phone||'—'}</td><td>{p.room||'—'}</td><td>{p.insurance_type?'Insurance':'Cash'}</td></tr></tbody>
-      </table>
-      {p.diagnosis&&<div style={{marginBottom:6,fontSize:'10pt'}}><b>Diagnosis:</b> {p.diagnosis}</div>}
-      
-      {/* Main bill table */}
-      <table style={{marginBottom:8}}>
-        <thead><tr><th style={{width:'55%'}}>Particulars</th><th style={{textAlign:'right',width:'10%'}}>Qty</th><th style={{textAlign:'right',width:'17%'}}>Rate</th><th style={{textAlign:'right',width:'18%'}}>Amount</th></tr></thead>
-        <tbody>
-          {/* Medicines */}
-          {pharmaTotal>0&&<>
-            <tr className="section-head"><td colSpan={4}>MEDICINES</td></tr>
-            {pharmaDays.filter(d=>d.items.some(i=>i.name)).map((day,di)=>{
-              const dayTotal=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
-              return(<tr key={di}><td style={{paddingLeft:16}}>{day.billNo||('Day '+(di+1))} — {fmtD(day.date)}</td><td></td><td></td><td style={{textAlign:'right'}}>{fmt(dayTotal)}</td></tr>)
-            })}
-            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Medicines Total</td><td style={{textAlign:'right'}}>{fmt(pharmaTotal)}</td></tr>
-          </>}
-          {/* Investigation */}
-          {labTotal>0&&<>
-            <tr className="section-head"><td colSpan={4}>INVESTIGATION CHARGES</td></tr>
-            {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td><td style={{textAlign:'right'}}>{fmt(amt)}</td></tr>)})}
-            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Investigation Total</td><td style={{textAlign:'right'}}>{fmt(labTotal)}</td></tr>
-          </>}
-          {/* Consultation */}
-          {consultTotal>0&&<>
-            <tr className="section-head"><td colSpan={4}>CONSULTATION</td></tr>
-            {consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{paddingLeft:16}}>Consultation ({i.doctor})</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
-          </>}
-          {/* Room charges */}
-          {roomTotal>0&&<>
-            {roomCharges.filter(i=>i.name&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{fontWeight:600}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
-          </>}
-          {/* Others */}
-          {otherTotal>0&&<>
-            <tr className="section-head"><td colSpan={4}>OTHERS</td></tr>
-            {otherCharges.filter(i=>i.name&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt((parseFloat(i.qty)||1)*parseFloat(i.rate))}</td></tr>)}
-          </>}
-          {/* Grand total */}
-          <tr className="grand-total"><td colSpan={3} style={{textAlign:'right',fontSize:'12pt'}}>Grand Total</td><td style={{textAlign:'right',fontSize:'12pt'}}>{fmt(grandTotal)}</td></tr>
-          {/* Insurance */}
-          {insApproved>0&&<>
-            <tr><td colSpan={3} style={{textAlign:'right',color:'#1d4ed8'}}>Insurance Approved ({p.insurance_type})</td><td style={{textAlign:'right',color:'#1d4ed8'}}>- {fmt(insApproved)}</td></tr>
-            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Patient Co-pay</td><td style={{textAlign:'right'}}>{fmt(Math.max(grandTotal-insApproved,0))}</td></tr>
-          </>}
-          {/* Advance/discount */}
-          {advAmt>0&&<tr><td colSpan={3} style={{textAlign:'right'}}>Advance Paid</td><td style={{textAlign:'right'}}>- {fmt(advAmt)}</td></tr>}
-          {discAmt>0&&<tr><td colSpan={3} style={{textAlign:'right'}}>Discount</td><td style={{textAlign:'right'}}>- {fmt(discAmt)}</td></tr>}
-          {(advAmt+discAmt)>0&&<tr className="grand-total"><td colSpan={3} style={{textAlign:'right'}}>Final Settlement</td><td style={{textAlign:'right'}}>{fmt(finalAmt)}</td></tr>}
-        </tbody>
-      </table>
-      
-      <div style={{fontSize:'9pt',marginBottom:12}}><b>Amount in words:</b> RUPEES {toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>
-      
-      <div style={{display:'flex',justifyContent:'space-around',marginTop:20}}>
-        <div style={{textAlign:'center',width:'35%'}}><div style={{borderTop:'1px solid #000',paddingTop:6,fontSize:'10pt'}}>Authorised Signatory</div></div>
-        <div style={{textAlign:'center',width:'35%'}}><div style={{borderTop:'1px solid #000',paddingTop:6,fontSize:'10pt'}}>Cashier</div></div>
-      </div>
+  const openPrintWindow=html=>{
+    const win=window.open('','_blank')
+    if(!win){alert('Please allow popups for this site');return}
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Bill - ${p.name}</title><style>
+      @page{size:A4 portrait;margin:12mm}
+      *{box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:10pt;color:#000;margin:0;padding:0;background:#fff}
+      .page{width:100%;page-break-after:always;padding:0}
+      .page:first-child{padding-top:64mm}
+      table{border-collapse:collapse;width:100%;margin-bottom:5px}
+      td,th{border:0.5px solid #888;padding:3px 5px;font-size:9pt;line-height:1.4;vertical-align:top}
+      th{background:#f0f0f0;font-weight:700;text-align:left}
+      .sh td{font-weight:700;background:#e0e0e0}
+      .tr td{font-weight:700;background:#f5f5f5}
+      .gt td{font-weight:700;font-size:11pt;border:1.5px solid #000}
+      .btn{position:fixed;top:8px;right:8px;padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}
+      @media print{.btn{display:none!important}}
+    </style></head><body>
+    <button class="btn" onclick="window.print()">🖨 Print</button>
+    ${html}
+    </body></html>`)
+    win.document.close()
+  }
+
+  const getBillHTML=()=>{
+    let h=''
+    h+=`<div class="page">`
+    h+=`<div style="height:64mm;display:block"></div>`
+    h+=`<div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:8px;border-bottom:2px solid #000;padding-bottom:6px">IP Bill Cum Receipt</div>`
+    h+=`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:10pt"><div><div><b>Consultant:</b> ${consultations[0]?.doctor||p.ref_doctor||'—'}</div><div><b>D.O.A:</b> ${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</div>${p.discharge_date?'<div><b>D.O.D:</b> '+fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:'')+'</div>':''}</div><div style="text-align:right"><div><b>Bill No:</b> ${p.reg_no||'—'}-${todayStr().replace(/-/g,'').slice(2)}</div><div><b>Date:</b> ${fmtDN(todayStr())}</div>${p.insurance_type?'<div><b>Insurance:</b> '+p.insurance_type+'</div>':''}</div></div>`
+    h+=`<table style="margin-bottom:6px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>Room</th><th>Payment Type</th></tr></thead><tbody><tr><td><b>${p.name}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${p.room||'—'}</td><td>${p.insurance_type?'Insurance':'Cash'}</td></tr></tbody></table>`
+    if(p.diagnosis)h+=`<div style="font-size:9pt;margin-bottom:5px"><b>Diagnosis:</b> ${p.diagnosis}</div>`
+    h+=`<table><thead><tr><th style="width:50%">Particulars</th><th style="text-align:right;width:10%">Qty</th><th style="text-align:right;width:18%">Rate</th><th style="text-align:right;width:22%">Amount</th></tr></thead><tbody>`
+    if(pharmaTotal>0){
+      h+=`<tr class="sh"><td colspan="4">MEDICINES</td></tr>`
+      pharmaDays.filter(d=>d.items.some(i=>i.name)).forEach(day=>{
+        const dt=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
+        h+=`<tr><td style="padding-left:12px">${day.billNo||'—'} — ${fmtDN(day.date)}</td><td></td><td></td><td style="text-align:right">${fmtN(dt)}</td></tr>`
+      })
+      h+=`<tr class="tr"><td colspan="3" style="text-align:right">Medicines Total</td><td style="text-align:right">${fmtN(pharmaTotal)}</td></tr>`
+    }
+    if(labTotal>0){
+      h+=`<tr class="sh"><td colspan="4">INVESTIGATION CHARGES</td></tr>`
+      labDays.filter(d=>d.items.some(i=>i.name)).forEach(day=>{
+        const dt=day.items.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0)
+        h+=`<tr><td style="padding-left:12px">${day.billNo||'—'} — ${fmtDN(day.date)}</td><td></td><td></td><td style="text-align:right">${fmtN(dt)}</td></tr>`
+      })
+      h+=`<tr class="tr"><td colspan="3" style="text-align:right">Investigation Total</td><td style="text-align:right">${fmtN(labTotal)}</td></tr>`
+    }
+    if(consultTotal>0){
+      h+=`<tr class="sh"><td colspan="4">CONSULTATION</td></tr>`
+      consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).forEach(i=>{h+=`<tr><td style="padding-left:12px">Consultation (${i.doctor})</td><td style="text-align:right">${i.qty}</td><td style="text-align:right">${fmtN(parseFloat(i.rate))}</td><td style="text-align:right">${fmtN(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>`})
+    }
+    if(roomTotal>0){roomCharges.filter(i=>i.name&&parseFloat(i.qty)&&parseFloat(i.rate)).forEach(i=>{h+=`<tr><td style="font-weight:600">${i.name}</td><td style="text-align:right">${i.qty}</td><td style="text-align:right">${fmtN(parseFloat(i.rate))}</td><td style="text-align:right">${fmtN(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>`})}
+    if(otherTotal>0){
+      h+=`<tr class="sh"><td colspan="4">OTHERS</td></tr>`
+      otherCharges.filter(i=>i.name&&parseFloat(i.rate)).forEach(i=>{h+=`<tr><td style="padding-left:12px">${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate))}</td><td style="text-align:right">${fmtN((parseFloat(i.qty)||1)*parseFloat(i.rate))}</td></tr>`})
+    }
+    h+=`<tr class="gt"><td colspan="3" style="text-align:right">Grand Total</td><td style="text-align:right">${fmtN(grandTotal)}</td></tr>`
+    if(insApproved>0){h+=`<tr><td colspan="3" style="text-align:right;color:#1d4ed8">Insurance Approved (${p.insurance_type})</td><td style="text-align:right;color:#1d4ed8">- ${fmtN(insApproved)}</td></tr><tr class="tr"><td colspan="3" style="text-align:right">Patient Co-pay</td><td style="text-align:right">${fmtN(Math.max(grandTotal-insApproved,0))}</td></tr>`}
+    if(advAmt>0)h+=`<tr><td colspan="3" style="text-align:right">Advance Paid</td><td style="text-align:right">- ${fmtN(advAmt)}</td></tr>`
+    if(discAmt>0)h+=`<tr><td colspan="3" style="text-align:right">Discount</td><td style="text-align:right">- ${fmtN(discAmt)}</td></tr>`
+    if(advAmt+discAmt>0)h+=`<tr class="gt"><td colspan="3" style="text-align:right">Final Settlement</td><td style="text-align:right">${fmtN(finalAmt)}</td></tr>`
+    h+=`</tbody></table>`
+    h+=`<div style="font-size:9pt;margin:6px 0"><b>Amount in words:</b> RUPEES ${toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>`
+    h+=`<div style="display:flex;justify-content:space-around;margin-top:20px"><div style="text-align:center;width:35%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Authorised Signatory</div></div><div style="text-align:center;width:35%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Cashier</div></div></div></div>`
+    if(pharmaTotal>0){
+      h+=`<div class="page"><div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;letter-spacing:3px">MEDICINES</div>`
+      h+=`<table style="margin-bottom:8px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead><tbody><tr><td><b>${p.name.toUpperCase()}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</td><td>${p.discharge_date?fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'Active'}</td></tr></tbody></table>`
+      h+=`<table><thead><tr><th style="width:10%">Bill No</th><th style="width:10%">Date</th><th style="width:40%">Product</th><th style="width:12%">Batch</th><th style="width:10%">Expiry</th><th style="text-align:right;width:8%">Qty</th><th style="text-align:right;width:10%">Amount</th></tr></thead><tbody>`
+      pharmaDays.forEach(day=>{day.items.filter(i=>i.name).forEach((item,ii)=>{h+=`<tr><td style="font-weight:${ii===0?700:400};color:${ii===0?'#000':'#aaa'}">${ii===0?(day.billNo||'—'):''}</td><td style="color:${ii===0?'#000':'#aaa'}">${ii===0?fmtDN(day.date):''}</td><td>${item.name}</td><td>${item.batch||''}</td><td>${item.expiry||''}</td><td style="text-align:right">${item.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(item.amount)||0)}</td></tr>`})})
+      h+=`<tr class="tr"><td colspan="6" style="text-align:right">Total</td><td style="text-align:right">${fmtN(pharmaTotal)}</td></tr></tbody></table>`
+      h+=`<div style="text-align:right;margin-top:20px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:35%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
+    }
+    if(labTotal>0){
+      h+=`<div class="page"><div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;letter-spacing:3px">INVESTIGATION CHARGES</div>`
+      h+=`<table style="margin-bottom:8px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead><tbody><tr><td><b>${p.name.toUpperCase()}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${fmtDN(p.admission_date)}</td><td>${p.discharge_date?fmtDN(p.discharge_date):'Active'}</td></tr></tbody></table>`
+      h+=`<table><thead><tr><th style="width:12%">Bill No</th><th style="width:12%">Date</th><th style="width:40%">Investigation</th><th style="text-align:right;width:10%">Qty</th><th style="text-align:right;width:13%">Rate</th><th style="text-align:right;width:13%">Amount</th></tr></thead><tbody>`
+      labDays.forEach(day=>{day.items.filter(i=>i.name).forEach((i,ii)=>{const a=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);h+=`<tr><td style="font-weight:${ii===0?700:400};color:${ii===0?'#000':'#aaa'}">${ii===0?(day.billNo||'—'):''}</td><td style="color:${ii===0?'#000':'#aaa'}">${ii===0?fmtDN(day.date):''}</td><td>${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate)||0)}</td><td style="text-align:right">${fmtN(a)}</td></tr>`})})
+      h+=`<tr class="tr"><td colspan="5" style="text-align:right">Total</td><td style="text-align:right">${fmtN(labTotal)}</td></tr></tbody></table>`
+      h+=`<div style="text-align:right;margin-top:20px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:35%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
+    }
+    return h
+  }
+
+  const getDischargeHTML=()=>`<div class="page"><div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:6px">DISCHARGE SUMMARY</div><table style="margin-bottom:10px"><tbody><tr><td style="font-weight:700;width:25%">Patient Name</td><td>${p.name}</td><td style="font-weight:700;width:15%">Reg No</td><td>${p.reg_no||'—'}</td></tr><tr><td style="font-weight:700">D.O.A</td><td>${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</td><td style="font-weight:700">D.O.D</td><td>${p.discharge_date?fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'—'}</td></tr><tr><td style="font-weight:700">Room</td><td>${p.room||'—'}</td><td style="font-weight:700">Consultant</td><td>${consultations[0]?.doctor||p.ref_doctor||'—'}</td></tr><tr><td style="font-weight:700">Diagnosis</td><td colspan="3">${p.diagnosis||'—'}</td></tr></tbody></table><div style="border:1px solid #ccc;padding:10px;min-height:280px;white-space:pre-wrap;line-height:1.8;font-size:10pt">${dischargeText||'(Discharge summary)'}</div><div style="display:flex;justify-content:space-around;margin-top:30px"><div style="text-align:center;width:40%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Doctor Signature &amp; Stamp</div></div><div style="text-align:center;width:40%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Patient / Attendant</div></div></div></div>`
+
+  const getReceiptHTML=r=>`<div style="max-width:380px;margin:20px auto;border:2px dashed #999;padding:20px"><div style="text-align:center;font-size:14pt;font-weight:700;margin-bottom:10px;border-bottom:1px solid #000;padding-bottom:6px">PAYMENT RECEIPT</div><table style="border:none;margin-bottom:10px"><tbody><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0;width:40%">Receipt No</td><td style="border:none">${r.receipt_no}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Date</td><td style="border:none">${fmtDN(r.receipt_date)}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Patient</td><td style="border:none">${p.name}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Reg No</td><td style="border:none">${p.reg_no||'—'}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Mode</td><td style="border:none">${(r.mode||'Cash')[0].toUpperCase()+(r.mode||'cash').slice(1)}</td></tr>${r.notes?`<tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Note</td><td style="border:none">${r.notes}</td></tr>`:''}</tbody></table><div style="background:#f5f5f5;padding:10px;text-align:center;font-size:18pt;font-weight:700;margin:8px 0">Rs ${parseFloat(r.amount).toLocaleString('en-IN',{minimumFractionDigits:2})}</div><div style="font-size:9pt;text-align:center;margin-bottom:16px">RUPEES ${toWords(Math.floor(r.amount)).toUpperCase()} ONLY</div><div style="text-align:center;margin-top:24px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:60%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
+
+  if(printMode)return(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#374151',zIndex:9999,display:'flex',flexDirection:'column'}}>
+    <div style={{background:'#1e293b',padding:'10px 16px',display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+      <button onClick={()=>{const h=view==='bill'?getBillHTML():view==='discharge'?getDischargeHTML():printReceipt?getReceiptHTML(printReceipt):'';openPrintWindow(h)}} style={{padding:'8px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Open Print Window</button>
+      <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back to Edit</button>
+      <span style={{color:'#94a3b8',fontSize:11}}>A new window opens → click Print there (A4, no margins)</span>
     </div>
-
-    {/* PAGE 2 - MEDICINES DATE-WISE */}
-    {pharmaTotal>0&&<div className="page">
-      <div style={{textAlign:'center',fontSize:'18pt',fontWeight:700,marginBottom:10,letterSpacing:3}}>MEDICINES</div>
-      <table style={{marginBottom:6}}>
-        <thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead>
-        <tbody><tr><td><b>{p.name.toUpperCase()}</b></td><td>{p.reg_no||'—'}</td><td>{p.phone||'—'}</td><td>{fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</td><td>{p.discharge_date?fmtD(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'Active'}</td></tr></tbody>
-      </table>
-      <table>
-        <thead><tr><th style={{width:'10%'}}>Bill No</th><th style={{width:'10%'}}>Date</th><th style={{width:'40%'}}>Product</th><th style={{width:'12%'}}>Batch</th><th style={{width:'10%'}}>Expiry</th><th style={{textAlign:'right',width:'8%'}}>Qty</th><th style={{textAlign:'right',width:'10%'}}>Amount</th></tr></thead>
-        <tbody>
-          {pharmaDays.map((day,di)=>day.items.filter(i=>i.name).map((item,ii)=>(
-            <tr key={di+'-'+ii}>
-              <td style={{fontWeight:ii===0?700:400,color:ii===0?'#000':'#999'}}>{ii===0?(day.billNo||'Day '+(di+1)):''}</td>
-              <td style={{fontWeight:ii===0?700:400,color:ii===0?'#000':'#999'}}>{ii===0?fmtD(day.date):''}</td>
-              <td>{item.name}</td>
-              <td>{item.batch||''}</td>
-              <td>{item.expiry||''}</td>
-              <td style={{textAlign:'right'}}>{item.qty||1}</td>
-              <td style={{textAlign:'right'}}>{fmt(parseFloat(item.amount)||0)}</td>
-            </tr>
-          )))}
-          <tr className="total-row"><td colSpan={6} style={{textAlign:'right',fontWeight:700}}>Total</td><td style={{textAlign:'right',fontWeight:700}}>{fmt(pharmaTotal)}</td></tr>
-        </tbody>
-      </table>
-      <div style={{textAlign:'right',marginTop:20}}><div style={{display:'inline-block',borderTop:'1px solid #000',paddingTop:6,width:'35%',textAlign:'center',fontSize:'10pt'}}>Authorised Signature</div></div>
-    </div>}
-
-    {/* PAGE 3 - INVESTIGATION DATE-WISE */}
-    {labTotal>0&&<div className="page">
-      <div style={{textAlign:'center',fontSize:'16pt',fontWeight:700,marginBottom:10,letterSpacing:2}}>INVESTIGATION CHARGES</div>
-      <table style={{marginBottom:6}}>
-        <thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead>
-        <tbody><tr><td><b>{p.name.toUpperCase()}</b></td><td>{p.reg_no||'—'}</td><td>{p.phone||'—'}</td><td>{fmtD(p.admission_date)}</td><td>{p.discharge_date?fmtD(p.discharge_date):'Active'}</td></tr></tbody>
-      </table>
-      <table>
-        <thead><tr><th>Investigation</th><th style={{textAlign:'right',width:'10%'}}>Qty</th><th style={{textAlign:'right',width:'15%'}}>Rate</th><th style={{textAlign:'right',width:'15%'}}>Amount</th></tr></thead>
-        <tbody>
-          {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}>
-            <td>{i.name}</td>
-            <td style={{textAlign:'right'}}>{i.qty||1}</td>
-            <td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td>
-            <td style={{textAlign:'right'}}>{fmt(amt)}</td>
-          </tr>)})}
-          <tr className="total-row"><td colSpan={3} style={{textAlign:'right',fontWeight:700}}>Total</td><td style={{textAlign:'right',fontWeight:700}}>{fmt(labTotal)}</td></tr>
-        </tbody>
-      </table>
-      <div style={{textAlign:'right',marginTop:20}}><div style={{display:'inline-block',borderTop:'1px solid #000',paddingTop:6,width:'35%',textAlign:'center',fontSize:'10pt'}}>Authorised Signature</div></div>
-    </div>}
-  </>)
-
-  if(printMode)return(<div style={{background:'#f0f0f0',minHeight:'100vh'}}>
-    <style>{pageStyle}</style>
-    <div className="no-print" style={{position:'fixed',top:0,left:0,right:0,zIndex:100,background:'#1e293b',padding:'10px 16px',display:'flex',gap:8,alignItems:'center'}}>
-      <button onClick={()=>window.print()} style={{padding:'8px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Print / Save PDF</button>
-      <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back</button>
-      <span style={{color:'#94a3b8',fontSize:12}}>A4 size — prints on letterhead</span>
-    </div>
-    <div className="print-container" style={{paddingTop:56}}>
-      {view==='bill'&&<BillPrint/>}
-      {view==='discharge'&&<DischargePrint/>}
-      {view==='receipts'&&printReceipt&&<ReceiptPrint r={printReceipt}/>}
+    <div style={{flex:1,overflowY:'auto',padding:16,display:'flex',justifyContent:'center'}}>
+      <div style={{background:'#fff',width:595,minHeight:842,padding:24,boxShadow:'0 4px 20px rgba(0,0,0,0.3)',fontSize:10,fontFamily:'Arial'}}>
+        <div style={{fontSize:13,fontWeight:700,textAlign:'center',borderBottom:'2px solid #000',paddingBottom:8,marginBottom:12}}>IP Bill Cum Receipt — Preview</div>
+        <div style={{fontSize:11,color:'#666',textAlign:'center',marginBottom:8}}>Click "Open Print Window" for clean A4 print</div>
+      </div>
     </div>
   </div>)
+
 
   // ── EDIT VIEW ──  // ── EDIT VIEW ──
   const inpStyle={width:'100%',padding:'7px 8px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,outline:'none'}
@@ -3383,7 +3384,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto',gap:6,marginTop:6}}>
                 <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Batch</div><input value={item.batch||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],batch:e.target.value};setPharmaDays(n)}} placeholder="optional" style={inpStyle}/></div>
                 <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Expiry</div><input value={item.expiry||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],expiry:e.target.value};setPharmaDays(n)}} placeholder="MM/YY" style={inpStyle}/></div>
-                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setPharmaDays(n)}} placeholder="1" style={inpStyle}/></div>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input type="text" inputMode="numeric" value={item.qty===undefined?'':item.qty} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setPharmaDays([...n])}} placeholder="1" style={inpStyle}/></div>
                 <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Amount</div><input inputMode="decimal" value={item.amount||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],amount:e.target.value};setPharmaDays(n)}} placeholder="0" style={inpStyle}/></div>
               </div>
               {day.items.length>1&&<button onClick={()=>{saveItem('medicine',item.name);const n=[...pharmaDays];n[di].items=n[di].items.filter((_,j)=>j!==ii);setPharmaDays(n)}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:11,marginTop:4}}>✕ Remove</button>}
@@ -3397,32 +3398,54 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
               const prev=pharmaDays[pharmaDays.length-1]
               if(!prev)return
               // Copy previous day items, clear amounts for re-entry
-              const copiedItems=prev.items.map(i=>({...i,amount:'',batch:'',expiry:''}))
-              // Next date = prev date + 1 day
+              // Deep copy all items - name, qty, amount, batch, expiry all copied
+              const copiedItems=JSON.parse(JSON.stringify(prev.items))
+              // Auto-increment date by 1 day
               const nextDate=new Date(prev.date+'T00:00:00')
               nextDate.setDate(nextDate.getDate()+1)
               const nextDateStr=nextDate.toISOString().split('T')[0]
+              // Bill No blank so user can enter new one
               setPharmaDays([...pharmaDays,{billNo:'',date:nextDateStr,items:copiedItems}])
             }} style={{padding:'8px',background:'#eff6ff',border:'1px dashed #93c5fd',borderRadius:8,fontSize:13,cursor:'pointer',color:'#1d4ed8',fontWeight:600}}>📋 Repeat previous day</button>
           </div>
         </div>
 
-        {/* Lab tests */}
+        {/* Lab tests - date-wise */}
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700}}>🧪 Investigation charges</div>
+            <div style={{fontSize:13,fontWeight:700}}>🧪 Investigation charges (date-wise)</div>
             <div style={{fontSize:13,fontWeight:700,color:'#7c3aed'}}>Total: {fmt(labTotal)}</div>
           </div>
-          {labTests.map((item,i)=>(<div key={i} style={{marginBottom:8}}>
-            <AutoInput value={item.name} onChange={v=>{const n=[...labTests];n[i]={...n[i],name:v};setLabTests(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginTop:6}}>
-              <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],qty:e.target.value};setLabTests(n)}} placeholder="1" style={inpStyle}/></div>
-              <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Rate</div><input inputMode="decimal" value={item.rate||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],rate:e.target.value};setLabTests(n)}} placeholder="0" style={inpStyle}/></div>
-              <button onClick={()=>{saveItem('lab',item.name);setLabTests(labTests.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
+          {labDays.map((day,di)=>(<div key={di} style={{background:'#f8fafc',borderRadius:10,padding:'10px',marginBottom:10,border:'1px solid #e2e8f0'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:8,marginBottom:8,alignItems:'flex-end'}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Bill No</div><input value={day.billNo} onChange={e=>{const n=[...labDays];n[di]={...n[di],billNo:e.target.value};setLabDays(n)}} placeholder="e.g. OM62" style={inpStyle}/></div>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Date</div><input type="date" value={day.date} onChange={e=>{const n=[...labDays];n[di]={...n[di],date:e.target.value};setLabDays(n)}} style={inpStyle}/></div>
+              {labDays.length>1&&<button onClick={()=>setLabDays(labDays.filter((_,j)=>j!==di))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:700}}>Remove</button>}
             </div>
-            {item.name&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#7c3aed',fontWeight:700,marginTop:2}}>{fmt((parseFloat(item.qty)||1)*parseFloat(item.rate))}</div>}
+            {day.items.map((item,ii)=>(<div key={ii} style={{background:'#fff',borderRadius:8,padding:'8px',marginBottom:6,border:'1px solid #e2e8f0'}}>
+              <AutoInput value={item.name} onChange={v=>{const n=[...labDays];n[di].items[ii]={...n[di].items[ii],name:v};setLabDays(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginTop:6}}>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input type="text" inputMode="numeric" value={item.qty||''} onChange={e=>{const n=[...labDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setLabDays([...n])}} placeholder="1" style={inpStyle}/></div>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Rate (Rs)</div><input inputMode="decimal" value={item.rate||''} onChange={e=>{const n=[...labDays];n[di].items[ii]={...n[di].items[ii],rate:e.target.value};setLabDays(n)}} placeholder="0" style={inpStyle}/></div>
+                <button onClick={()=>{saveItem('lab',item.name);const n=[...labDays];n[di].items=n[di].items.filter((_,j)=>j!==ii);setLabDays(n)}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
+              </div>
+              {item.name&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#7c3aed',fontWeight:700,marginTop:2}}>{fmt((parseFloat(item.qty)||1)*parseFloat(item.rate))}</div>}
+            </div>))}
+            <button onClick={()=>{const n=[...labDays];n[di].items=[...n[di].items,{name:'',qty:'1',rate:''}];setLabDays(n)}} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
+            <div style={{textAlign:'right',fontSize:12,fontWeight:700,color:'#7c3aed',marginTop:4}}>Day total: {fmt(day.items.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0))}</div>
           </div>))}
-          <button onClick={()=>setLabTests([...labTests,{name:'',qty:'1',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <button onClick={()=>setLabDays([...labDays,{billNo:'',date:todayStr(),items:[{name:'',qty:'1',rate:''}]}])} style={{padding:'8px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b',fontWeight:600}}>+ Add new day</button>
+            <button onClick={()=>{
+              const prev=labDays[labDays.length-1]
+              if(!prev)return
+              const copiedItems=JSON.parse(JSON.stringify(prev.items))
+              const nextDate=new Date(prev.date+'T00:00:00')
+              nextDate.setDate(nextDate.getDate()+1)
+              const nextDateStr=nextDate.toISOString().split('T')[0]
+              setLabDays([...labDays,{billNo:'',date:nextDateStr,items:copiedItems}])
+            }} style={{padding:'8px',background:'#fdf4ff',border:'1px dashed #c4b5fd',borderRadius:8,fontSize:12,cursor:'pointer',color:'#7c3aed',fontWeight:600}}>📋 Repeat previous day</button>
+          </div>
         </div>
 
         {/* Grand total + advance/discount */}
@@ -3484,10 +3507,14 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           <div style={{fontSize:12,color:'#94a3b8',marginBottom:8}}>Type or paste complete discharge summary</div>
           <textarea value={dischargeText} onChange={e=>setDischargeText(e.target.value)} placeholder="Chief complaint:&#10;History:&#10;Examination:&#10;Investigations:&#10;Diagnosis:&#10;Treatment given:&#10;Condition at discharge:&#10;Advice:&#10;Follow-up:" style={{width:'100%',minHeight:400,padding:'12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,lineHeight:1.8,outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
         </div>
-        <GBtn onClick={()=>setPrintMode(true)}>🖨 Print Discharge Summary</GBtn>
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <GBtn onClick={saveDischarge} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved?'✓ Saved — Update':'💾 Save'}</GBtn>
+          <GBtn onClick={()=>setPrintMode(true)} style={{flex:1,background:'#1d4ed8'}}>🖨 Print</GBtn>
+        </div>
       </>}
     </div>
-  </div>)
+  </div>
+  )
 }
 
 
