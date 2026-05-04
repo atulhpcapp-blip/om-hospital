@@ -402,7 +402,14 @@ const SuperAdminDashboard=({onPreview=null})=>{
     setBusy(true);setMsg(null)
     const planEnd=nH.plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31'
     const {data:hosp,error:he}=await supabase.from('hospitals').insert([{name:nH.name,city:nH.city,phone:nH.phone,plan:nH.plan,plan_end:planEnd}]).select().single()
-    if(he){setMsg({ok:false,t:he.message});setBusy(false);return}
+    if(he){
+      if(he.message&&(he.message.includes('unique_phone')||he.message.includes('duplicate key'))){
+        setMsg({ok:false,t:'Phone '+nH.phone+' already registered with another hospital'})
+      } else {
+        setMsg({ok:false,t:he.message})
+      }
+      setBusy(false);return
+    }
     const {data:au,error:ae}=await supabase.auth.signUp({email:toEmail(nH.adminUser),password:nH.adminPass,options:{data:{name:nH.adminName}}})
     if(ae){setMsg({ok:false,t:ae.message});setBusy(false);return}
     await supabase.from('profiles').upsert({id:au.user.id,name:nH.adminName,username:nH.adminUser.toLowerCase(),role:'admin',hospital_id:hosp.id})
