@@ -3458,7 +3458,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
           <GBtn onClick={saveBill} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved&&!editMode?'✓ Saved — Update':'💾 Save Bill'}</GBtn>
-          <button onClick={()=>openPrintWindow(getBillHTML())} style={{flex:1,padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>🖨 Print Bill</button>
+          <button onClick={()=>openPrintWindow('<h1>TEST - Print working!</h1><p>Patient: '+p.name+'</p>')} style={{flex:1,padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>🖨 Print Bill</button>
         </div>
         {billSaved&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',marginTop:4}}>Bill saved — will reload next time you open billing</div>}
       </>}
