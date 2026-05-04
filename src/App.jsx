@@ -1462,6 +1462,13 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               <strong>Dr. {doc.name}</strong> commission rates: IP {doc.ip_pct}%  IP-Pharmacy {doc.ip_r_pct}%  IP-Lab {doc.ip_l_pct}%{pF.patient_type==='Package'?'  Package '+doc.ip_pct+'%':''}
             </div>
           </div>)})()}
+          <FSel label="Visiting consultant (optional)" value={pF.consultant||''} onChange={e=>setPF({...pF,consultant:e.target.value})}>
+            <option value="">- No visiting consultant -</option>
+            {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} — IP {d.ip_pct||0}% | IP Lab {d.ip_l_pct||0}% | IP Pharm {d.ip_r_pct||0}%</option>)}
+          </FSel>
+          {pF.consultant&&(()=>{const con=db.consultants.find(d=>d.name===pF.consultant);if(!con)return null;return(<div style={{background:'#fdf4ff',border:'1px solid #e9d5ff',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#7e22ce'}}>
+            <strong>Dr. {con.name}</strong> IP rates: Charges {con.ip_pct||0}% | Lab {con.ip_l_pct||0}% | Pharmacy {con.ip_r_pct||0}%
+          </div>)})()}
         </div>
         {/* ADMIT TYPE SELECTION */}
         <div style={{marginBottom:12}}>
@@ -1479,7 +1486,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <FInp label="Pre-approved amount (Rs)" type="number" value={pF.insurance_expected} onChange={e=>setPF({...pF,insurance_expected:e.target.value})} placeholder="Amount approved by insurer"/>
           {pF.insurance_expected>0&&<div style={{background:'#dbeafe',borderRadius:8,padding:'8px',fontSize:12,color:'#1e40af',marginTop:4}}>Initial approval: {fmt(parseFloat(pF.insurance_expected))} — more approvals can be added later</div>}
         </div>}
-        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());const ok=await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn,patient_area:pF.patient_area?.trim()||'',insurance_type:pF.admit_type==='insurance'?pF.insurance_type:'',insurance_policy_no:pF.admit_type==='insurance'?pF.insurance_policy_no:'',insurance_expected:pF.admit_type==='insurance'&&pF.insurance_expected?parseFloat(pF.insurance_expected):0,insurance_status:pF.admit_type==='insurance'?'pending':''});if(ok!==false){setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:''})}}}>Admit patient</PBtn>
+        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());const ok=await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),visiting_consultant:pF.consultant||'',is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn,patient_area:pF.patient_area?.trim()||'',insurance_type:pF.admit_type==='insurance'?pF.insurance_type:'',insurance_policy_no:pF.admit_type==='insurance'?pF.insurance_policy_no:'',insurance_expected:pF.admit_type==='insurance'&&pF.insurance_expected?parseFloat(pF.insurance_expected):0,insurance_status:pF.admit_type==='insurance'?'pending':''});if(ok!==false){setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',consultant:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:''})}}}>Admit patient</PBtn>
       </Card>
     </div>
   )
