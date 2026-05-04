@@ -360,7 +360,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const [loading,setLoading]=useState(true)
   const [forceShow,setForceShow]=useState(false)
   useEffect(()=>{
-    const t=setTimeout(()=>{setForceShow(true);setLoading(false)},12000)
+    const t=setTimeout(()=>{setForceShow(true);setLoading(false)},5000)
     return()=>clearTimeout(t)
   },[])
   const [view,setView]=useState('list')
@@ -3755,7 +3755,17 @@ export default function App(){
   const canSeeReports=isAdmin||isManagement
   const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
-  if((loading||(!profile&&session&&!isSuperAdmin))&&!forceShow)return(
+  if(forceShow&&!profile&&session&&!isSuperAdmin)return(
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0a1628',padding:24,color:'#fff'}}>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:16}}>⚠️ Profile not found</div>
+      <div style={{fontSize:13,color:'rgba(255,255,255,0.6)',textAlign:'center',maxWidth:300,marginBottom:20}}>
+        Your user profile could not be loaded. This may happen if your hospital account was deleted.<br/><br/>
+        Please contact your administrator or create a new hospital account.
+      </div>
+      <button onClick={()=>supabase.auth.signOut()} style={{padding:'10px 24px',background:'#dc2626',border:'none',borderRadius:8,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>Sign Out</button>
+    </div>
+  )
+  if(loading&&!forceShow)return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
       <svg width="52" height="52" viewBox="0 0 40 40" fill="none" style={{marginBottom:16}}><rect width="40" height="40" rx="12" fill="rgba(0,192,107,0.15)"/><rect x="16" y="6" width="8" height="28" rx="4" fill="#00c06b"/><rect x="6" y="16" width="28" height="8" rx="4" fill="#00c06b"/><circle cx="20" cy="20" r="5" fill="#00e87f"/></svg>
       <div style={{fontSize:18,fontWeight:700,color:'#fff',marginBottom:4,letterSpacing:'-0.5px'}}>EasyMedical</div>
