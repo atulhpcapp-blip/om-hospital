@@ -388,7 +388,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
-    if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
+    if(nH.adminPass.length<6)if(nH.phone&&nH.phone.trim()){const {data:ex}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim());if(ex&&ex.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already used by: '+ex[0].name});return}} {setMsg({ok:false,t:'Password min 6 chars'});return}
     if(nH.phone&&nH.phone.trim()){
       const {data:existing}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
       if(existing&&existing.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already registered for hospital: '+existing[0].name});return}
