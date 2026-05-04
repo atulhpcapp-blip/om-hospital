@@ -3206,7 +3206,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   const openPrintWindow=html=>{
     const win=window.open('','_blank')
-    if(!win){alert('Please allow popups for this site');return}
+    if(!win){return}
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Bill - ${p.name}</title><style>
       @page{size:A4 portrait;margin:12mm}
       *{box-sizing:border-box}
@@ -4220,7 +4220,7 @@ export default function App(){
         Promise.all([
           supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
-          supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
+          supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(500).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
           supabase.from('consultants').select('*').eq('hospital_id',hid).order('name')
         ])
