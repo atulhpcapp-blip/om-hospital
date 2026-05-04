@@ -387,7 +387,8 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
   const create=async()=>{
-    if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
+    if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return} 
+    if(nH.phone&&nH.phone.trim()){const {data:ex}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim());if(ex&&ex.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already used by: '+ex[0].name});return}}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
     if(nH.phone&&nH.phone.trim()){
       const {data:existing}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
