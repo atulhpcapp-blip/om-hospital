@@ -4142,6 +4142,120 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
 }
 
 
+const SpecialityReport=({db})=>{
+  const [period,setPeriod]=useState('month')
+  const [rm2,setRm2]=useState(new Date().toISOString().slice(0,7))
+  const [ry2,setRy2]=useState(new Date().getFullYear().toString())
+
+  const incList=period==='month'?db.income.filter(e=>e.date?.startsWith(rm2)):
+    period==='year'?db.income.filter(e=>e.date?.startsWith(ry2)):db.income
+
+  // Build speciality map from consultants
+  const conMap={}
+  db.consultants.forEach(con=>{conMap[con.name]={speciality:con.speciality||'General',con}})
+
+  // Group income by visiting consultant speciality
+  const specData={}
+  
+  // From IP patients - consultant fees
+  db.ip_patients.forEach(p=>{
+    if(!p.visiting_consultant)return
+    const con=db.consultants.find(c=>c.name===p.visiting_consultant)
+    const spec=con?.speciality||p.visiting_consultant
+    if(!specData[spec])specData[spec]={speciality:spec,consultants:new Set(),patients:0,grossIncome:0,doctorEarning:0,hospitalEarning:0,entries:[]}
+    
+    // Get all income entries for this patient
+    const patIncome=incList.filter(e=>e.patient_id===p.id)
+    patIncome.forEach(e=>{
+      const rate=e.type==='ip'?(con?.ip_fee_share_pct||0):
+        e.type==='ip_l'?(con?.ip_l_pct||0):
+        e.type==='ip_r'?(con?.ip_r_pct||0):0
+      const doctorShare=e.amount*(rate/100)
+      const hospitalShare=e.amount-doctorShare
+      specData[spec].grossIncome+=e.amount
+      specData[spec].doctorEarning+=doctorShare
+      specData[spec].hospitalEarning+=hospitalShare
+      specData[spec].consultants.add(p.visiting_consultant)
+    })
+    specData[spec].patients++
+    specData[spec].entries.push(p)
+  })
+
+  // Also from VC type income entries
+  incList.filter(e=>e.type==='vc').forEach(e=>{
+    const conName=e.ref_doctor||e.consultant_name||'Unknown'
+    const con=db.consultants.find(c=>c.name===conName)
+    const spec=con?.speciality||conName
+    if(!specData[spec])specData[spec]={speciality:spec,consultants:new Set(),patients:0,grossIncome:0,doctorEarning:0,hospitalEarning:0,entries:[]}
+    const doctorShare=e.consultant_fee||0
+    specData[spec].grossIncome+=e.amount
+    specData[spec].doctorEarning+=doctorShare
+    specData[spec].hospitalEarning+=e.amount-doctorShare
+    specData[spec].consultants.add(conName)
+  })
+
+  const specs=Object.values(specData).sort((a,b)=>b.grossIncome-a.grossIncome)
+  const totalGross=specs.reduce((a,s)=>a+s.grossIncome,0)
+  const totalDoc=specs.reduce((a,s)=>a+s.doctorEarning,0)
+  const totalHosp=specs.reduce((a,s)=>a+s.hospitalEarning,0)
+
+  return(<>
+    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+      {[{k:'month',l:'This Month'},{k:'year',l:'This Year'},{k:'all',l:'All Time'}].map(p=>(
+        <button key={p.k} onClick={()=>setPeriod(p.k)} style={{padding:'6px 14px',borderRadius:20,border:'none',background:period===p.k?'#7e22ce':'#f1f5f9',color:period===p.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer'}}>{p.l}</button>
+      ))}
+      {period==='month'&&<input type="month" value={rm2} onChange={e=>setRm2(e.target.value)} style={{padding:'5px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12}}/>}
+      {period==='year'&&<input type="number" value={ry2} onChange={e=>setRy2(e.target.value)} style={{padding:'5px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,width:80}}/>}
+    </div>
+
+    {/* Summary cards */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
+      {[
+        {l:'Total Billed',v:fmt(totalGross),c:'#0f172a',bg:'#f8fafc'},
+        {l:'Doctors Earned',v:fmt(totalDoc),c:'#7e22ce',bg:'#fdf4ff'},
+        {l:'Hospital Earned',v:fmt(totalHosp),c:'#16a34a',bg:'#f0fdf4'},
+      ].map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'12px',textAlign:'center'}}>
+        <div style={{fontSize:10,color:m.c,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
+        <div style={{fontSize:16,fontWeight:800,color:m.c}}>{m.v}</div>
+      </div>))}
+    </div>
+
+    {specs.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No speciality data found for this period.<br/>Add visiting consultants with speciality and admit IP patients to see this report.</div>}
+
+    {specs.map((s,i)=>(<div key={i} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:10,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{s.speciality}</div>
+          <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>
+            {[...s.consultants].join(', ')} · {s.patients} patient{s.patients!==1?'s':''}
+          </div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontSize:15,fontWeight:800,color:'#0f172a'}}>{fmt(s.grossIncome)}</div>
+          <div style={{fontSize:10,color:'#94a3b8'}}>total billed</div>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+        <div style={{textAlign:'center',background:'#fdf4ff',borderRadius:8,padding:'8px'}}>
+          <div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Doctor earned</div>
+          <div style={{fontSize:14,fontWeight:800,color:'#7e22ce'}}>{fmt(s.doctorEarning)}</div>
+          <div style={{fontSize:10,color:'#9333ea'}}>{s.grossIncome>0?Math.round(s.doctorEarning/s.grossIncome*100):0}%</div>
+        </div>
+        <div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}>
+          <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Hospital earned</div>
+          <div style={{fontSize:14,fontWeight:800,color:'#16a34a'}}>{fmt(s.hospitalEarning)}</div>
+          <div style={{fontSize:10,color:'#22c55e'}}>{s.grossIncome>0?Math.round(s.hospitalEarning/s.grossIncome*100):0}%</div>
+        </div>
+        <div style={{textAlign:'center',background:'#f8fafc',borderRadius:8,padding:'8px'}}>
+          <div style={{fontSize:9,color:'#64748b',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Patients</div>
+          <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{s.patients}</div>
+          <div style={{fontSize:10,color:'#94a3b8'}}>{[...s.consultants].length} dr{[...s.consultants].length!==1?'s':''}</div>
+        </div>
+      </div>
+    </div>))}
+  </>)
+}
+
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
@@ -4152,7 +4266,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'speciality',l:'Speciality'}]
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
     return(<div style={{marginBottom:12}}>
@@ -4191,6 +4305,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
       {rv==='lostdrs'&&<LostDoctorsReport db={db}/>}
       {rv==='supplies'&&<SuppliesReport db={db} actions={actions}/>}
       {rv==='incomechart'&&<IncomeChartReport db={db}/>}
+      {rv==='speciality'&&<SpecialityReport db={db}/>}
     </div>
   )
 }
