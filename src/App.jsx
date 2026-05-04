@@ -3238,7 +3238,10 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {/* Investigation */}
           {labTotal>0&&<>
             <tr className="section-head"><td colSpan={4}>INVESTIGATION CHARGES</td></tr>
-            {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td><td style={{textAlign:'right'}}>{fmt(amt)}</td></tr>)})}
+            {labDays.filter(d=>d.items.some(i=>i.name)).map((day,di)=>{
+              const dt=day.items.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0)
+              return(<tr key={di}><td style={{paddingLeft:16}}>{day.billNo||'—'} — {fmtD(day.date)}</td><td></td><td></td><td style={{textAlign:'right'}}>{fmt(dt)}</td></tr>)
+            })}
             <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Investigation Total</td><td style={{textAlign:'right'}}>{fmt(labTotal)}</td></tr>
           </>}
           {/* Consultation */}
@@ -3314,12 +3317,12 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       <table>
         <thead><tr><th>Investigation</th><th style={{textAlign:'right',width:'10%'}}>Qty</th><th style={{textAlign:'right',width:'15%'}}>Rate</th><th style={{textAlign:'right',width:'15%'}}>Amount</th></tr></thead>
         <tbody>
-          {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}>
+          {labDays.map((day,di)=>day.items.filter(i=>i.name).map((i,ii)=>{const a=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={di+'-'+ii}>
             <td>{i.name}</td>
             <td style={{textAlign:'right'}}>{i.qty||1}</td>
             <td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td>
-            <td style={{textAlign:'right'}}>{fmt(amt)}</td>
-          </tr>)})}
+            <td style={{textAlign:'right'}}>{fmt(a)}</td>
+          </tr>)}))}
           <tr className="total-row"><td colSpan={3} style={{textAlign:'right',fontWeight:700}}>Total</td><td style={{textAlign:'right',fontWeight:700}}>{fmt(labTotal)}</td></tr>
         </tbody>
       </table>
