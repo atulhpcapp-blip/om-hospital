@@ -3458,7 +3458,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
           <GBtn onClick={saveBill} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved&&!editMode?'✓ Saved — Update':'💾 Save Bill'}</GBtn>
-          <GBtn onClick={()=>openPrintWindow(getBillHTML())} style={{flex:1,background:'#1d4ed8'}}>🖨 Print Bill</GBtn>
+          <button onClick={()=>{alert('generating');openPrintWindow(getBillHTML())}} style={{flex:1,padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>🖨 Print Bill</button>
         </div>
         {billSaved&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',marginTop:4}}>Bill saved — will reload next time you open billing</div>}
       </>}
@@ -3503,7 +3503,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
           <GBtn onClick={saveDischarge} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved?'✓ Saved — Update':'💾 Save'}</GBtn>
-          <GBtn onClick={()=>openPrintWindow(getDischargeHTML())} style={{flex:1,background:'#1d4ed8'}}>🖨 Print Discharge</GBtn>
+          <button onClick={()=>openPrintWindow(getDischargeHTML())} style={{flex:1,padding:'12px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>🖨 Print Discharge</button>
         </div>
       </>}
     </div>
