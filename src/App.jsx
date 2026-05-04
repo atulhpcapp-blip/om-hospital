@@ -1113,6 +1113,17 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
             ):<FInp label="Patient name *" type="text" placeholder="Required" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>}
             <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
             {!isIP&&<FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur, KPHB" value={iF.patient_area||''} onChange={e=>setIF({...iF,patient_area:e.target.value})}/>}
+        {!isIP&&itype!=='vc'&&<div style={{marginBottom:8}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+            <span style={{fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em'}}>Referring doctor</span>
+            {iF.ref&&iF.ref!=='__new__'&&<button onClick={()=>setIF({...iF,ref:'',custom_commission:''})} style={{fontSize:11,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>✕ Self / Clear</button>}
+          </div>
+          <FSel label="" value={iF.ref} onChange={e=>{if(e.target.value==='__new__'){setIF({...iF,ref:'__new__'})}else{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?(itype==='op_r'?sel.op_r_pct:itype==='op_l'?sel.op_l_pct:sel.op_pct):null;setIF({...iF,ref:e.target.value,custom_commission:(pct!=null&&pct>0)?String(pct):'',newRefName:'',newRefPct:'',newRefArea:''})}}}>
+            <option value="">- No referral / Self patient -</option>
+            {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+            <option value="__new__">+ Add new doctor...</option>
+          </FSel>
+        </div>}
         <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
         {prev>0&&iF.ref&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
         <FSel label="Payment" value={iF.pay} onChange={e=>setIF({...iF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
@@ -1123,16 +1134,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                 {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} ({d.fee_share_pct}%)</option>)}
               </FSel>
               {iF.consultant_name&&iF.consultant_name!=='__new_cons__'&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
-              <div style={{marginBottom:8}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                  <span style={{fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em'}}>Referring doctor</span>
-                  {iF.ref&&iF.ref!=='__new__'&&<button onClick={()=>setIF({...iF,ref:'',custom_commission:''})} style={{fontSize:11,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>✕ Self / Clear</button>}
-                </div>
-                <FSel label="" value={iF.ref} onChange={e=>{if(e.target.value==='__new__'){setIF({...iF,ref:'__new__'})}else{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?(itype==='op_r'?sel.op_r_pct:itype==='op_l'?sel.op_l_pct:sel.op_pct):null;setIF({...iF,ref:e.target.value,custom_commission:(pct!=null&&pct>0)?String(pct):'',newRefName:'',newRefPct:'',newRefArea:''})}}}>
-                  <option value="">- No referral / Self patient -</option>
-                  {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
-                  <option value="__new__">+ Add new doctor...</option>
-                </FSel>
+
                 {iF.ref==='__new__'&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px',marginTop:6}}>
                   <div style={{fontSize:12,fontWeight:700,color:'#15803d',marginBottom:8}}>New referral doctor</div>
                   <FInp label="Doctor name" type="text" value={iF.newRefName||''} onChange={e=>setIF({...iF,newRefName:e.target.value})} placeholder="e.g. Dr. Sharma"/>
@@ -1158,7 +1160,6 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                     setIF({...iF,ref:newDoc.name,custom_commission:String(newDoc.op_pct),newRefName:'',newRefPct:'',newRefIpPct:'',newRefIpRPct:'',newRefIpLPct:'',newRefOpRPct:'',newRefOpLPct:'',newRefArea:''})
                   }}>Save & select doctor</GBtn>
                 </div>}
-              </div>
               {iF.ref&&(()=>{const doc=db.ref_doctors.find(d=>d.name===iF.ref);if(!doc)return null;return(<div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
                 {doc.area&&<span style={{background:'#eff6ff',border:'1px solid #bfdbfe',color:'#1d4ed8',fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:100}}>Area: {doc.area}</span>}
                 {iF.amount&&doc.op_pct>0&&<span style={{background:'#fff7ed',border:'1px solid #fed7aa',color:'#92400e',fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:100}}>Commission: {fmt(parseFloat(iF.amount||0)*(doc.op_pct/100))} ({doc.op_pct}%)</span>}
