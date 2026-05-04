@@ -1113,7 +1113,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   <span style={{fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em'}}>Referring doctor</span>
                   {iF.ref&&iF.ref!=='__new__'&&<button onClick={()=>setIF({...iF,ref:'',custom_commission:''})} style={{fontSize:11,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'2px 8px',cursor:'pointer',fontWeight:600}}>✕ Self / Clear</button>}
                 </div>
-                <FSel label="" value={iF.ref} onChange={e=>{if(e.target.value==='__new__'){setIF({...iF,ref:'__new__'})}else{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?(itype==='op_r'?sel.op_r_pct:itype==='op_l'?sel.op_l_pct:sel.op_pct):null;setIF({...iF,ref:e.target.value,custom_commission:pct!=null?String(pct):'',newRefName:'',newRefPct:'',newRefArea:''})}}}>
+                <FSel label="" value={iF.ref} onChange={e=>{if(e.target.value==='__new__'){setIF({...iF,ref:'__new__'})}else{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?(itype==='op_r'?sel.op_r_pct:itype==='op_l'?sel.op_l_pct:sel.op_pct):null;setIF({...iF,ref:e.target.value,custom_commission:(pct!=null&&pct>0)?String(pct):'',newRefName:'',newRefPct:'',newRefArea:''})}}}>
                   <option value="">- No referral / Self patient -</option>
                   {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
                   <option value="__new__">+ Add new doctor...</option>
