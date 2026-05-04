@@ -389,12 +389,12 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
-    // Phone duplicate check
+    // Phone duplicate check - exact match
     if(nH.phone&&nH.phone.trim().length>=5){
-      const ph=nH.phone.trim().replace(/\D/g,'') // normalize to digits only
-      const {data:dup}=await supabase.from('hospitals').select('id,name').ilike('phone','%'+ph+'%')
-      if(dup&&dup.length>0){
-        alert('❌ Phone number already registered for hospital: '+dup[0].name+'\nUse a different number.')
+      const phoneVal=nH.phone.trim()
+      const {data:dup,error:dupErr}=await supabase.from('hospitals').select('id,name').eq('phone',phoneVal)
+      if(!dupErr&&dup&&dup.length>0){
+        alert('❌ Phone '+phoneVal+' already registered for: '+dup[0].name+'\nUse a different phone number.')
         setMsg({ok:false,t:'Phone already used by: '+dup[0].name})
         return
       }
