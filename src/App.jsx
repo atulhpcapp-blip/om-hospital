@@ -3621,19 +3621,6 @@ const SlowLoadWarning=()=>{
   return null
 }
 
-class ErrorBoundary extends React.Component{
-  constructor(p){super(p);this.state={err:null}}
-  static getDerivedStateFromError(e){return{err:e}}
-  render(){
-    if(this.state.err)return(<div style={{padding:20,background:'#fef2f2',color:'#dc2626',fontFamily:'monospace',fontSize:12,whiteSpace:'pre-wrap'}}>
-      <h2>App Error (please screenshot and share)</h2>
-      <p>{this.state.err?.message}</p>
-      <p>{this.state.err?.stack?.slice(0,500)}</p>
-    </div>)
-    return this.props.children
-  }
-}
-import React from 'react'
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -4767,4 +4754,3 @@ const AnalyticsDash=({db})=>{
   )
 }
 
-import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>)
