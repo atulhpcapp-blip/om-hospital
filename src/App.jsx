@@ -3034,7 +3034,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [pharmaDays,setPharmaDays]=useState([{billNo:'',date:todayStr(),items:[{name:'',qty:'',amount:''}]}])
 
   // Lab tests
-  const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:''}])
+  const [labDays,setLabDays]=useState([{billNo:'',date:todayStr(),items:[{name:'',qty:'1',rate:''}]}])
 
   const [billId,setBillId]=useState(null)
   const [billSaving,setBillSaving]=useState(false)
@@ -3066,7 +3066,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         if(items.roomCharges)setRoomCharges(items.roomCharges)
         if(items.otherCharges)setOtherCharges(items.otherCharges)
         if(items.pharmaDays)setPharmaDays(items.pharmaDays)
-        if(items.labTests)setLabTests(items.labTests)
+        if(items.labDays)setLabDays(items.labDays)
         if(items.advance)setAdvance(items.advance)
         if(items.discount)setDiscount(items.discount)
         if(items.dischargeText)setDischargeText(items.dischargeText)
@@ -3077,7 +3077,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   const saveBill=async()=>{
     setBillSaving(true)
-    const items={consultations,roomCharges,otherCharges,pharmaDays,labTests,advance,discount,dischargeText}
+    const items={consultations,roomCharges,otherCharges,pharmaDays,labDays,advance,discount,dischargeText}
     const billData={hospital_id:hospId,patient_id:p.id,bill_date:todayStr(),total:grandTotal,items,status:'draft'}
     if(billId){
       await supabase.from('ip_bills').update(billData).eq('id',billId)
@@ -3092,7 +3092,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   const saveDischarge=async()=>{
     setBillSaving(true)
-    const items={consultations,roomCharges,otherCharges,pharmaDays,labTests,advance,discount,dischargeText}
+    const items={consultations,roomCharges,otherCharges,pharmaDays,labDays,advance,discount,dischargeText}
     const billData={hospital_id:hospId,patient_id:p.id,bill_date:todayStr(),total:grandTotal,items,status:'draft'}
     if(billId){
       await supabase.from('ip_bills').update(billData).eq('id',billId)
@@ -3125,7 +3125,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   // Totals
   const pharmaTotal=pharmaDays.reduce((a,day)=>a+day.items.reduce((b,i)=>b+(parseFloat(i.amount)||0),0),0)
-  const labTotal=labTests.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||parseFloat(i.amount)||0),0)
+  const labTotal=labDays.reduce((a,day)=>a+day.items.reduce((b,i)=>b+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0),0)
   const consultTotal=consultations.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
   const roomTotal=roomCharges.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
   const otherTotal=otherCharges.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0)
@@ -3345,7 +3345,10 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     }
     if(labTotal>0){
       h+=`<tr class="sh"><td colspan="4">INVESTIGATION CHARGES</td></tr>`
-      labTests.filter(i=>i.name).forEach(i=>{const a=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);h+=`<tr><td style="padding-left:12px">${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate)||0)}</td><td style="text-align:right">${fmtN(a)}</td></tr>`})
+      labDays.filter(d=>d.items.some(i=>i.name)).forEach(day=>{
+        const dt=day.items.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0)
+        h+=`<tr><td style="padding-left:12px">${day.billNo||'—'} — ${fmtDN(day.date)}</td><td></td><td></td><td style="text-align:right">${fmtN(dt)}</td></tr>`
+      })
       h+=`<tr class="tr"><td colspan="3" style="text-align:right">Investigation Total</td><td style="text-align:right">${fmtN(labTotal)}</td></tr>`
     }
     if(consultTotal>0){
@@ -3374,11 +3377,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       h+=`<div style="text-align:right;margin-top:20px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:35%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
     }
     if(labTotal>0){
-      h+=`<div class="page"><div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:10px;letter-spacing:2px">INVESTIGATION CHARGES</div>`
+      h+=`<div class="page"><div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;letter-spacing:3px">INVESTIGATION CHARGES</div>`
       h+=`<table style="margin-bottom:8px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead><tbody><tr><td><b>${p.name.toUpperCase()}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${fmtDN(p.admission_date)}</td><td>${p.discharge_date?fmtDN(p.discharge_date):'Active'}</td></tr></tbody></table>`
-      h+=`<table><thead><tr><th>Investigation</th><th style="text-align:right;width:10%">Qty</th><th style="text-align:right;width:15%">Rate</th><th style="text-align:right;width:15%">Amount</th></tr></thead><tbody>`
-      labTests.filter(i=>i.name).forEach(i=>{const a=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);h+=`<tr><td>${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate)||0)}</td><td style="text-align:right">${fmtN(a)}</td></tr>`})
-      h+=`<tr class="tr"><td colspan="3" style="text-align:right">Total</td><td style="text-align:right">${fmtN(labTotal)}</td></tr></tbody></table>`
+      h+=`<table><thead><tr><th style="width:12%">Bill No</th><th style="width:12%">Date</th><th style="width:40%">Investigation</th><th style="text-align:right;width:10%">Qty</th><th style="text-align:right;width:13%">Rate</th><th style="text-align:right;width:13%">Amount</th></tr></thead><tbody>`
+      labDays.forEach(day=>{day.items.filter(i=>i.name).forEach((i,ii)=>{const a=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);h+=`<tr><td style="font-weight:${ii===0?700:400};color:${ii===0?'#000':'#aaa'}">${ii===0?(day.billNo||'—'):''}</td><td style="color:${ii===0?'#000':'#aaa'}">${ii===0?fmtDN(day.date):''}</td><td>${i.name}</td><td style="text-align:right">${i.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(i.rate)||0)}</td><td style="text-align:right">${fmtN(a)}</td></tr>`})})
+      h+=`<tr class="tr"><td colspan="5" style="text-align:right">Total</td><td style="text-align:right">${fmtN(labTotal)}</td></tr></tbody></table>`
       h+=`<div style="text-align:right;margin-top:20px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:35%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
     }
     return h
@@ -3499,37 +3502,53 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
               const prev=pharmaDays[pharmaDays.length-1]
               if(!prev)return
               // Copy previous day items, clear amounts for re-entry
-              const copiedItems=prev.items.map(i=>({...i}))
-              // Next date = prev date + 1 day
+              // Deep copy all items - name, qty, amount, batch, expiry all copied
+              const copiedItems=JSON.parse(JSON.stringify(prev.items))
+              // Auto-increment date by 1 day
               const nextDate=new Date(prev.date+'T00:00:00')
               nextDate.setDate(nextDate.getDate()+1)
               const nextDateStr=nextDate.toISOString().split('T')[0]
+              // Bill No blank so user can enter new one
               setPharmaDays([...pharmaDays,{billNo:'',date:nextDateStr,items:copiedItems}])
             }} style={{padding:'8px',background:'#eff6ff',border:'1px dashed #93c5fd',borderRadius:8,fontSize:13,cursor:'pointer',color:'#1d4ed8',fontWeight:600}}>📋 Repeat previous day</button>
           </div>
         </div>
 
-        {/* Lab tests */}
+        {/* Lab tests - date-wise */}
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700}}>🧪 Investigation charges</div>
+            <div style={{fontSize:13,fontWeight:700}}>🧪 Investigation charges (date-wise)</div>
             <div style={{fontSize:13,fontWeight:700,color:'#7c3aed'}}>Total: {fmt(labTotal)}</div>
           </div>
-          {labTests.map((item,i)=>(<div key={i} style={{marginBottom:8}}>
-            <AutoInput value={item.name} onChange={v=>{const n=[...labTests];n[i]={...n[i],name:v};setLabTests(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginTop:6}}>
-              <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],qty:e.target.value};setLabTests(n)}} placeholder="1" style={inpStyle}/></div>
-              <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Rate</div><input inputMode="decimal" value={item.rate||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],rate:e.target.value};setLabTests(n)}} placeholder="0" style={inpStyle}/></div>
-              <button onClick={()=>{saveItem('lab',item.name);setLabTests(labTests.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
+          {labDays.map((day,di)=>(<div key={di} style={{background:'#f8fafc',borderRadius:10,padding:'10px',marginBottom:10,border:'1px solid #e2e8f0'}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:8,marginBottom:8,alignItems:'flex-end'}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Bill No</div><input value={day.billNo} onChange={e=>{const n=[...labDays];n[di]={...n[di],billNo:e.target.value};setLabDays(n)}} placeholder="e.g. OM62" style={inpStyle}/></div>
+              <div><div style={{fontSize:10,color:'#94a3b8',fontWeight:700,marginBottom:2}}>Date</div><input type="date" value={day.date} onChange={e=>{const n=[...labDays];n[di]={...n[di],date:e.target.value};setLabDays(n)}} style={inpStyle}/></div>
+              {labDays.length>1&&<button onClick={()=>setLabDays(labDays.filter((_,j)=>j!==di))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:700}}>Remove</button>}
             </div>
-            {item.name&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#7c3aed',fontWeight:700,marginTop:2}}>{fmt((parseFloat(item.qty)||1)*parseFloat(item.rate))}</div>}
+            {day.items.map((item,ii)=>(<div key={ii} style={{background:'#fff',borderRadius:8,padding:'8px',marginBottom:6,border:'1px solid #e2e8f0'}}>
+              <AutoInput value={item.name} onChange={v=>{const n=[...labDays];n[di].items[ii]={...n[di].items[ii],name:v};setLabDays(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginTop:6}}>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input type="text" inputMode="numeric" value={item.qty||''} onChange={e=>{const n=[...labDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setLabDays([...n])}} placeholder="1" style={inpStyle}/></div>
+                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Rate (Rs)</div><input inputMode="decimal" value={item.rate||''} onChange={e=>{const n=[...labDays];n[di].items[ii]={...n[di].items[ii],rate:e.target.value};setLabDays(n)}} placeholder="0" style={inpStyle}/></div>
+                <button onClick={()=>{saveItem('lab',item.name);const n=[...labDays];n[di].items=n[di].items.filter((_,j)=>j!==ii);setLabDays(n)}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
+              </div>
+              {item.name&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#7c3aed',fontWeight:700,marginTop:2}}>{fmt((parseFloat(item.qty)||1)*parseFloat(item.rate))}</div>}
+            </div>))}
+            <button onClick={()=>{const n=[...labDays];n[di].items=[...n[di].items,{name:'',qty:'1',rate:''}];setLabDays(n)}} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
+            <div style={{textAlign:'right',fontSize:12,fontWeight:700,color:'#7c3aed',marginTop:4}}>Day total: {fmt(day.items.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0),0))}</div>
           </div>))}
-          <div style={{display:'flex',gap:8,marginTop:4}}>
-            <button onClick={()=>setLabTests([...labTests,{name:'',qty:'1',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
-            {labTests.length>0&&labTests.some(i=>i.name)&&<button onClick={()=>{
-              const copied=labTests.filter(i=>i.name).map(i=>({...i}))
-              setLabTests([...labTests,...copied])
-            }} style={{fontSize:12,color:'#7c3aed',background:'none',border:'none',cursor:'pointer'}}>📋 Repeat all tests</button>}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <button onClick={()=>setLabDays([...labDays,{billNo:'',date:todayStr(),items:[{name:'',qty:'1',rate:''}]}])} style={{padding:'8px',background:'#f1f5f9',border:'1px dashed #cbd5e1',borderRadius:8,fontSize:12,cursor:'pointer',color:'#64748b',fontWeight:600}}>+ Add new day</button>
+            <button onClick={()=>{
+              const prev=labDays[labDays.length-1]
+              if(!prev)return
+              const copiedItems=JSON.parse(JSON.stringify(prev.items))
+              const nextDate=new Date(prev.date+'T00:00:00')
+              nextDate.setDate(nextDate.getDate()+1)
+              const nextDateStr=nextDate.toISOString().split('T')[0]
+              setLabDays([...labDays,{billNo:'',date:nextDateStr,items:copiedItems}])
+            }} style={{padding:'8px',background:'#fdf4ff',border:'1px dashed #c4b5fd',borderRadius:8,fontSize:12,cursor:'pointer',color:'#7c3aed',fontWeight:600}}>📋 Repeat previous day</button>
           </div>
         </div>
 
