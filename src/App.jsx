@@ -1467,7 +1467,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} — IP {d.ip_pct||0}% | IP Lab {d.ip_l_pct||0}% | IP Pharm {d.ip_r_pct||0}%</option>)}
           </FSel>
           {pF.consultant&&(()=>{const con=db.consultants.find(d=>d.name===pF.consultant);if(!con)return null;return(<div style={{background:'#fdf4ff',border:'1px solid #e9d5ff',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#7e22ce'}}>
-            <strong>Dr. {con.name}</strong> IP rates: Charges {con.ip_pct||0}% | Lab {con.ip_l_pct||0}% | Pharmacy {con.ip_r_pct||0}%
+            <strong>Dr. {con.name}</strong> IP rates: Consultation fee {con.ip_fee_share_pct||0}% | Charges {con.ip_pct||0}% | Lab {con.ip_l_pct||0}% | Pharmacy {con.ip_r_pct||0}%
           </div>)})()}
         </div>
         {/* ADMIT TYPE SELECTION */}
