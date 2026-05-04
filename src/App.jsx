@@ -388,10 +388,15 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
-    if(nH.adminPass.length<6)if(nH.phone&&nH.phone.trim()){const {data:ex}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim());if(ex&&ex.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already used by: '+ex[0].name});return}} {setMsg({ok:false,t:'Password min 6 chars'});return}
+    if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
     if(nH.phone&&nH.phone.trim()){
       const {data:existing}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
       if(existing&&existing.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already registered for hospital: '+existing[0].name});return}
+    }
+    // Check duplicate phone
+    if(nH.phone&&nH.phone.trim().length>0){
+      const {data:ph}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
+      if(ph&&ph.length>0){setMsg({ok:false,t:'Phone '+nH.phone.trim()+' already registered for: '+ph[0].name});return}
     }
     setBusy(true);setMsg(null)
     const planEnd=nH.plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31'
@@ -3343,7 +3348,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   const getBillHTML=()=>{
     let h=''
-    h+=`<div class="page" style="padding-top:64mm">`
+    h+=`<div class="page">`
+    h+=`<div style="height:64mm;display:block"></div>`
     h+=`<div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:8px;border-bottom:2px solid #000;padding-bottom:6px">IP Bill Cum Receipt</div>`
     h+=`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:10pt"><div><div><b>Consultant:</b> ${consultations[0]?.doctor||p.ref_doctor||'—'}</div><div><b>D.O.A:</b> ${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</div>${p.discharge_date?'<div><b>D.O.D:</b> '+fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:'')+'</div>':''}</div><div style="text-align:right"><div><b>Bill No:</b> ${p.reg_no||'—'}-${todayStr().replace(/-/g,'').slice(2)}</div><div><b>Date:</b> ${fmtDN(todayStr())}</div>${p.insurance_type?'<div><b>Insurance:</b> '+p.insurance_type+'</div>':''}</div></div>`
     h+=`<table style="margin-bottom:6px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>Room</th><th>Payment Type</th></tr></thead><tbody><tr><td><b>${p.name}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${p.room||'—'}</td><td>${p.insurance_type?'Insurance':'Cash'}</td></tr></tbody></table>`
@@ -3383,7 +3389,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     h+=`<div style="font-size:9pt;margin:6px 0"><b>Amount in words:</b> RUPEES ${toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>`
     h+=`<div style="display:flex;justify-content:space-around;margin-top:20px"><div style="text-align:center;width:35%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Authorised Signatory</div></div><div style="text-align:center;width:35%"><div style="border-top:1px solid #000;padding-top:5px;font-size:9pt">Cashier</div></div></div></div>`
     if(pharmaTotal>0){
-      h+=`<div class="page" style="padding-top:64mm">`<div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;letter-spacing:3px">MEDICINES</div>`
+      h+=`<div class="page"><div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:10px;letter-spacing:3px">MEDICINES</div>`
       h+=`<table style="margin-bottom:8px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead><tbody><tr><td><b>${p.name.toUpperCase()}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</td><td>${p.discharge_date?fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'Active'}</td></tr></tbody></table>`
       h+=`<table><thead><tr><th style="width:10%">Bill No</th><th style="width:10%">Date</th><th style="width:40%">Product</th><th style="width:12%">Batch</th><th style="width:10%">Expiry</th><th style="text-align:right;width:8%">Qty</th><th style="text-align:right;width:10%">Amount</th></tr></thead><tbody>`
       pharmaDays.forEach(day=>{day.items.filter(i=>i.name).forEach((item,ii)=>{h+=`<tr><td style="font-weight:${ii===0?700:400};color:${ii===0?'#000':'#aaa'}">${ii===0?(day.billNo||'—'):''}</td><td style="color:${ii===0?'#000':'#aaa'}">${ii===0?fmtDN(day.date):''}</td><td>${item.name}</td><td>${item.batch||''}</td><td>${item.expiry||''}</td><td style="text-align:right">${item.qty||1}</td><td style="text-align:right">${fmtN(parseFloat(item.amount)||0)}</td></tr>`})})
