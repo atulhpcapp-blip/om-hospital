@@ -319,7 +319,7 @@ const SettingsPanel=()=>{
 /*  SUPER ADMIN PREVIEW APP  */
 const PreviewApp=({db,hospital,onExit})=>{
   if(!db||!hospital)return null
-  const [tab,setTab]=useState('dash')
+  const [tab,setTab]=useState('rep')
   const [rv,setRv]=useState('daily')
   const [rd,setRd]=useState(todayStr())
   const [rm,setRm]=useState(todayStr().slice(0,7))
@@ -3621,6 +3621,19 @@ const SlowLoadWarning=()=>{
   return null
 }
 
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={err:null}}
+  static getDerivedStateFromError(e){return{err:e}}
+  render(){
+    if(this.state.err)return(<div style={{padding:20,background:'#fef2f2',color:'#dc2626',fontFamily:'monospace',fontSize:12,whiteSpace:'pre-wrap'}}>
+      <h2>App Error (please screenshot and share)</h2>
+      <p>{this.state.err?.message}</p>
+      <p>{this.state.err?.stack?.slice(0,500)}</p>
+    </div>)
+    return this.props.children
+  }
+}
+import React from 'react'
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -3684,7 +3697,7 @@ export default function App(){
       setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[]})
       setLoading(false)
       if(!tabInitialized){
-        if(prof?.role==='admin'||prof?.role==='management')setTab('dash')
+        if(prof?.role==='admin'||prof?.role==='management')setTab('rep')
         setTabInitialized(true)
       }
     }
@@ -4754,4 +4767,4 @@ const AnalyticsDash=({db})=>{
   )
 }
 
-import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<App/>)
+import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>)
