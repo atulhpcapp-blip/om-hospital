@@ -4539,7 +4539,7 @@ const ConsultantsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
-  const blank={name:'',phone:'',fee_share_pct:0,op_l_pct:0,op_r_pct:0}
+  const blank={name:'',phone:'',fee_share_pct:0,op_l_pct:0,op_r_pct:0,ip_pct:0,ip_r_pct:0,ip_l_pct:0}
   const [form,setForm]=useState(blank)
   const save=async()=>{
     if(!form.name.trim()){alert('Consultant name required');return}
@@ -4548,7 +4548,7 @@ const ConsultantsTab=({db,actions})=>{
     else{await actions.addConsultant(form)}
     setForm(blank);setShowAdd(false);setBusy(false)
   }
-  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0});setEditId(d.id);setShowAdd(true)}
+  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0,ip_pct:d.ip_pct||0,ip_r_pct:d.ip_r_pct||0,ip_l_pct:d.ip_l_pct||0});setEditId(d.id);setShowAdd(true)}
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add visiting consultant</PBtn>}
     {showAdd&&<Card style={{border:'2px solid #7e22ce'}}>
@@ -4567,12 +4567,22 @@ const ConsultantsTab=({db,actions})=>{
         <div style={{fontSize:11,color:'#9333ea',marginTop:6}}>Doctor takes this % of what is collected. Hospital keeps the rest.</div>
         {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect Rs 700 - Dr. gets {fmt(700*form.fee_share_pct/100)} - Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
       </div>
-      <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Commission on investigations ordered</div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+      <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Commission on OP investigations ordered</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
         {[{key:'op_l_pct',label:'OP Lab',color:'#7e22ce'},{key:'op_r_pct',label:'OP Pharmacy',color:'#c2410c'}].map(c=>(<div key={c.key}>
-          <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label} commission %</label>
+          <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label} %</label>
           <div style={{position:'relative'}}>
             <input style={{...S.inp,paddingRight:28}} type="number" inputMode="numeric" min="0" max="100" value={form[c.key]} onChange={e=>setForm({...form,[c.key]:parseFloat(e.target.value)||0})}/>
+            <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#aaa',fontWeight:700}}>%</span>
+          </div>
+        </div>))}
+      </div>
+      <div style={{fontSize:11,fontWeight:700,color:'#2563eb',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>IP commission (when admits patients)</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+        {[{key:'ip_pct',label:'IP Charges',color:'#2563eb'},{key:'ip_r_pct',label:'IP Pharmacy',color:'#c2410c'},{key:'ip_l_pct',label:'IP Lab',color:'#7e22ce'}].map(c=>(<div key={c.key}>
+          <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label} %</label>
+          <div style={{position:'relative'}}>
+            <input style={{...S.inp,paddingRight:28}} type="number" inputMode="numeric" min="0" max="100" value={form[c.key]||0} onChange={e=>setForm({...form,[c.key]:parseFloat(e.target.value)||0})}/>
             <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#aaa',fontWeight:700}}>%</span>
           </div>
         </div>))}
@@ -4597,7 +4607,7 @@ const ConsultantsTab=({db,actions})=>{
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-        {[{l:'Fee share',v:d.fee_share_pct+'%',c:'#7e22ce',sub:'of consultation'},{l:'Lab comm',v:d.op_l_pct+'%',c:d.op_l_pct>0?'#7e22ce':'#ccc'},{l:'Pharmacy comm',v:d.op_r_pct+'%',c:d.op_r_pct>0?'#c2410c':'#ccc'}].map((m,i)=>(
+        {[{l:'OP Fee',v:d.fee_share_pct+'%',c:'#7e22ce'},{l:'OP Lab',v:d.op_l_pct+'%',c:'#7e22ce'},{l:'OP Pharm',v:d.op_r_pct+'%',c:'#c2410c'},{l:'IP',v:(d.ip_pct||0)+'%',c:'#2563eb'},{l:'IP Lab',v:(d.ip_l_pct||0)+'%',c:'#7e22ce'},{l:'IP Pharm',v:(d.ip_r_pct||0)+'%',c:'#c2410c'}].map((m,i)=>(
           <div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'8px',textAlign:'center'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div>
             <div style={{fontSize:16,fontWeight:800,color:m.c}}>{m.v}</div>
