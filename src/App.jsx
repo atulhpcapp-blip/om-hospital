@@ -387,8 +387,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
   const create=async()=>{
-    if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return} 
-    if(nH.phone&&nH.phone.trim()){const {data:ex}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim());if(ex&&ex.length>0){setMsg({ok:false,t:'Phone '+nH.phone+' already used by: '+ex[0].name});return}}
+    if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
     if(nH.phone&&nH.phone.trim()){
       const {data:existing}=await supabase.from('hospitals').select('id,name').eq('phone',nH.phone.trim())
@@ -3344,7 +3343,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   const getBillHTML=()=>{
     let h=''
-    h+=`<div class="page">`
+    h+=`<div class="page" style="padding-top:64mm">`
     h+=`<div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:8px;border-bottom:2px solid #000;padding-bottom:6px">IP Bill Cum Receipt</div>`
     h+=`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:10pt"><div><div><b>Consultant:</b> ${consultations[0]?.doctor||p.ref_doctor||'—'}</div><div><b>D.O.A:</b> ${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</div>${p.discharge_date?'<div><b>D.O.D:</b> '+fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:'')+'</div>':''}</div><div style="text-align:right"><div><b>Bill No:</b> ${p.reg_no||'—'}-${todayStr().replace(/-/g,'').slice(2)}</div><div><b>Date:</b> ${fmtDN(todayStr())}</div>${p.insurance_type?'<div><b>Insurance:</b> '+p.insurance_type+'</div>':''}</div></div>`
     h+=`<table style="margin-bottom:6px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>Room</th><th>Payment Type</th></tr></thead><tbody><tr><td><b>${p.name}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${p.room||'—'}</td><td>${p.insurance_type?'Insurance':'Cash'}</td></tr></tbody></table>`
