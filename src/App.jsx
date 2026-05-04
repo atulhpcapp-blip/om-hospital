@@ -1467,7 +1467,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} — IP {d.ip_pct||0}% | IP Lab {d.ip_l_pct||0}% | IP Pharm {d.ip_r_pct||0}%</option>)}
           </FSel>
           {pF.consultant&&(()=>{const con=db.consultants.find(d=>d.name===pF.consultant);if(!con)return null;return(<div style={{background:'#fdf4ff',border:'1px solid #e9d5ff',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#7e22ce'}}>
-            <strong>Dr. {con.name}</strong> IP rates: Consultation fee {con.ip_fee_share_pct||0}% | Charges {con.ip_pct||0}% | Lab {con.ip_l_pct||0}% | Pharmacy {con.ip_r_pct||0}%
+            <strong>Dr. {con.name}</strong>{con.speciality?' — '+con.speciality:''}<br/>IP rates: Consultation fee {con.ip_fee_share_pct||0}% | Charges {con.ip_pct||0}% | Lab {con.ip_l_pct||0}% | Pharmacy {con.ip_r_pct||0}%
           </div>)})()}
         </div>
         {/* ADMIT TYPE SELECTION */}
@@ -4566,7 +4566,7 @@ const ConsultantsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
-  const blank={name:'',phone:'',fee_share_pct:0,op_l_pct:0,op_r_pct:0,ip_pct:0,ip_r_pct:0,ip_l_pct:0,ip_fee_share_pct:0}
+  const blank={name:'',phone:'',speciality:'',fee_share_pct:0,op_l_pct:0,op_r_pct:0,ip_pct:0,ip_r_pct:0,ip_l_pct:0,ip_fee_share_pct:0}
   const [form,setForm]=useState(blank)
   const save=async()=>{
     if(!form.name.trim()){alert('Consultant name required');return}
@@ -4575,7 +4575,7 @@ const ConsultantsTab=({db,actions})=>{
     else{await actions.addConsultant(form)}
     setForm(blank);setShowAdd(false);setBusy(false)
   }
-  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0,ip_pct:d.ip_pct||0,ip_r_pct:d.ip_r_pct||0,ip_l_pct:d.ip_l_pct||0,ip_fee_share_pct:d.ip_fee_share_pct||0});setEditId(d.id);setShowAdd(true)}
+  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',speciality:d.speciality||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0,ip_pct:d.ip_pct||0,ip_r_pct:d.ip_r_pct||0,ip_l_pct:d.ip_l_pct||0,ip_fee_share_pct:d.ip_fee_share_pct||0});setEditId(d.id);setShowAdd(true)}
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add visiting consultant</PBtn>}
     {showAdd&&<Card style={{border:'2px solid #7e22ce'}}>
@@ -4585,6 +4585,7 @@ const ConsultantsTab=({db,actions})=>{
         <FInp label="Consultant name *" type="text" placeholder="e.g. Dr. Tamanna" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
         <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
       </div>
+      <FInp label="Speciality / Department" type="text" placeholder="e.g. Neurologist, Cardiologist, General Medicine" value={form.speciality||''} onChange={e=>setForm({...form,speciality:e.target.value})}/>
       <div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:10,padding:'12px 14px',marginBottom:12}}>
         <div style={{fontSize:11,fontWeight:700,color:'#7e22ce',textTransform:'uppercase',marginBottom:8}}>OP consultation fee share</div>
         <div style={{position:'relative'}}>
