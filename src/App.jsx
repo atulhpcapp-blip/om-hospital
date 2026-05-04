@@ -3041,7 +3041,6 @@ const AutoInput=({value,onChange,placeholder,suggestions,style})=>{
 
 const IPBillingModule=({p,db,onClose,hospital})=>{
   const [view,setView]=useState('bill')
-  const [printMode,setPrintMode]=useState(false)
   const [savedItems,setSavedItems]=useState({medicine:[],lab:[],service:[]})
   const [receipts,setReceipts]=useState([])
   const [loadingReceipts,setLoadingReceipts]=useState(true)
@@ -3050,7 +3049,6 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [dischargeText,setDischargeText]=useState('')
   const [advance,setAdvance]=useState('')
   const [discount,setDiscount]=useState('')
-  const [printReceipt,setPrintReceipt]=useState(null)
   const hospId=hospital?.id||p.hospital_id
   const hospName=hospital?.name||'Hospital'
 
@@ -3295,19 +3293,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
   const getReceiptHTML=r=>`<div style="max-width:380px;margin:20px auto;border:2px dashed #999;padding:20px"><div style="text-align:center;font-size:14pt;font-weight:700;margin-bottom:10px;border-bottom:1px solid #000;padding-bottom:6px">PAYMENT RECEIPT</div><table style="border:none;margin-bottom:10px"><tbody><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0;width:40%">Receipt No</td><td style="border:none">${r.receipt_no}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Date</td><td style="border:none">${fmtDN(r.receipt_date)}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Patient</td><td style="border:none">${p.name}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Reg No</td><td style="border:none">${p.reg_no||'—'}</td></tr><tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Mode</td><td style="border:none">${(r.mode||'Cash')[0].toUpperCase()+(r.mode||'cash').slice(1)}</td></tr>${r.notes?`<tr><td style="border:none;font-weight:700;padding:3px 8px 3px 0">Note</td><td style="border:none">${r.notes}</td></tr>`:''}</tbody></table><div style="background:#f5f5f5;padding:10px;text-align:center;font-size:18pt;font-weight:700;margin:8px 0">Rs ${parseFloat(r.amount).toLocaleString('en-IN',{minimumFractionDigits:2})}</div><div style="font-size:9pt;text-align:center;margin-bottom:16px">RUPEES ${toWords(Math.floor(r.amount)).toUpperCase()} ONLY</div><div style="text-align:center;margin-top:24px"><div style="display:inline-block;border-top:1px solid #000;padding-top:5px;width:60%;text-align:center;font-size:9pt">Authorised Signature</div></div></div>`
 
-  if(printMode)return(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#374151',zIndex:9999,display:'flex',flexDirection:'column'}}>
-    <div style={{background:'#1e293b',padding:'10px 16px',display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
-      <button onClick={()=>{const h=view==='bill'?getBillHTML():view==='discharge'?getDischargeHTML():printReceipt?getReceiptHTML(printReceipt):'';openPrintWindow(h)}} style={{padding:'8px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Open Print Window</button>
-      <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back to Edit</button>
-      <span style={{color:'#94a3b8',fontSize:11}}>A new window opens → click Print there (A4, no margins)</span>
-    </div>
-    <div style={{flex:1,overflowY:'auto',padding:16,display:'flex',justifyContent:'center'}}>
-      <div style={{background:'#fff',width:595,minHeight:842,padding:24,boxShadow:'0 4px 20px rgba(0,0,0,0.3)',fontSize:10,fontFamily:'Arial'}}>
-        <div style={{fontSize:13,fontWeight:700,textAlign:'center',borderBottom:'2px solid #000',paddingBottom:8,marginBottom:12}}>IP Bill Cum Receipt — Preview</div>
-        <div style={{fontSize:11,color:'#666',textAlign:'center',marginBottom:8}}>Click "Open Print Window" for clean A4 print</div>
-      </div>
-    </div>
-  </div>)
+
 
 
   // ── EDIT VIEW ──  // ── EDIT VIEW ──
@@ -3472,7 +3458,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
           <GBtn onClick={saveBill} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved&&!editMode?'✓ Saved — Update':'💾 Save Bill'}</GBtn>
-          <GBtn onClick={()=>setPrintMode(true)} style={{flex:1,background:'#1d4ed8'}}>🖨 Print</GBtn>
+          <GBtn onClick={()=>openPrintWindow(getBillHTML())} style={{flex:1,background:'#1d4ed8'}}>🖨 Print Bill</GBtn>
         </div>
         {billSaved&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',marginTop:4}}>Bill saved — will reload next time you open billing</div>}
       </>}
@@ -3500,7 +3486,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <div style={{fontSize:15,fontWeight:800,color:'#16a34a'}}>{fmt(r.amount)}</div>
-            <button onClick={()=>{setPrintReceipt(r);setPrintMode(true)}} style={{padding:'5px 10px',background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,color:'#1d4ed8',cursor:'pointer',fontWeight:700}}>Print</button>
+            <button onClick={()=>openPrintWindow(getReceiptHTML(r))} style={{padding:'5px 10px',background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,color:'#1d4ed8',cursor:'pointer',fontWeight:700}}>🖨 Print</button>
           </div>
         </div>))}
         {receipts.length>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:14}}>
@@ -3517,7 +3503,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
           <GBtn onClick={saveDischarge} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved?'✓ Saved — Update':'💾 Save'}</GBtn>
-          <GBtn onClick={()=>setPrintMode(true)} style={{flex:1,background:'#1d4ed8'}}>🖨 Print</GBtn>
+          <GBtn onClick={()=>openPrintWindow(getDischargeHTML())} style={{flex:1,background:'#1d4ed8'}}>🖨 Print Discharge</GBtn>
         </div>
       </>}
     </div>
