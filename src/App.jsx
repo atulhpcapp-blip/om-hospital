@@ -483,21 +483,11 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={async()=>{
           if(!window.confirm('DELETE hospital: '+sel.name+'?\nThis deletes ALL data permanently.'))return
           if(!window.confirm('FINAL WARNING: Delete '+sel.name+'?'))return
-          // Delete child records first, then hospital
           const hid=sel.id
-          const r1=await supabase.from('income').delete().eq('hospital_id',hid)
-          const r2=await supabase.from('expenses').delete().eq('hospital_id',hid)
-          const r3=await supabase.from('ip_patients').delete().eq('hospital_id',hid)
-          const r4=await supabase.from('ref_doctors').delete().eq('hospital_id',hid)
-          const r5=await supabase.from('consultants').delete().eq('hospital_id',hid)
-          const r6=await supabase.from('payments').delete().eq('hospital_id',hid)
-          const r7=await supabase.from('saved_items').delete().eq('hospital_id',hid)
-          const r8=await supabase.from('ip_bills').delete().eq('hospital_id',hid)
-          const r9=await supabase.from('ip_receipts').delete().eq('hospital_id',hid)
-          const r10=await supabase.from('profiles').delete().eq('hospital_id',hid)
-          const r11=await supabase.from('hospitals').delete().eq('id',hid)
-          if(r11.error){
-            alert('Delete failed: '+r11.error.message+'\n\nPlease run this SQL in Supabase:\nDELETE FROM hospitals WHERE id=\''+hid+'\'')
+          // Use RPC function that runs with security definer (bypasses RLS)
+          const {error}=await supabase.rpc('delete_hospital',{hosp_id:hid})
+          if(error){
+            alert('Delete failed: '+error.message+'\nPlease run the delete_hospital SQL function in Supabase first.')
             return
           }
           alert('Hospital deleted successfully.')
