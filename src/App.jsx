@@ -4266,16 +4266,17 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
       <div style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:14,padding:'16px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
           <div>
-            <div style={{fontSize:13,fontWeight:700,color:'#0369a1'}}>OP and IP Income</div>
-            <div style={{fontSize:10,color:'#7dd3fc',marginTop:2,lineHeight:1.5}}>OP + VC hospital profit + OP Pharmacy + IP Charges + IP Pharmacy{}minus all expenses except lab to lab</div>
+            <div style={{fontSize:13,fontWeight:700,color:'#0369a1'}}>OP, OPD and IP Income</div>
+            <div style={{fontSize:10,color:'#7dd3fc',marginTop:2,lineHeight:1.5}}>OP + OPD Services + VC hospital profit + OP Pharmacy + IP Charges + IP Pharmacy — minus all expenses except lab</div>
           </div>
           <div style={{textAlign:'right',flexShrink:0,marginLeft:12}}>
             <div style={{fontSize:10,color:'#7dd3fc'}}>Gross income</div>
-            <div style={{fontSize:22,fontWeight:800,color:'#0369a1'}}>{fmt(opInc+vcInc+oprInc+ipInc)}</div>
+            <div style={{fontSize:22,fontWeight:800,color:'#0369a1'}}>{fmt(opInc+opdInc+vcInc+oprInc+ipInc)}</div>
           </div>
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           {opInc>0&&<R l="OP Consultation" v={fmt(opInc)} green/>}
+          {opdInc>0&&<R l="OPD Services" v={fmt(opdInc)} green/>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
           {oprInc>0&&<R l="OP Pharmacy" v={fmt(oprInc)} green/>}
           {ipInc>0&&<R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>}
