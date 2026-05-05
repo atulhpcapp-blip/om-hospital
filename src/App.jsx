@@ -4683,7 +4683,7 @@ export default function App(){
       setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[]})
       setLoading(false)
       if(!tabInitialized){
-        if(prof?.role==='admin'||prof?.role==='management')setTab('rep')
+        if(prof?.role==='admin'||prof?.role==='management'){setTab('rep');setRv('daily')}
         setTabInitialized(true)
       }
     }
