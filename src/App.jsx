@@ -914,7 +914,15 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
       <SecL>All staff ({users.length})</SecL>
       {loading?<div style={{textAlign:'center',padding:24,color:'#ccc'}}>Loading...</div>:(
         <Card>{users.map(u=>{const [bg,tx]=(RC[u.role]||RC.staff);return(
-          <Row key={u.id} left={<span style={{fontSize:14,fontWeight:600}}>{u.name||'-'}</span>} sub={`@${u.username||'-'}`} right={<span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{u.role||'staff'}</span>}/>
+          <Row key={u.id} left={<span style={{fontSize:14,fontWeight:600}}>{u.name||'-'}</span>} sub={`@${u.username||'-'}`} right={<div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{u.role||'staff'}</span>
+            {u.id!==currentUser?.id&&<button onClick={async()=>{
+              if(!window.confirm('Delete user '+u.name+'? This removes their profile but NOT their login. They will need to be removed from Supabase Auth manually.'))return
+              const {error}=await supabase.from('profiles').delete().eq('id',u.id)
+              if(error){alert('Delete failed: '+error.message);return}
+              setUsers(prev=>prev.filter(x=>x.id!==u.id))
+            }} style={{padding:'3px 10px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:700}}>✕ Remove</button>}
+          </div>}/>
         )})}</Card>
       )}
     </div>
