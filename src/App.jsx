@@ -7,6 +7,47 @@ const PMODES=['cash','upi','card','bank','credit','insurance']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
 const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,ip_p:0.30,vc:0}
+const exportPDF=(title,htmlBody)=>{
+  const full=`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><style>
+    @page{size:A4 portrait;margin:12mm}@media print{.noprint{display:none!important}}
+    body{font-family:Arial,sans-serif;font-size:9pt;color:#000;margin:0;padding:0}
+    h2{text-align:center;margin:0 0 4px;font-size:14pt}
+    p.sub{text-align:center;color:#666;font-size:9px;margin:0 0 10px}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    th{background:#1e3a5f;color:#fff;padding:5px 7px;font-size:8pt;text-align:left}
+    td{padding:4px 7px;font-size:8.5pt;border-bottom:1px solid #eee;vertical-align:top}
+    tr:nth-child(even){background:#f8fafc}.tot td{font-weight:700;background:#f0f0f0;border-top:1.5px solid #999}
+  </style></head><body>
+  <div class="noprint" style="position:sticky;top:0;background:#1e293b;padding:8px 14px;display:flex;gap:8px;margin-bottom:8px">
+    <button onclick="window.print()" style="padding:7px 18px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🖨 Print / Save PDF</button>
+    <span style="color:#94a3b8;font-size:11px;align-self:center">Set: A4 | Margins: None</span>
+  </div>
+  <h2>${title}</h2>
+  <p class="sub">Generated: ${new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</p>
+  ${htmlBody}
+  </body></html>`
+  const blob=new Blob([full],{type:'text/html'})
+  const url=URL.createObjectURL(blob)
+  const win=window.open(url,'_blank')
+  if(!win){
+    const ov=document.createElement('div')
+    ov.id='pdf-overlay'
+    ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#fff;overflow:auto'
+    const bar=document.createElement('div')
+    bar.className='noprint'
+    bar.style.cssText='position:sticky;top:0;background:#1e293b;padding:8px 14px;display:flex;gap:8px'
+    const pb=document.createElement('button')
+    pb.textContent='🖨 Print / PDF';pb.style.cssText='padding:7px 18px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer'
+    pb.onclick=()=>window.print()
+    const cb=document.createElement('button')
+    cb.textContent='✕ Close';cb.style.cssText='padding:7px 14px;background:none;border:1px solid #475569;border-radius:8px;color:#fff;font-size:13px;cursor:pointer'
+    cb.onclick=()=>ov.remove()
+    bar.appendChild(pb);bar.appendChild(cb);ov.appendChild(bar)
+    const content=document.createElement('div')
+    content.innerHTML=full;ov.appendChild(content)
+    document.body.appendChild(ov)
+  }
+}
 const CLBL={op:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%',ip_p:'30%',vc:'None'}
 const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],ip_p:['#ecfdf5','#065f46'],vc:['#f0fdf4','#065f46']}
 const ROLES=['admin','management','accounts','staff']
@@ -1141,9 +1182,12 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   <span>✓ Linked to Reg: <strong>{iF.linkedRegNo||exactMatch?.reg_no}</strong></span>
                   <button onClick={()=>setIF(f=>({...f,linkedRegNo:'',pname:''}))} style={{fontSize:11,color:'#dc2626',background:'none',border:'none',cursor:'pointer'}}>New patient</button>
                 </div>:null}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  <FInp label="Phone" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
-                  <FInp label="Reg No (auto)" type="text" placeholder="auto-generated" value={iF.linkedRegNo||''} onChange={e=>setIF({...iF,linkedRegNo:e.target.value})} style={{background:iF.linkedRegNo?'#f0fdf4':undefined}}/>
+                <div style={{display:'grid',gridTemplateColumns:'3fr 2fr',gap:8}}>
+                  <div>
+                    <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Phone</label>
+                    <input type="tel" inputMode="numeric" placeholder="Enter mobile number" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})} style={{...S.inp,fontSize:15,padding:'10px 14px',letterSpacing:'1px'}}/>
+                  </div>
+                  <FInp label="Reg No (auto)" type="text" placeholder="auto" value={iF.linkedRegNo||''} onChange={e=>setIF({...iF,linkedRegNo:e.target.value})} style={{background:iF.linkedRegNo?'#f0fdf4':undefined}}/>
                 </div>
               </>)
             })()}
@@ -2243,6 +2287,7 @@ const RealIncomeReport=({db})=>{
   const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
   const hasData=incList.length>0||expList.length>0
 
+  const exportRealPDF=()=>{exportPDF('Real Income Report','<p>Please use Print from browser for this report.</p>')}
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
       {TABS.map(t=>(<button key={t.k} onClick={()=>setRPer(t.k)} style={{padding:'6px 16px',borderRadius:20,border:rPer===t.k?'none':'1px solid #e5e7eb',background:rPer===t.k?'#16a34a':'none',color:rPer===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
@@ -3657,8 +3702,12 @@ const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
   const areaList=Object.values(areasObj).sort((a,b)=>b.total-a.total)
   const grandTotal=areaList.reduce((a,r)=>a+r.total,0)
   const grandComm=areaList.reduce((a,r)=>a+r.commission,0)
+  const exportAreaPDF=()=>{
+    exportPDF('Area-wise Report','<p>Area-wise data — print from browser for full chart.</p>')
+  }
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+      <button onClick={exportAreaPDF} style={{padding:'7px 14px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 Export PDF</button>
       {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setAPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:aPer===v.k?'none':'1px solid #e5e7eb',background:aPer===v.k?'#111':'none',color:aPer===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
     </div>
     {aPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
@@ -4201,6 +4250,128 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
 }
 
 
+const PatientDataReport=({db})=>{
+  const [filterArea,setFilterArea]=useState('')
+  const [filterRef,setFilterRef]=useState('')
+  const [filterSpec,setFilterSpec]=useState('')
+  const [search,setSearch]=useState('')
+
+  // Build unique patient registry
+  const patMap={}
+  db.income.filter(e=>e.patient_name&&e.type==='op').forEach(e=>{
+    const k=(e.patient_name||'').trim().toLowerCase()
+    if(!k)return
+    if(!patMap[k]){patMap[k]={name:e.patient_name,phone:e.patient_phone||'',area:e.patient_area||'',ref_doctor:e.ref_doctor||'',reg_no:e.reg_no||'',visits:0,lastVisit:e.date}}
+    patMap[k].visits++
+    if(e.date>patMap[k].lastVisit)patMap[k].lastVisit=e.date
+    if(!patMap[k].phone&&e.patient_phone)patMap[k].phone=e.patient_phone
+    if(!patMap[k].area&&e.patient_area)patMap[k].area=e.patient_area
+    if(!patMap[k].ref_doctor&&e.ref_doctor)patMap[k].ref_doctor=e.ref_doctor
+    if(!patMap[k].reg_no&&e.reg_no)patMap[k].reg_no=e.reg_no
+  })
+  // Add IP patients
+  db.ip_patients.forEach(p=>{
+    const k=(p.name||'').trim().toLowerCase()
+    if(!k)return
+    if(!patMap[k]){patMap[k]={name:p.name,phone:p.phone||'',area:p.patient_area||'',ref_doctor:p.ref_doctor||'',reg_no:p.reg_no||'',visits:1,lastVisit:p.admission_date}}
+    if(!patMap[k].phone&&p.phone)patMap[k].phone=p.phone
+    if(!patMap[k].area&&p.patient_area)patMap[k].area=p.patient_area
+    if(!patMap[k].reg_no&&p.reg_no)patMap[k].reg_no=p.reg_no
+    patMap[k].visiting_consultant=patMap[k].visiting_consultant||p.visiting_consultant||''
+  })
+
+  let pats=Object.values(patMap).sort((a,b)=>a.name.localeCompare(b.name))
+
+  // Get filter options
+  const areas=[...new Set(pats.map(p=>p.area).filter(Boolean))].sort()
+  const refs=[...new Set(pats.map(p=>p.ref_doctor).filter(Boolean))].sort()
+  const specs=[...new Set(db.consultants.map(c=>c.speciality).filter(Boolean))].sort()
+
+  // Apply filters
+  if(filterArea)pats=pats.filter(p=>p.area===filterArea)
+  if(filterRef)pats=pats.filter(p=>p.ref_doctor===filterRef)
+  if(search.trim().length>1){const s=search.trim().toLowerCase();pats=pats.filter(p=>p.name.toLowerCase().includes(s)||p.phone?.includes(s)||p.reg_no?.toLowerCase().includes(s))}
+
+  const exportPDF=()=>{
+    const rows=pats.map((p,i)=>`<tr style="background:${i%2===0?'#fff':'#f8fafc'}">
+      <td>${i+1}</td><td><strong>${p.name}</strong><br/><span style="font-size:10px;color:#666">${p.reg_no||'—'}</span></td>
+      <td>${p.phone||'—'}</td><td>${p.area||'—'}</td>
+      <td>${p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}</td>
+      <td>${p.visits}</td><td>${p.lastVisit||'—'}</td>
+    </tr>`).join('')
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+      body{font-family:Arial,sans-serif;font-size:10pt;margin:0;padding:12mm}
+      h2{text-align:center;margin-bottom:4px}
+      p{text-align:center;color:#666;margin-bottom:12px;font-size:10px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#1e3a5f;color:#fff;padding:6px 8px;font-size:9pt;text-align:left}
+      td{padding:5px 8px;font-size:9pt;border-bottom:1px solid #e2e8f0;vertical-align:top}
+      @media print{@page{size:A4 landscape;margin:12mm}}
+    </style></head><body>
+    <h2>Patient Data Report</h2>
+    <p>Filters: ${filterArea?'Area: '+filterArea+' | ':''}${filterRef?'Ref: Dr. '+filterRef+' | ':''}Total: ${pats.length} patients | Generated: ${new Date().toLocaleDateString('en-IN')}</p>
+    <table><thead><tr><th>#</th><th>Patient Name / Reg No</th><th>Phone</th><th>Area</th><th>Ref Doctor</th><th>Visits</th><th>Last Visit</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    </body></html>`
+    const blob=new Blob([html],{type:'text/html'})
+    const url=URL.createObjectURL(blob)
+    const win=window.open(url,'_blank')
+    if(!win){
+      const ov=document.createElement('div')
+      ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#fff;overflow:auto'
+      const closeBtn=document.createElement('button')
+      closeBtn.textContent='✕ Close'
+      closeBtn.style.cssText='padding:8px 16px;background:none;border:1px solid #475569;border-radius:8px;color:#fff;cursor:pointer'
+      closeBtn.onclick=()=>ov.remove()
+      const printBtn=document.createElement('button')
+      printBtn.textContent='🖨 Print / PDF'
+      printBtn.style.cssText='padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer'
+      printBtn.onclick=()=>window.print()
+      const bar=document.createElement('div')
+      bar.style.cssText='position:sticky;top:0;background:#1e293b;padding:10px 16px;display:flex;gap:8px'
+      bar.appendChild(printBtn);bar.appendChild(closeBtn)
+      ov.appendChild(bar)
+      ov.innerHTML+=html
+      document.body.appendChild(ov)
+    }
+  }
+
+  return(<>
+    <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
+      <input placeholder="Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:140,padding:'7px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13}}/>
+      <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+        <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
+      </select>
+      <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+        <option value="">All Ref Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+      </select>
+      <button onClick={exportPDF} style={{padding:'7px 16px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📄 Export PDF</button>
+    </div>
+    <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>{pats.length} patients found</div>
+    <div style={{overflowX:'auto'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        <thead><tr style={{background:'#1e3a5f',color:'#fff'}}>
+          <th style={{padding:'8px',textAlign:'left'}}>Name / Reg No</th>
+          <th style={{padding:'8px'}}>Phone</th>
+          <th style={{padding:'8px'}}>Area</th>
+          <th style={{padding:'8px'}}>Ref Doctor</th>
+          <th style={{padding:'8px'}}>Visits</th>
+          <th style={{padding:'8px'}}>Last Visit</th>
+        </tr></thead>
+        <tbody>{pats.map((p,i)=>(<tr key={i} style={{background:i%2===0?'#fff':'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+          <td style={{padding:'7px 8px'}}><div style={{fontWeight:600}}>{p.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no||'—'}</div></td>
+          <td style={{padding:'7px 8px',textAlign:'center'}}>{p.phone||<span style={{color:'#ccc'}}>—</span>}</td>
+          <td style={{padding:'7px 8px'}}>{p.area||<span style={{color:'#ccc'}}>—</span>}</td>
+          <td style={{padding:'7px 8px'}}>{p.ref_doctor?<span style={{color:'#1d4ed8'}}>Dr. {p.ref_doctor}</span>:<span style={{color:'#94a3b8'}}>Self</span>}</td>
+          <td style={{padding:'7px 8px',textAlign:'center',fontWeight:600}}>{p.visits}</td>
+          <td style={{padding:'7px 8px',fontSize:11,color:'#64748b'}}>{p.lastVisit||'—'}</td>
+        </tr>))}
+        </tbody>
+      </table>
+    </div>
+  </>)
+}
+
 const SpecialityReport=({db})=>{
   const [period,setPeriod]=useState('month')
   const [rm2,setRm2]=useState(new Date().toISOString().slice(0,7))
@@ -4325,7 +4496,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'speciality',l:'Speciality'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'speciality',l:'Speciality'},{k:'patdata',l:'Patient Data'}]
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
     return(<div style={{marginBottom:12}}>
@@ -4349,7 +4520,11 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
       {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
-      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
+      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>
+          <div style={{marginTop:16,display:'flex',justifyContent:'center'}}>
+            <button onClick={()=>{const rows=mI.map(e=>`<tr><td>${e.date}</td><td>${e.type?.toUpperCase()}</td><td>${e.patient_name||'—'}</td><td>${e.ref_doctor||'Self'}</td><td style="text-align:right">${fmt(e.amount)}</td><td>${e.payment||''}</td></tr>`).join('');exportPDF('Monthly Report — '+rm,`<table><thead><tr><th>Date</th><th>Type</th><th>Patient</th><th>Ref Doctor</th><th>Amount</th><th>Payment</th></tr></thead><tbody>${rows}<tr class="tot"><td colspan="4">Total</td><td style="text-align:right">${fmt(mI.reduce((a,e)=>a+e.amount,0))}</td><td></td></tr></tbody></table>`)}} style={{padding:'8px 20px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>📄 Export Monthly PDF</button>
+          </div>
+        </>)})()}
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>}
@@ -4365,6 +4540,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
       {rv==='supplies'&&<SuppliesReport db={db} actions={actions}/>}
       {rv==='incomechart'&&<IncomeChartReport db={db}/>}
       {rv==='speciality'&&<SpecialityReport db={db}/>}
+      {rv==='patdata'&&<PatientDataReport db={db}/>}
     </div>
   )
 }
