@@ -4699,7 +4699,21 @@ export default function App(){
   },[session])
 
   const actions={
-    addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
+    addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}
+      const insertRow={
+        id:row.id,hospital_id:hid,date:row.date,type:row.type,amount:row.amount,
+        patient_id:row.patient_id||null,patient_name:row.patient_name||'',
+        payment:row.payment||'cash',ref_doctor:row.ref_doctor||'',
+        notes:row.notes||'',consultant_fee:row.consultant_fee||0,
+        consultant_name:row.consultant_name||'',op_type:row.op_type||'',
+        custom_commission:row.custom_commission!=null?row.custom_commission:null,
+        reg_no:row.reg_no||'',
+        patient_area:row.patient_area||'',
+        patient_phone:row.patient_phone||''
+      }
+      const {data,error}=await supabase.from('income').insert([insertRow]).select()
+      if(error){alert('Save failed: '+error.message);return false}
+      if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{
       const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||''}
