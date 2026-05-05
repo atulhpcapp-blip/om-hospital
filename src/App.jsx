@@ -553,7 +553,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={async()=>{
           setDataLoading(true)
           const [inc,exp,pts,rds,cons]=await Promise.all([
-            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',sel.id).order('date',{ascending:false}),
+            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone').eq('hospital_id',sel.id).order('date',{ascending:false}),
             supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',sel.id).order('date',{ascending:false}),
             supabase.from('ip_patients').select('*').eq('hospital_id',sel.id).order('admission_date',{ascending:false}),
             supabase.from('ref_doctors').select('*').eq('hospital_id',sel.id),
@@ -4678,7 +4678,7 @@ export default function App(){
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(500).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
