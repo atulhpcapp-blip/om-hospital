@@ -4197,8 +4197,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             <div style={{fontSize:10,color:'#7dd3fc',marginTop:2,lineHeight:1.5}}>OP + VC hospital profit + OP Pharmacy + IP Charges + IP Pharmacy{}minus all expenses except lab to lab</div>
           </div>
           <div style={{textAlign:'right',flexShrink:0,marginLeft:12}}>
-            <div style={{fontSize:10,color:'#7dd3fc'}}>Actual income</div>
-            <div style={{fontSize:22,fontWeight:800,color:opIpActual>=0?'#0369a1':'#dc2626'}}>{fmt(opIpActual)}</div>
+            <div style={{fontSize:10,color:'#7dd3fc'}}>Gross income</div>
+            <div style={{fontSize:22,fontWeight:800,color:'#0369a1'}}>{fmt(opInc+vcInc+oprInc+ipInc)}</div>
           </div>
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
@@ -4263,14 +4263,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
       </div>
     </div>
 
-    {/* TOTAL INCOME SUMMARY */}
-    <div style={{background:'linear-gradient(135deg,#0f172a,#1e3a5f)',borderRadius:14,padding:'16px',marginBottom:16,color:'#fff'}}>
-      <div style={{fontSize:12,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>OP + IP Total — {rd}</div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div style={{fontSize:12,color:'rgba(255,255,255,0.6)'}}>Actual income after commissions & expenses</div>
-        <div style={{fontSize:28,fontWeight:900,color:'#4ade80'}}>{fmt(opIpActual)}</div>
-      </div>
-    </div>
+
 
     <SecL>Payment mode breakdown</SecL>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
