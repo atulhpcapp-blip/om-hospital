@@ -3972,8 +3972,10 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const ipLabEnts=Object.values(ipLabByPat)
 
   // Totals
-  const opInc=dI.filter(e=>e.type==='op'||e.type==='opd').reduce((a,e)=>a+e.amount,0)
+  const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
   const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
+  const opdEnts=dI.filter(e=>e.type==='opd')
+  const opdInc=opdEnts.reduce((a,e)=>a+e.amount,0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
   const vcConsFee=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const vcProfit=vcInc-vcConsFee  // hospital keeps gross minus consultant's share
@@ -3989,7 +3991,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labActual=labInc-labComm-labToLab
 
   // OP+IP segment: (op+vc profit to hospital+op_r+ip+ip_r) - (non-lab expenses)
-  const opIpInc=opInc+vcProfit+oprInc+ipInc
+  const opIpInc=opInc+opdInc+vcProfit+oprInc+ipInc
   const opIpComm=opComm+oprComm+ipComm
   const nonLabExpTotal=dExpNonLab.reduce((a,e)=>a+e.amount,0)
   const opIpActual=opIpInc-opIpComm-nonLabExpTotal
@@ -4110,6 +4112,34 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             })}
           </div>)
         })()}
+      </Card>}
+
+    {/* OPD SERVICES */}
+    <SecL>OPD Services</SecL>
+    {opdEnts.length===0
+      ?<div style={{color:'#ccc',fontSize:13,padding:'8px 0',marginBottom:8}}>No OPD services today</div>
+      :<Card>
+        {opdEnts.map((e,i)=>{
+          const ref=e.ref_doctor
+          const notes=e.notes
+          return(<div key={i} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{e.patient_name||'—'}</div>
+                {ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
+                {notes&&<div style={{fontSize:12,color:'#64748b',marginTop:3,fontStyle:'italic'}}>📝 {notes}</div>}
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
+                  {['cash','upi','card','credit'].map(m=>{if(e.payment!==m)return null;const cl={cash:'#16a34a',upi:'#2563eb',card:'#7c3aed',credit:'#dc2626'}[m];return(<span key={m} style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0f9ff',color:cl,fontWeight:700}}>{m==='upi'?'UPI':m[0].toUpperCase()+m.slice(1)}</span>)})}
+                </div>
+              </div>
+              <div style={{textAlign:'right',flexShrink:0,marginLeft:8}}>
+                <div style={{fontSize:14,fontWeight:700,color:'#0f766e'}}>{fmt(e.amount)}</div>
+                <TypeTag t="opd"/>
+              </div>
+            </div>
+          </div>)
+        })}
+        <R l="OPD Services Total" v={fmt(opdInc)} bold green/>
       </Card>}
 
     {/* IP PATIENTS */}
