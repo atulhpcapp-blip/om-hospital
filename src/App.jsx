@@ -3551,12 +3551,38 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
               {pharmaDays.length>1&&<button onClick={()=>setPharmaDays(pharmaDays.filter((_,j)=>j!==di))} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:14,fontWeight:700}}>Remove day</button>}
             </div>
             {day.items.map((item,ii)=>(<div key={ii} style={{background:'#fff',borderRadius:8,padding:'8px',marginBottom:6,border:'1px solid #e2e8f0'}}>
-              <AutoInput value={item.name} onChange={v=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],name:v};setPharmaDays(n)}} placeholder="Medicine name" suggestions={savedItems.medicine}/>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto',gap:6,marginTop:6}}>
-                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Batch</div><input value={item.batch||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],batch:e.target.value};setPharmaDays(n)}} placeholder="optional" style={inpStyle}/></div>
-                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Expiry</div><input value={item.expiry||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],expiry:e.target.value};setPharmaDays(n)}} placeholder="MM/YY" style={inpStyle}/></div>
-                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input type="text" inputMode="numeric" value={item.qty===undefined?'':item.qty} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setPharmaDays([...n])}} placeholder="1" style={inpStyle}/></div>
-                <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Amount</div><input inputMode="decimal" value={item.amount===undefined||item.amount===null?'':item.amount} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],amount:e.target.value};setPharmaDays([...n])}} placeholder="0" style={inpStyle}/></div>
+              <AutoInput value={item.name} onChange={v=>{
+                const n=[...pharmaDays]
+                n[di].items[ii]={...n[di].items[ii],name:v}
+                // Auto-fill batch/expiry/qty/amount from saved items
+                if(v.length>=3){
+                  const saved=savedItems.medicine?.find(s=>s.toLowerCase()===v.toLowerCase())
+                  const prevEntry=pharmaDays.flatMap(d=>d.items).find(i=>i.name?.toLowerCase()===v.toLowerCase()&&i.batch)
+                  if(prevEntry&&!n[di].items[ii].batch){
+                    n[di].items[ii]={...n[di].items[ii],batch:prevEntry.batch||'',expiry:prevEntry.expiry||'',qty:prevEntry.qty||'',amount:prevEntry.amount||''}
+                  }
+                }
+                setPharmaDays([...n])
+              }} placeholder="Medicine name" suggestions={savedItems.medicine}/>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
+                <div>
+                  <div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:3}}>Batch No</div>
+                  <input value={item.batch||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],batch:e.target.value};setPharmaDays(n)}} placeholder="e.g. BT2024A" style={{...inpStyle,fontSize:13,padding:'8px 10px'}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:3}}>Expiry</div>
+                  <input value={item.expiry||''} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],expiry:e.target.value};setPharmaDays(n)}} placeholder="MM/YY or MM/YYYY" style={{...inpStyle,fontSize:13,padding:'8px 10px'}}/>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
+                <div>
+                  <div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:3}}>Quantity</div>
+                  <input type="text" inputMode="numeric" value={item.qty===undefined?'':item.qty} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],qty:e.target.value};setPharmaDays([...n])}} placeholder="1" style={{...inpStyle,fontSize:14,padding:'8px 10px',fontWeight:600}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:3}}>Amount (Rs)</div>
+                  <input inputMode="decimal" value={item.amount===undefined||item.amount===null?'':item.amount} onChange={e=>{const n=[...pharmaDays];n[di].items[ii]={...n[di].items[ii],amount:e.target.value};setPharmaDays([...n])}} placeholder="0" style={{...inpStyle,fontSize:14,padding:'8px 10px',fontWeight:600}}/>
+                </div>
               </div>
               {day.items.length>1&&<button onClick={()=>{saveItem('medicine',item.name);const n=[...pharmaDays];n[di].items=n[di].items.filter((_,j)=>j!==ii);setPharmaDays(n)}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:11,marginTop:4}}>✕ Remove</button>}
             </div>))}
