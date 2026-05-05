@@ -1165,6 +1165,13 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
               ).slice(0,5):[]
               const exactMatch=patList.find(p=>p.name.toLowerCase()===searchStr)
               return(<>
+                <div style={{marginBottom:8}}>
+                  <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Reg No</label>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <input type="text" placeholder="Auto-generated or search" value={iF.linkedRegNo||''} onChange={e=>setIF({...iF,linkedRegNo:e.target.value})} style={{...S.inp,flex:1,background:iF.linkedRegNo?'#f0fdf4':'#fff',fontWeight:iF.linkedRegNo?700:400,color:iF.linkedRegNo?'#15803d':'#333'}}/>
+                    {iF.linkedRegNo&&<span style={{fontSize:11,color:'#15803d',fontWeight:700,whiteSpace:'nowrap'}}>✓ Linked</span>}
+                  </div>
+                </div>
                 <div style={{marginBottom:8,position:'relative'}}>
                   <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Patient name *</label>
                   <input style={S.inp} placeholder="Search by name or type new" value={iF.pname||''} onChange={e=>{
@@ -1182,12 +1189,9 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   <span>✓ Linked to Reg: <strong>{iF.linkedRegNo||exactMatch?.reg_no}</strong></span>
                   <button onClick={()=>setIF(f=>({...f,linkedRegNo:'',pname:''}))} style={{fontSize:11,color:'#dc2626',background:'none',border:'none',cursor:'pointer'}}>New patient</button>
                 </div>:null}
-                <div style={{display:'grid',gridTemplateColumns:'3fr 2fr',gap:8}}>
-                  <div>
-                    <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Phone</label>
-                    <input type="tel" inputMode="numeric" placeholder="Enter mobile number" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})} style={{...S.inp,fontSize:15,padding:'10px 14px',letterSpacing:'1px'}}/>
-                  </div>
-                  <FInp label="Reg No (auto)" type="text" placeholder="auto" value={iF.linkedRegNo||''} onChange={e=>setIF({...iF,linkedRegNo:e.target.value})} style={{background:iF.linkedRegNo?'#f0fdf4':undefined}}/>
+                <div>
+                  <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Phone</label>
+                  <input type="tel" inputMode="numeric" placeholder="Enter mobile number" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})} style={{...S.inp,fontSize:15,padding:'10px 14px',letterSpacing:'1px',width:'100%'}}/>
                 </div>
               </>)
             })()}
@@ -1894,6 +1898,10 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
   const [editPayForm,setEditPayForm]=useState({amount:'',date:'',payment:'cash'})
   const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):income.filter(e=>e.date?.startsWith(ry))
   const docs=buildRef(fi)
+  const exportRefPDF=()=>{
+    const rows=docs.map((d,i)=>`<tr style="background:${i%2===0?'#fff':'#f8fafc'}"><td>${i+1}</td><td>Dr. ${d.name}</td><td style="text-align:right">${fmt(d.total_income)}</td><td style="text-align:right">${fmt(d.total_commission)}</td><td style="text-align:right">${fmt(d.total_income-d.total_commission)}</td></tr>`).join('')
+    exportPDF('Referrals Report',`<table><thead><tr><th>#</th><th>Doctor</th><th>Billed</th><th>Commission</th><th>Hospital Net</th></tr></thead><tbody>${rows}<tr class="tot"><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_income,0))}</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_commission,0))}</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_income-d.total_commission,0))}</td></tr></tbody></table>`)
+  }
   const tc=docs.reduce((a,r)=>a+r.total_commission,0)
   const totalPaid=allPaid.reduce((a,e)=>a+e.amount,0)
   // All-time data for income & timeline tabs
@@ -2287,9 +2295,13 @@ const RealIncomeReport=({db})=>{
   const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
   const hasData=incList.length>0||expList.length>0
 
-  const exportRealPDF=()=>{exportPDF('Real Income Report','<p>Please use Print from browser for this report.</p>')}
+  const exportRealPDF=()=>{
+    const rows=(filteredItems||[]).map(item=>`<tr style="background:#fff"><td>${item.label}</td><td style="text-align:right">${fmt(item.gross||item.cash||0)}</td><td style="text-align:right;color:#dc2626">${fmt(item.refComm||0)}</td><td style="text-align:right;font-weight:700;color:#16a34a">${fmt(item.net||0)}</td></tr>`).join('')
+    exportPDF('Real Income Report',`<table><thead><tr><th>Income Source</th><th>Gross</th><th>Ref Commission</th><th>Net Income</th></tr></thead><tbody>${rows}</tbody></table>`)
+  }
   return(<>
-    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+      <button onClick={exportRealPDF} style={{padding:'7px 14px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 Export PDF</button>
       {TABS.map(t=>(<button key={t.k} onClick={()=>setRPer(t.k)} style={{padding:'6px 16px',borderRadius:20,border:rPer===t.k?'none':'1px solid #e5e7eb',background:rPer===t.k?'#16a34a':'none',color:rPer===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
     </div>
     {rPer==='day'&&<input style={{...S.inp,marginBottom:12}} type="date" value={rDay} onChange={e=>setRDay(e.target.value)}/>}
@@ -3773,6 +3785,11 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
 const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,gotoIP,gotoTimeline,gotoOP})=>{
   const dI=db.income.filter(e=>e.date===rd)
   const dExpAll=db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid')
+  const exportDailyPDF=()=>{
+    const rows=dI.map(e=>`<tr><td>${e.type?.toUpperCase()}</td><td>${e.patient_name||'—'}</td><td>${e.reg_no||'—'}</td><td>${e.ref_doctor||'Self'}</td><td style="text-align:right">${fmt(e.amount)}</td><td>${e.payment||'cash'}</td></tr>`).join('')
+    const erows=dExpAll.map(e=>`<tr><td>${e.category}</td><td>${e.description||'—'}</td><td style="text-align:right">${fmt(e.amount)}</td></tr>`).join('')
+    exportPDF('Daily Report — '+rd,`<table><thead><tr><th>Type</th><th>Patient</th><th>Reg No</th><th>Ref Doctor</th><th>Amount</th><th>Payment</th></tr></thead><tbody>${rows}<tr class="tot"><td colspan="4">Total</td><td style="text-align:right">${fmt(dI.reduce((a,e)=>a+e.amount,0))}</td><td></td></tr></tbody></table>${erows?'<br/><table><thead><tr><th>Expense</th><th>Description</th><th>Amount</th></tr></thead><tbody>'+erows+'</tbody></table>':''}`)
+  }
   const dExpNonLab=dExpAll.filter(e=>e.category!=='lab_to_lab')
   const dExpLab=dExpAll.filter(e=>e.category==='lab_to_lab')
 
