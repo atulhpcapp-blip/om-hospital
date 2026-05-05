@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase.js'
 
-const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
+const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
 const ECATS=[{key:'ref_paid',label:'Referral commission paid'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'consultant_fee',label:'Consultant fee paid'},{key:'municipality',label:'Municipality'},{key:'biomedical_bags',label:'Biomedical waste bags'},{key:'stationary',label:'Stationary'},{key:'washroom_cleaner',label:'Washroom cleaner'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)'},{key:'misc',label:'Miscellaneous'}]
 const PMODES=['cash','upi','card','bank','credit','insurance']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
-const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,ip_p:0.30,vc:0}
+const COMM={op:0,opd:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,ip_p:0.30,vc:0}
 const exportPDF=(title,htmlBody)=>{
   const full=`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title><style>
     @page{size:A4 portrait;margin:12mm}@media print{.noprint{display:none!important}}
@@ -48,8 +48,8 @@ const exportPDF=(title,htmlBody)=>{
     document.body.appendChild(ov)
   }
 }
-const CLBL={op:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%',ip_p:'30%',vc:'None'}
-const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],ip_p:['#ecfdf5','#065f46'],vc:['#f0fdf4','#065f46']}
+const CLBL={op:'None',opd:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%',ip_p:'30%',vc:'None'}
+const TC={op:['#dbeafe','#1d4ed8'],opd:['#ccfbf1','#0f766e'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],ip_p:['#ecfdf5','#065f46'],vc:['#f0fdf4','#065f46']}
 const ROLES=['admin','management','accounts','staff']
 const OP_TYPES=['New OP','Review OP']
 const IP_PAT_TYPES=['Regular','Package','VC']
@@ -1113,7 +1113,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
-    let regNo=null;if(!isIP&&itype==='op'){regNo=iF.linkedRegNo?.trim()||await genRegNo()}
+    let regNo=null;if(!isIP&&(itype==='op'||itype==='opd')){regNo=iF.linkedRegNo?.trim()||await genRegNo()}
     const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:(isIP||itype==='vc')?'':iF.ref.trim(),notes:iF.notes,patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||''})
     if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:''})
   }
@@ -1295,7 +1295,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
         </div>
         {prev>0&&iF.ref&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
         <FSel label="Payment" value={iF.pay} onChange={e=>setIF({...iF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
-        {(itype==='op_r'||itype==='op_l'||itype==='ip_r'||itype==='ip_l')
+        {(itype==='op_r'||itype==='op_l'||itype==='ip_r'||itype==='ip_l'||itype==='opd')
           ?<div style={{marginBottom:8}}>
             <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Notes</label>
             <textarea value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})} placeholder="e.g. Medicine names, test details, batch info..." rows={4} style={{width:'100%',padding:'10px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,fontFamily:'inherit',resize:'vertical',outline:'none',lineHeight:1.6,boxSizing:'border-box'}}/>
@@ -3972,7 +3972,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const ipLabEnts=Object.values(ipLabByPat)
 
   // Totals
-  const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
+  const opInc=dI.filter(e=>e.type==='op'||e.type==='opd').reduce((a,e)=>a+e.amount,0)
   const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
   const vcConsFee=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
