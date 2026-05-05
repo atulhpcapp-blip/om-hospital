@@ -4882,7 +4882,7 @@ const RefDoctorsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
-  const blank={name:'',phone:'',area:'',ip_pct:40,ip_r_pct:40,ip_l_pct:50,op_r_pct:0,op_l_pct:0}
+  const blank={name:'',phone:'',area:'',ip_pct:40,ip_r_pct:40,ip_l_pct:50,op_pct:0,op_r_pct:0,op_l_pct:0}
   const [form,setForm]=useState(blank)
   const ipCats=[{key:'ip_pct',label:'IP Charges',color:'#16a34a'},{key:'ip_r_pct',label:'IP Pharmacy',color:'#b45309'},{key:'ip_l_pct',label:'IP Lab',color:'#9d174d'}]
   const opCats=[{key:'op_r_pct',label:'OP Pharmacy',color:'#c2410c'},{key:'op_l_pct',label:'OP Lab',color:'#7e22ce'}]
@@ -4897,7 +4897,7 @@ const RefDoctorsTab=({db,actions})=>{
     }
     setForm(blank);setShowAdd(false);setBusy(false)
   }
-  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',area:d.area||'',ip_pct:d.ip_pct,ip_r_pct:d.ip_r_pct,ip_l_pct:d.ip_l_pct,op_r_pct:d.op_r_pct,op_l_pct:d.op_l_pct});setEditId(d.id);setShowAdd(true)}
+  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',area:d.area||'',ip_pct:d.ip_pct,ip_r_pct:d.ip_r_pct,ip_l_pct:d.ip_l_pct,op_pct:d.op_pct||0,op_r_pct:d.op_r_pct,op_l_pct:d.op_l_pct});setEditId(d.id);setShowAdd(true)}
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add referral doctor</PBtn>}
     {showAdd&&<Card style={{border:'2px solid #e5e7eb'}}>
@@ -4917,6 +4917,17 @@ const RefDoctorsTab=({db,actions})=>{
             <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#aaa',fontWeight:700}}>%</span>
           </div>
         </div>))}
+      </div>
+      <div style={{fontSize:11,fontWeight:700,color:'#c2410c',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10,marginTop:4}}>OP consultation commission %</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr',gap:8,marginBottom:12}}>
+        <div>
+          <label style={{display:'block',fontSize:10,color:'#c2410c',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP Consultation %</label>
+          <div style={{position:'relative'}}>
+            <input style={{...S.inp,paddingRight:28,borderColor:'#fed7aa'}} type="number" inputMode="numeric" min="0" max="100" value={form.op_pct||0} onChange={e=>setForm({...form,op_pct:parseFloat(e.target.value)||0})}/>
+            <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#c2410c',fontWeight:700}}>%</span>
+          </div>
+          <div style={{fontSize:10,color:'#64748b',marginTop:3}}>Commission deducted from OP consultation fee</div>
+        </div>
       </div>
       <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>OP lab & pharmacy commission %</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
