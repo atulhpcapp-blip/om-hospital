@@ -4092,6 +4092,19 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           </div>)
         })}
         <R l="OP Pharmacy Total" v={fmt(oprInc)} bold green/>
+        {(()=>{
+          const oprEnts=dI.filter(e=>e.type==='op_r')
+          const modes=['cash','upi','card','bank','insurance','credit']
+          return(<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6,paddingTop:6,borderTop:'1px solid #e2e8f0'}}>
+            {modes.map(m=>{
+              const amt=oprEnts.filter(e=>e.payment===m).reduce((a,e)=>a+e.amount,0)
+              if(!amt)return null
+              const bg={cash:'#f0fdf4',upi:'#eff6ff',card:'#fdf4ff',bank:'#fff7ed',insurance:'#dbeafe',credit:'#fef2f2'}
+              const cl={cash:'#16a34a',upi:'#2563eb',card:'#7c3aed',bank:'#d97706',insurance:'#1d4ed8',credit:'#dc2626'}
+              return(<span key={m} style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:bg[m]||'#f1f5f9',color:cl[m]||'#555',fontWeight:700}}>{m==='upi'?'UPI/Scan':m[0].toUpperCase()+m.slice(1)}: {fmt(amt)}</span>)
+            })}
+          </div>)
+        })()}
       </Card>}
 
     {/* IP PATIENTS */}
@@ -4161,6 +4174,31 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           <R l="IP Lab subtotal" v={fmt(ipLabEnts.reduce((a,e)=>a+e.amount,0))} bold/>
         </div>}
         <R l="Lab Total" v={fmt(labInc)} bold green/>
+        {(()=>{
+          const labEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
+          const modes=['cash','upi','card','bank','insurance','credit']
+          return(<div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6,paddingTop:6,borderTop:'1px solid #e2e8f0'}}>
+            {modes.map(m=>{
+              const amt=labEnts.filter(e=>e.payment===m).reduce((a,e)=>a+e.amount,0)
+              if(!amt)return null
+              const bg={cash:'#f0fdf4',upi:'#eff6ff',card:'#fdf4ff',bank:'#fff7ed',insurance:'#dbeafe',credit:'#fef2f2'}
+              const cl={cash:'#16a34a',upi:'#2563eb',card:'#7c3aed',bank:'#d97706',insurance:'#1d4ed8',credit:'#dc2626'}
+              return(<span key={m} style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:bg[m]||'#f1f5f9',color:cl[m]||'#555',fontWeight:700}}>{m==='upi'?'UPI/Scan':m[0].toUpperCase()+m.slice(1)}: {fmt(amt)}</span>)
+            })}
+          </div>)
+        })()}
+        {/* Lab credit patients */}
+        {(()=>{
+          const labCredit=dI.filter(e=>['op_l','ip_l'].includes(e.type)&&e.payment==='credit'&&e.amount>0)
+          if(!labCredit.length)return null
+          return(<div style={{marginTop:8,paddingTop:6,borderTop:'1px dashed #e9d5ff'}}>
+            <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Credit to settle</div>
+            {labCredit.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid #f5f5f5'}}>
+              <div style={{fontSize:12,color:'#374151'}}>{e.patient_name||'—'} <span style={{fontSize:10,color:'#94a3b8',marginLeft:4}}>{e.reg_no||''}</span></div>
+              <span style={{fontSize:12,fontWeight:700,color:'#dc2626'}}>Credit: {fmt(e.amount)}</span>
+            </div>)}
+          </div>)
+        })()}
       </Card>}
 
     {/* EXPENSES - split OP/IP and Lab */}
@@ -4246,6 +4284,18 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
           <div style={{height:1,background:'#e9d5ff',margin:'6px 0'}}/>
+          {(()=>{
+            const labCreditEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type)&&e.payment==='credit'&&e.amount>0)
+            if(!labCreditEnts.length)return null
+            return(<>
+              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit to settle</div>
+              {labCreditEnts.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid #f5f5f5'}}>
+                <span style={{fontSize:11,color:'#374151'}}>{e.patient_name||'—'}</span>
+                <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</span>
+              </div>)}
+              <div style={{height:1,background:'#e9d5ff',margin:'6px 0'}}/>
+            </>)
+          })()}
           <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,marginBottom:4}}>Payment modes</div>
           {(()=>{
             const labEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
