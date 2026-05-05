@@ -1762,6 +1762,44 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
             </Card>
           </>)
         })()}
+
+        {/* TIMELINE - visits plotted by date */}
+        <SecL>Visit Timeline</SecL>
+        {(()=>{
+          const patName=(selPat||'').trim().toLowerCase()
+          const ipAdmissions=db.ip_patients.filter(p=>p.name.trim().toLowerCase()===patName)
+          const opEnts=ents.sort((a,b)=>a.date.localeCompare(b.date))
+          const allDates=[...new Set([
+            ...opEnts.map(e=>e.date),
+            ...ipAdmissions.map(p=>p.admission_date)
+          ])].sort()
+          return(<div style={{position:'relative',paddingLeft:20}}>
+            <div style={{position:'absolute',left:8,top:0,bottom:0,width:2,background:'#e2e8f0',borderRadius:2}}/>
+            {allDates.map((date,di)=>{
+              const dayOPEnts=opEnts.filter(e=>e.date===date)
+              const dayIPAdm=ipAdmissions.filter(p=>p.admission_date===date)
+              const dayIPDis=ipAdmissions.filter(p=>p.discharge_date===date)
+              const dayTotal=dayOPEnts.reduce((a,e)=>a+e.amount,0)
+              return(<div key={di} style={{position:'relative',marginBottom:16}}>
+                <div style={{position:'absolute',left:-16,top:4,width:10,height:10,borderRadius:'50%',background:dayIPAdm.length?'#f59e0b':dayIPDis.length?'#16a34a':'#6366f1',border:'2px solid #fff',boxShadow:'0 0 0 2px '+(dayIPAdm.length?'#f59e0b':dayIPDis.length?'#16a34a':'#6366f1')}}/>
+                <div style={{marginLeft:8}}>
+                  <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:4}}>{fmtD(date)}</div>
+                  {dayIPAdm.map((p,i)=><div key={i} style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,padding:'5px 10px',marginBottom:4,fontSize:12}}>
+                    🏥 <strong>IP Admitted</strong> — {p.diagnosis||'—'} · Room: {p.room||'—'}
+                  </div>)}
+                  {dayIPDis.map((p,i)=><div key={i} style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'5px 10px',marginBottom:4,fontSize:12}}>
+                    ✅ <strong>IP Discharged</strong>
+                  </div>)}
+                  {dayOPEnts.map((e,i)=><div key={i} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'5px 10px',marginBottom:4,fontSize:12,display:'flex',justifyContent:'space-between'}}>
+                    <span><TypeTag t={e.type}/> {e.op_type||''} {e.ref_doctor?'· Ref: '+e.ref_doctor:''}</span>
+                    <span style={{fontWeight:700,color:e.amount>0?'#16a34a':'#94a3b8'}}>{e.amount>0?fmt(e.amount):'Free'}</span>
+                  </div>)}
+                  {dayTotal>0&&dayOPEnts.length>1&&<div style={{fontSize:11,fontWeight:700,color:'#6366f1',textAlign:'right'}}>Day: {fmt(dayTotal)}</div>}
+                </div>
+              </div>)
+            })}
+          </div>)
+        })()}
     </div>
     )
   }
