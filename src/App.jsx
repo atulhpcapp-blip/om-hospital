@@ -845,7 +845,7 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
     setLogoMsg('Logo updated!');setLogoUploading(false)
     setTimeout(()=>setLogoMsg(''),3000)
   }
-  useEffect(()=>{supabase.from('profiles').select('*').order('name').then(({data})=>{setUsers(data||[]);setLoading(false)})},[])
+  useEffect(()=>{if(!hospital?.id)return;supabase.from('profiles').select('*').eq('hospital_id',hospital.id).order('name').then(({data})=>{setUsers(data||[]);setLoading(false)})},[])
   const createUser=async()=>{
     if(!nF.name.trim()||!nF.username.trim()||!nF.pass.trim()){setMsg({ok:false,t:'Fill in all fields'});return}
     if(nF.pass.length<6){setMsg({ok:false,t:'Password must be at least 6 characters'});return}
@@ -853,10 +853,10 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
     const {data,error}=await supabase.auth.signUp({email:toEmail(nF.username),password:nF.pass,options:{data:{name:nF.name}}})
     if(error){setMsg({ok:false,t:error.message});setBusy(false);return}
     if(data.user){
-      await supabase.from('profiles').upsert({id:data.user.id,name:nF.name,username:nF.username.toLowerCase(),role:nF.role})
+      await supabase.from('profiles').upsert({id:data.user.id,name:nF.name,username:nF.username.toLowerCase(),role:nF.role,hospital_id:hospital?.id})
       setMsg({ok:true,t:`Account created!`,user:nF.username,pass:nF.pass})
       setNF({name:'',username:'',pass:'',role:'staff'});setShowAdd(false)
-      const {data:ud}=await supabase.from('profiles').select('*').order('name');setUsers(ud||[])
+      const {data:ud}=await supabase.from('profiles').select('*').eq('hospital_id',hospital?.id).order('name');setUsers(ud||[])
     }
     setBusy(false)
   }
