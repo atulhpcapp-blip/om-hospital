@@ -4262,6 +4262,16 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>
       </div>
     </div>
+
+    {/* TOTAL INCOME SUMMARY */}
+    <div style={{background:'linear-gradient(135deg,#0f172a,#1e3a5f)',borderRadius:14,padding:'16px',marginBottom:16,color:'#fff'}}>
+      <div style={{fontSize:12,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>OP + IP Total — {rd}</div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{fontSize:12,color:'rgba(255,255,255,0.6)'}}>Actual income after commissions & expenses</div>
+        <div style={{fontSize:28,fontWeight:900,color:'#4ade80'}}>{fmt(opIpActual)}</div>
+      </div>
+    </div>
+
     <SecL>Payment mode breakdown</SecL>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
       {[{k:'cash',l:'Cash',bg:'#f0fdf4',c:'#16a34a'},{k:'upi',l:'UPI / Scan',bg:'#eff6ff',c:'#2563eb'},{k:'card',l:'Card',bg:'#fdf4ff',c:'#7c3aed'},{k:'bank',l:'Bank',bg:'#fff7ed',c:'#d97706'},{k:'credit',l:'Credit (Due)',bg:'#fef2f2',c:'#dc2626'}].map(m=>{
