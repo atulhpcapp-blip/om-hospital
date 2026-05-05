@@ -1768,10 +1768,13 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
         {(()=>{
           const patName=(selPat||'').trim().toLowerCase()
           const ipAdmissions=db.ip_patients.filter(p=>p.name.trim().toLowerCase()===patName)
-          const opEnts=ents.sort((a,b)=>a.date.localeCompare(b.date))
+          // Get IP income entries for all IP admissions
+          const ipEntries=ipAdmissions.flatMap(p=>db.income.filter(e=>e.patient_id===p.id))
+          const opEnts=[...ents,...ipEntries].sort((a,b)=>a.date.localeCompare(b.date))
           const allDates=[...new Set([
             ...opEnts.map(e=>e.date),
-            ...ipAdmissions.map(p=>p.admission_date)
+            ...ipAdmissions.map(p=>p.admission_date),
+            ...ipAdmissions.filter(p=>p.discharge_date).map(p=>p.discharge_date)
           ])].sort()
           return(<div style={{position:'relative',paddingLeft:20}}>
             <div style={{position:'absolute',left:8,top:0,bottom:0,width:2,background:'#e2e8f0',borderRadius:2}}/>
