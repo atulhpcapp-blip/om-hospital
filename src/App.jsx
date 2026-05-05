@@ -1055,7 +1055,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const commPct=custComm!==''?parseFloat(custComm)||0:defaultCommPct
   const comm=ref.trim()&&commPct>0?parseFloat(amount||0)*commPct/100:0
   const go=async()=>{
-    const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter valid amount');return}
+    const amt=parseFloat(amount)||0;if(amt<0){alert('Amount cannot be negative');return}
     setBusy(true)
     await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
     setBusy(false)
