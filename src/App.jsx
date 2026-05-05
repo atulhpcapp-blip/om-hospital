@@ -1769,7 +1769,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
   const opRefDocs=[...new Set(opIncome.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   const opConsultants=[...new Set(opIncome.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort()
   const PatCard=({pat})=>(<Card style={{cursor:'pointer',marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>setSelPat((pat.name||'').trim().toLowerCase())}><div><div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pat.name}</div>{pat.phone&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}{pat.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {pat.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pat.entries.length} visit{pat.entries.length!==1?'s':''} - Last: {fmtD(pat.lastDate)}</div>{pat.totalComm>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref comm: {fmt(pat.totalComm)}</div>}{pat.totalCredit>0&&<div style={{fontSize:11,color:'#c2410c',marginTop:2}}>Credit: {fmt(pat.totalCredit)}</div>}</div><div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:700}}>{fmt(pat.total)}</div><div style={{fontSize:12,color:'#16a34a',fontWeight:600}}>Real: {fmt(pat.total-pat.totalComm)}</div><span style={{fontSize:16,color:'#aaa'}}></span></div></div></Card>)
-  const VIEWS=[{k:'patients',l:'All Patients'},{k:'date',l:'By Date'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}]
+  const VIEWS=[{k:'patients',l:'All Patients'},{k:'date',l:'By Date'},{k:'month',l:'By Month'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}]
   return(
     <div>
       <div style={{background:'linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%)',borderRadius:16,padding:'16px',marginBottom:12,color:'#fff'}}>
@@ -1805,6 +1805,41 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
           </div>
           {datePatList.length===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No OP patients in this month</div>}
           {datePatList.map(pat=><PatCard key={pat.name} pat={pat}/>)}
+        </>)
+      })()}
+
+      {view==='month'&&(()=>{
+        const byMonth={}
+        const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
+        opIncome.forEach(e=>{
+          const m=e.date?.slice(0,7)||'unknown'
+          if(!byMonth[m])byMonth[m]={month:m,patients:new Set(),totalIncome:0,freeCount:0,visits:0}
+          byMonth[m].patients.add((e.patient_name||'').trim().toLowerCase())
+          byMonth[m].totalIncome+=e.amount
+          if(e.amount===0||e.amount==='0')byMonth[m].freeCount++
+          byMonth[m].visits++
+        })
+        const months=Object.values(byMonth).sort((a,b)=>b.month.localeCompare(a.month))
+        return(<>
+          {months.length===0&&<div style={{textAlign:'center',padding:32,color:'#ccc'}}>No OP data yet</div>}
+          {months.map((m,i)=>{
+            const [yr,mo]=m.month.split('-')
+            return(<div key={i} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:'12px 14px',marginBottom:8,cursor:'pointer'}} onClick={()=>{setView('date');setFilterDate(m.month)}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14}}>{MOFULL[parseInt(mo)-1]} {yr}</div>
+                  <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>
+                    {m.patients.size} patient{m.patients.size!==1?'s':''} · {m.visits} visit{m.visits!==1?'s':''}
+                    {m.freeCount>0?` · ${m.freeCount} free`:''}
+                  </div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontWeight:800,fontSize:16,color:'#7c3aed'}}>{fmt(m.totalIncome)}</div>
+                  <div style={{fontSize:10,color:'#94a3b8'}}>tap to view</div>
+                </div>
+              </div>
+            </div>)
+          })}
         </>)
       })()}
 
