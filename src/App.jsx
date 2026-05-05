@@ -3519,10 +3519,29 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     let h=''
     h+=`<div class="page">`
     h+=`<div style="height:64mm;display:block"></div>`
-    h+=`<div style="text-align:center;font-size:16pt;font-weight:700;margin-bottom:8px;border-bottom:2px solid #000;padding-bottom:6px">IP Bill Cum Receipt</div>`
-    h+=`<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:10pt"><div><div><b>Consultant:</b> ${consultations[0]?.doctor||p.ref_doctor||'—'}</div><div><b>D.O.A:</b> ${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</div>${p.discharge_date?'<div><b>D.O.D:</b> '+fmtDN(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:'')+'</div>':''}</div><div style="text-align:right"><div><b>Bill No:</b> ${p.reg_no||'—'}-${todayStr().replace(/-/g,'').slice(2)}</div><div><b>Date:</b> ${fmtDN(todayStr())}</div>${p.insurance_type?'<div><b>Insurance:</b> '+p.insurance_type+'</div>':''}</div></div>`
-    h+=`<table style="margin-bottom:6px"><thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>Room</th><th>Payment Type</th></tr></thead><tbody><tr><td><b>${p.name}</b></td><td>${p.reg_no||'—'}</td><td>${p.phone||'—'}</td><td>${p.room||'—'}</td><td>${p.insurance_type?'Insurance':'Cash'}</td></tr></tbody></table>`
-    if(p.diagnosis)h+=`<div style="font-size:9pt;margin-bottom:5px"><b>Diagnosis:</b> ${p.diagnosis}</div>`
+
+    // ── Bill Header ──
+    h+=`<div style="text-align:center;margin-bottom:18px">
+      <div style="font-size:18pt;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-bottom:2.5px solid #1a1a2e;padding-bottom:8px;margin-bottom:6px">IP BILL CUM RECEIPT</div>
+    </div>`
+
+    // ── Bill Info Row ──
+    h+=`<div style="display:flex;justify-content:space-between;margin-bottom:14px;font-size:9.5pt;gap:16px">
+      <div style="flex:1;background:#f8f7f5;border:1px solid #e8e2d9;border-radius:8px;padding:10px 14px;line-height:1.9">
+        <div><span style="font-weight:700;color:#555;text-transform:uppercase;font-size:8pt;letter-spacing:.08em">Patient</span><br/><span style="font-size:11pt;font-weight:700">${p.name}</span></div>
+        <div style="margin-top:4px;color:#666"><b>Reg No:</b> ${p.reg_no||'—'} &nbsp;|&nbsp; <b>Phone:</b> ${p.phone||'—'}</div>
+        <div style="color:#666"><b>Room:</b> ${p.room||'—'} &nbsp;|&nbsp; <b>Type:</b> ${p.insurance_type?'Insurance ('+p.insurance_type+')':'Cash / General'}</div>
+        ${p.diagnosis?`<div style="color:#666;margin-top:2px"><b>Diagnosis:</b> ${p.diagnosis}</div>`:''}
+      </div>
+      <div style="min-width:170px;background:#f8f7f5;border:1px solid #e8e2d9;border-radius:8px;padding:10px 14px;line-height:1.9;text-align:right">
+        <div><span style="font-weight:700;color:#555;text-transform:uppercase;font-size:8pt;letter-spacing:.08em">Bill Details</span></div>
+        <div style="color:#666"><b>Bill No:</b> ${p.reg_no||'—'}-${todayStr().replace(/-/g,'').slice(2)}</div>
+        <div style="color:#666"><b>Bill Date:</b> ${fmtDN(todayStr())}</div>
+        <div style="color:#666"><b>D.O.A:</b> ${fmtDN(p.admission_date)}${p.admission_time?' '+p.admission_time:''}</div>
+        ${p.discharge_date?`<div style="color:#666"><b>D.O.D:</b> ${fmtDN(p.discharge_date)}${p.discharge_time?' '+p.discharge_time:''}</div>`:''}
+        ${consultations[0]?.doctor?`<div style="color:#666"><b>Consultant:</b> ${consultations[0].doctor}</div>`:(p.ref_doctor?`<div style="color:#666"><b>Ref Dr:</b> ${p.ref_doctor}</div>`:'')}
+      </div>
+    </div>`
     h+=`<table><thead><tr><th style="width:50%">Particulars</th><th style="text-align:right;width:10%">Qty</th><th style="text-align:right;width:18%">Rate</th><th style="text-align:right;width:22%">Amount</th></tr></thead><tbody>`
     if(pharmaTotal>0){
       h+=`<tr class="sh"><td colspan="4">MEDICINES</td></tr>`
