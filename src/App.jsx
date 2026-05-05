@@ -1295,10 +1295,15 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
         </div>
         {prev>0&&iF.ref&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
         <FSel label="Payment" value={iF.pay} onChange={e=>setIF({...iF,pay:e.target.value})}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-
-          <FInp label="Notes" type="text" placeholder="Optional" value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})}/>
-        </div>
+        {(itype==='op_r'||itype==='op_l'||itype==='ip_r'||itype==='ip_l')
+          ?<div style={{marginBottom:8}}>
+            <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:4}}>Notes</label>
+            <textarea value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})} placeholder="e.g. Medicine names, test details, batch info..." rows={4} style={{width:'100%',padding:'10px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,fontFamily:'inherit',resize:'vertical',outline:'none',lineHeight:1.6,boxSizing:'border-box'}}/>
+          </div>
+          :<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FInp label="Notes" type="text" placeholder="Optional" value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})}/>
+          </div>
+        }
         {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit - not yet collected</div>}
         <PBtn onClick={go}>Save income entry</PBtn>
       </Card>
