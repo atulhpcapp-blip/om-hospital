@@ -1,4 +1,25 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+// Inject premium fonts + global styles
+if(typeof document!=='undefined'&&!document.getElementById('em-premium-style')){
+  const lnk=document.createElement('link')
+  lnk.rel='stylesheet'
+  lnk.href='https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap'
+  document.head.appendChild(lnk)
+  const st=document.createElement('style')
+  st.id='em-premium-style'
+  st.textContent=`
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{background:#f7f5f2;font-family:'DM Sans',system-ui,sans-serif;color:#1a1a2e;margin:0}
+    input,select,textarea,button{font-family:'DM Sans',system-ui,sans-serif}
+    input:focus,select:focus,textarea:focus{border-color:#c9a84c!important;box-shadow:0 0 0 3px rgba(201,168,76,0.12)!important;outline:none!important}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#d1c4a0;border-radius:99px}
+    .app-wrapper{min-height:100vh;background:#f7f5f2}
+    @media(max-width:600px){body{font-size:15px}}
+  `
+  document.head.appendChild(st)
+}
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
@@ -81,18 +102,18 @@ const getPkgPayments=(pats,datePrefix)=>{
 const buildRef=income=>{const docs={};income.forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim()||!comm)return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=comm;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
 
 const S={
-  inp:{width:'100%',padding:'12px 14px',border:'2px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none',transition:'border-color .15s'},
-  sel:{width:'100%',padding:'12px 14px',border:'2px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'},
-  card:{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'},
-  sec:{fontSize:10,fontWeight:800,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'.1em',marginTop:20,marginBottom:10},
-  pbtn:{width:'100%',padding:'14px',background:'linear-gradient(135deg,#16a34a,#22c55e)',color:'#fff',border:'none',borderRadius:14,fontSize:15,fontWeight:800,cursor:'pointer',marginTop:4,boxShadow:'0 4px 16px rgba(22,163,74,0.3)',letterSpacing:'-0.2px'},
-  gbtn:{padding:'9px 16px',background:'#f8fafc',border:'2px solid #e2e8f0',borderRadius:10,fontSize:13,color:'#475569',cursor:'pointer',fontWeight:600},
-  dbtn:{padding:'5px 10px',background:'#fff1f2',border:'1.5px solid #fecdd3',borderRadius:8,fontSize:12,color:'#e11d48',cursor:'pointer',fontWeight:600},
+  inp:{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:15,background:'#fff',color:'#1a1a2e',boxSizing:'border-box',fontFamily:"'DM Sans',system-ui,sans-serif",outline:'none',transition:'border-color .2s,box-shadow .2s',letterSpacing:'0.01em'},
+  sel:{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:15,background:'#fff',color:'#1a1a2e',boxSizing:'border-box',fontFamily:"'DM Sans',system-ui,sans-serif",outline:'none',appearance:'auto'},
+  card:{background:'#fff',border:'1px solid #ede9e3',borderRadius:16,padding:'18px',marginBottom:12,boxShadow:'0 2px 12px rgba(0,0,0,0.04),0 0 0 0.5px rgba(0,0,0,0.03)'},
+  sec:{fontSize:9.5,fontWeight:700,color:'#a89880',textTransform:'uppercase',letterSpacing:'.14em',marginTop:24,marginBottom:12,fontFamily:"'DM Sans',system-ui,sans-serif"},
+  pbtn:{width:'100%',padding:'15px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#f0e8d8',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',marginTop:4,boxShadow:'0 4px 20px rgba(26,26,46,0.25)',letterSpacing:'0.04em',textTransform:'uppercase'},
+  gbtn:{padding:'9px 18px',background:'#fff',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:13,color:'#3d3d5c',cursor:'pointer',fontWeight:600,letterSpacing:'0.01em'},
+  dbtn:{padding:'5px 12px',background:'#fdf8f0',border:'1px solid #f0d9c0',borderRadius:8,fontSize:12,color:'#c2410c',cursor:'pointer',fontWeight:600},
 }
-const Card=({children,style={}})=><div style={{...S.card,...style}}>{children}</div>
-const SecL=({children})=><div style={S.sec}>{children}</div>
+const Card=({children,style={}})=><div style={{...S.card,background:'#fffefb',...style}}>{children}</div>
+const SecL=({children})=><div style={{...S.sec,display:'flex',alignItems:'center',gap:8}}><span style={{flex:1,height:1,background:'linear-gradient(90deg,#e8e2d9,transparent)'}}></span>{children}<span style={{flex:1,height:1,background:'linear-gradient(270deg,#e8e2d9,transparent)'}}></span></div>
 const PBtn=({children,onClick,disabled,style={}})=><button style={{...S.pbtn,opacity:disabled?0.5:1,...style}} onClick={onClick} disabled={disabled}>{children}</button>
-const GBtn=({children,onClick,style={}})=><button style={{...S.gbtn,...style}} onClick={onClick}>{children}</button>
+const GBtn=({children,onClick,style={}})=><button style={{...S.gbtn,transition:'all .15s',...style}} onClick={onClick}>{children}</button>
 const DBtn=({children,onClick})=><button style={S.dbtn} onClick={onClick}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
@@ -3110,7 +3131,7 @@ const InsuranceMainTab=({db,setDb,gotoIP,hospital})=>{
       <div style={{padding:'16px'}}>
 
         {/* Bill summary */}
-        <div style={{background:'linear-gradient(135deg,#1e3a5f,#1d4ed8)',borderRadius:16,padding:'16px',marginBottom:16}}>
+        <div style={{background:'linear-gradient(160deg,#0f1628 0%,#1a1a2e 50%,#12172e 100%)',borderRadius:16,padding:'16px',marginBottom:16}}>
           <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:10}}>Admitted: {fmtD(p.admission_date)}{p.discharge_date?' | Discharged: '+fmtD(p.discharge_date):' | Active'}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
@@ -5370,7 +5391,7 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
               const isCurrent=currentPlan===k
               return(<div key={k} onClick={()=>!isLocked&&setPlan(k)} style={{background:isCurrent?'rgba(255,255,255,0.05)':plan===k?'rgba(0,192,107,0.08)':'rgba(255,255,255,0.03)',border:isCurrent?'1px solid rgba(255,255,255,0.15)':plan===k?'2px solid rgba(0,192,107,0.5)':'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px',cursor:isLocked?'not-allowed':'pointer',opacity:isLocked?0.5:1,transition:'all .2s',position:'relative'}}>
               {isCurrent&&<div style={{position:'absolute',top:-10,right:16,background:'rgba(255,255,255,0.2)',color:'#fff',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>CURRENT PLAN</div>}
-              {!isCurrent&&pl.popular&&!isLocked&&<div style={{position:'absolute',top:-10,right:16,background:'linear-gradient(135deg,#16a34a,#22c55e)',color:'#0a1628',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>POPULAR</div>}
+              {!isCurrent&&pl.popular&&!isLocked&&<div style={{position:'absolute',top:-10,right:16,background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#0a1628',fontSize:9,fontWeight:800,padding:'3px 12px',borderRadius:100}}>POPULAR</div>}
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <div style={{width:20,height:20,borderRadius:'50%',border:'2px solid',borderColor:plan===k?'#00c06b':'rgba(255,255,255,0.2)',background:plan===k?'#00c06b':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
