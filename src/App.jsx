@@ -845,7 +845,7 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
     setLogoMsg('Logo updated!');setLogoUploading(false)
     setTimeout(()=>setLogoMsg(''),3000)
   }
-  useEffect(()=>{if(!hospital?.id)return;supabase.from('profiles').select('*').eq('hospital_id',hospital.id).order('name').then(({data})=>{setUsers(data||[]);setLoading(false)})},[])
+  useEffect(()=>{if(!hospital?.id)return;setLoading(true);supabase.from('profiles').select('*').eq('hospital_id',hospital.id).order('name').then(({data})=>{setUsers(data||[]);setLoading(false)})},[hospital?.id])
   const createUser=async()=>{
     if(!nF.name.trim()||!nF.username.trim()||!nF.pass.trim()){setMsg({ok:false,t:'Fill in all fields'});return}
     if(nF.pass.length<6){setMsg({ok:false,t:'Password must be at least 6 characters'});return}
