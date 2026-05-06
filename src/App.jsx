@@ -1577,6 +1577,17 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <FInp label="Ward / Room" type="text" placeholder="Ward 2" value={pF.room} onChange={e=>setPF({...pF,room:e.target.value})}/>
         </div>
         <FInp label="Diagnosis" type="text" placeholder="Condition" value={pF.dx} onChange={e=>setPF({...pF,dx:e.target.value})}/>
+        <div style={{marginBottom:10}}>
+          <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Department / Speciality</label>
+          <select value={pF.speciality} onChange={e=>setPF({...pF,speciality:e.target.value==='__new__'?'__new__':e.target.value,newSpec:''})} style={{...S.sel,marginBottom:pF.speciality==='__new__'?6:0}}>
+            {['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology',...(db.ip_patients.map(p=>p.speciality).filter(s=>s&&!['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology'].includes(s)))].filter((s,i,a)=>a.indexOf(s)===i).map(s=><option key={s} value={s}>{s}</option>)}
+            <option value="__new__">+ Add new speciality...</option>
+          </select>
+          {pF.speciality==='__new__'&&<div style={{display:'flex',gap:8,marginTop:4}}>
+            <input type="text" value={pF.newSpec||''} onChange={e=>setPF({...pF,newSpec:e.target.value})} placeholder="Type new speciality..." style={{...S.inp,flex:1}}/>
+            <button onClick={()=>{if(pF.newSpec?.trim())setPF({...pF,speciality:pF.newSpec.trim(),newSpec:''})}} style={{padding:'13px 16px',background:'#1a1a2e',color:'#f0e8d8',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add</button>
+          </div>}
+        </div>
         <div style={{marginBottom:12}}>
           <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8,fontWeight:700}}>Patient type</label>
           <div style={{display:'flex',gap:0,border:'1px solid #e5e7eb',borderRadius:12,overflow:'hidden'}}>
@@ -1627,7 +1638,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <FInp label="Pre-approved amount (Rs)" type="number" value={pF.insurance_expected} onChange={e=>setPF({...pF,insurance_expected:e.target.value})} placeholder="Amount approved by insurer"/>
           {pF.insurance_expected>0&&<div style={{background:'#dbeafe',borderRadius:8,padding:'8px',fontSize:12,color:'#1e40af',marginTop:4}}>Initial approval: {fmt(parseFloat(pF.insurance_expected))} — more approvals can be added later</div>}
         </div>}
-        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());const ok=await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),visiting_consultant:pF.consultant||'',is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn,patient_area:pF.patient_area?.trim()||'',insurance_type:pF.admit_type==='insurance'?pF.insurance_type:'',insurance_policy_no:pF.admit_type==='insurance'?pF.insurance_policy_no:'',insurance_expected:pF.admit_type==='insurance'&&pF.insurance_expected?parseFloat(pF.insurance_expected):0,insurance_status:pF.admit_type==='insurance'?'pending':''});if(ok!==false){setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',consultant:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:''})}}}>Admit patient</PBtn>
+        <PBtn onClick={async()=>{if(!pF.name.trim()){alert('Name required');return};const rn=pF.linkedRegNo||(await genRegNo());const ok=await actions.admitPatient({id:uid(),name:pF.name,phone:pF.phone||'',admission_date:pF.adm,discharge_date:null,diagnosis:pF.dx,room:pF.room,ref_doctor:pF.ref.trim(),visiting_consultant:pF.consultant||'',speciality:pF.speciality||'General Medicine',is_package:pF.patient_type==='Package',patient_type:pF.patient_type,custom_commission:pF.custom_commission!==''?parseFloat(pF.custom_commission):null,payments:[],reg_no:rn,patient_area:pF.patient_area?.trim()||'',insurance_type:pF.admit_type==='insurance'?pF.insurance_type:'',insurance_policy_no:pF.admit_type==='insurance'?pF.insurance_policy_no:'',insurance_expected:pF.admit_type==='insurance'&&pF.insurance_expected?parseFloat(pF.insurance_expected):0,insurance_status:pF.admit_type==='insurance'?'pending':''});if(ok!==false){setIpv('list');setPF({name:'',adm:todayStr(),dx:'',room:'',ref:'',consultant:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:'',speciality:'General Medicine',newSpec:''})}}}>Admit patient</PBtn>
       </Card>
     </div>
   )
@@ -4640,14 +4651,12 @@ const SpecialityReport=({db})=>{
   const conMap={}
   db.consultants.forEach(con=>{conMap[con.name]={speciality:con.speciality||'General',con}})
 
-  // Group income by visiting consultant speciality
+  // Group income by patient's department/speciality
   const specData={}
   
-  // From IP patients - consultant fees
+  // From IP patients - use patient's speciality field
   db.ip_patients.forEach(p=>{
-    if(!p.visiting_consultant)return
-    const con=db.consultants.find(c=>c.name===p.visiting_consultant)
-    const spec=con?.speciality||p.visiting_consultant
+    const spec=p.speciality||'General Medicine'
     if(!specData[spec])specData[spec]={speciality:spec,consultants:new Set(),patients:0,grossIncome:0,doctorEarning:0,hospitalEarning:0,entries:[]}
     
     // Get all income entries for this patient
@@ -4852,7 +4861,7 @@ export default function App(){
   const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:''})
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
-  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:''})
+  const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:'',speciality:'General Medicine',newSpec:''})
   const [cF,setCF]=useState({date:todayStr(),type:'ip',amt:'',pay:'cash',notes:''})
   const [pyF,setPyF]=useState({date:todayStr(),amt:'',pay:'cash'})
   const [exD,setExD]=useState(todayStr())
