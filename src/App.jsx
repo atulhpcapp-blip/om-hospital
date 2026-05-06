@@ -1080,7 +1080,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const go=async()=>{
     const amt=parseFloat(amount)||0;if(amt<0){alert('Amount cannot be negative');return}
     setBusy(true)
-    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee,speciality:editSpec||entry.speciality||'General Medicine',conditions:editConditions.join(',')})
+    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee,speciality:entry.speciality||'General Medicine',conditions:editConditions.join(',')})
     setBusy(false)
   }
   return(
