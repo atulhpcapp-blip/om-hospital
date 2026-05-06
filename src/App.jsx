@@ -4744,19 +4744,78 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
         <div style={{fontSize:14,fontWeight:700,color:'#1a1a2e',marginBottom:10}}>Dr. {d.doc}</div>
         {d.discharged.length>0&&<>
           <div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>🔴 Discharged — commission due</div>
-          {d.discharged.map((p,pi)=>(<div key={pi} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderTop:'1px solid #f5f5f5'}}>
-            <div>
-              <div style={{fontSize:12,fontWeight:600}}>{pi+1}. {p.name}</div>
-              <div style={{fontSize:10,color:'#94a3b8'}}>Admitted: {fmtD(p.admDate)} · Discharged: {fmtD(p.disDate)}</div>
-            </div>
-            <div style={{textAlign:'right'}}>
-              <div style={{fontSize:12,fontWeight:700}}>{fmt(p.totalBilled)}</div>
-              {p.totalComm>0&&<div style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Comm: {fmt(p.totalComm)}</div>}
-            </div>
-          </div>))}
-          {d.discharged.reduce((a,p)=>a+p.totalComm,0)>0&&<button onClick={()=>setPaying({doc:d.doc,amount:d.discharged.reduce((a,p)=>a+p.totalComm,0),type:'ip'})} style={{width:'100%',marginTop:8,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
-            💸 Record commission — {fmt(d.discharged.reduce((a,p)=>a+p.totalComm,0))}
-          </button>}
+          {d.discharged.map((p,pi)=>{
+            const ipEnts=db.income.filter(e=>e.patient_id===p.id)
+            const ipCharges=ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
+            const ipPharm=ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
+            const ipLab=ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
+            const ipPkg=ipEnts.filter(e=>e.type==='ip_p').reduce((a,e)=>a+e.amount,0)
+            const ipChargesComm=ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+getComm(e),0)
+            const ipPharmComm=ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+getComm(e),0)
+            const ipLabComm=ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+getComm(e),0)
+            const ipPkgComm=ipEnts.filter(e=>e.type==='ip_p').reduce((a,e)=>a+getComm(e),0)
+            return(<div key={pi} style={{background:'#fafaf9',border:'1px solid #ede9e3',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700}}>{pi+1}. {p.name}</div>
+                  <div style={{fontSize:10,color:'#94a3b8'}}>Admitted: {fmtD(p.admDate)} · Discharged: {fmtD(p.disDate)} · Reg: {p.reg||'—'}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:12,fontWeight:800,color:'#1a1a2e'}}>{fmt(p.totalBilled)}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Comm: {fmt(p.totalComm)}</div>
+                </div>
+              </div>
+              <div style={{borderTop:'1px solid #e8e2d9',paddingTop:6,display:'flex',flexDirection:'column',gap:3}}>
+                {ipCharges>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                  <span style={{color:'#555'}}>IP Charges</span>
+                  <span><span style={{color:'#374151',fontWeight:600}}>{fmt(ipCharges)}</span>{ipChargesComm>0&&<span style={{color:'#dc2626',marginLeft:8}}>Comm: {fmt(ipChargesComm)}</span>}</span>
+                </div>}
+                {ipPharm>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                  <span style={{color:'#555'}}>IP Pharmacy</span>
+                  <span><span style={{color:'#374151',fontWeight:600}}>{fmt(ipPharm)}</span>{ipPharmComm>0&&<span style={{color:'#dc2626',marginLeft:8}}>Comm: {fmt(ipPharmComm)}</span>}</span>
+                </div>}
+                {ipLab>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                  <span style={{color:'#555'}}>IP Lab</span>
+                  <span><span style={{color:'#374151',fontWeight:600}}>{fmt(ipLab)}</span>{ipLabComm>0&&<span style={{color:'#dc2626',marginLeft:8}}>Comm: {fmt(ipLabComm)}</span>}</span>
+                </div>}
+                {ipPkg>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                  <span style={{color:'#555'}}>IP Package</span>
+                  <span><span style={{color:'#374151',fontWeight:600}}>{fmt(ipPkg)}</span>{ipPkgComm>0&&<span style={{color:'#dc2626',marginLeft:8}}>Comm: {fmt(ipPkgComm)}</span>}</span>
+                </div>}
+              </div>
+            </div>)
+          })}
+          {(()=>{
+            const totalDue=d.discharged.reduce((a,p)=>a+p.totalComm,0)
+            const exportDocPDF=()=>{
+              const rows=d.discharged.map((p,pi)=>{
+                const ipEnts=db.income.filter(e=>e.patient_id===p.id)
+                const breakdown=[
+                  {l:'IP Charges',v:ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0),c:ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+getComm(e),0)},
+                  {l:'IP Pharmacy',v:ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0),c:ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+getComm(e),0)},
+                  {l:'IP Lab',v:ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0),c:ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+getComm(e),0)},
+                  {l:'IP Package',v:ipEnts.filter(e=>e.type==='ip_p').reduce((a,e)=>a+e.amount,0),c:ipEnts.filter(e=>e.type==='ip_p').reduce((a,e)=>a+getComm(e),0)},
+                ].filter(x=>x.v>0)
+                return`<tr><td>${pi+1}</td><td><strong>${p.name}</strong><br/><small>Reg: ${p.reg||'—'} | Adm: ${p.admDate} | Dis: ${p.disDate}</small></td><td>${breakdown.map(x=>x.l+': ₹'+x.v.toLocaleString()).join('<br/>')}</td><td style="color:#dc2626">${breakdown.map(x=>x.c>0?x.l+': ₹'+x.c.toLocaleString():'').filter(Boolean).join('<br/>')}</td><td style="font-weight:700;color:#dc2626">₹${p.totalComm.toLocaleString()}</td></tr>`
+              }).join('')
+              const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>body{font-family:Georgia,serif;margin:0;padding:15mm;font-size:10pt}h2{margin:0 0 4px}p{color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th{background:#1a1a2e;color:#fff;padding:7px 10px;font-size:9pt;text-align:left}td{padding:6px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top;font-size:9.5pt}tfoot td{font-weight:700;background:#f8f6f3;font-size:10pt}.tot{background:#1a1a2e;color:#fff}@page{size:A4 portrait;margin:15mm}</style></head><body>
+                <h2>Commission Statement — Dr. ${d.doc}</h2>
+                <p>Generated: ${new Date().toLocaleDateString('en-IN')} | Period: Discharge based | Pending commission due</p>
+                <table><thead><tr><th>#</th><th>Patient</th><th>Breakdown</th><th>Commission breakdown</th><th>Total commission</th></tr></thead>
+                <tbody>${rows}</tbody>
+                <tfoot><tr class="tot"><td colspan="4" style="text-align:right">Total commission due:</td><td>₹${totalDue.toLocaleString()}</td></tr></tfoot>
+                </table>
+              </body></html>`
+              const win=window.open('','_blank')
+              if(win){win.document.write(html);win.document.close();setTimeout(()=>win.print(),500)}
+            }
+            return(<div style={{display:'flex',gap:8,marginTop:8}}>
+              {totalDue>0&&<button onClick={()=>setPaying({doc:d.doc,amount:totalDue,type:'ip'})} style={{flex:1,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                💸 Record commission — {fmt(totalDue)}
+              </button>}
+              <button onClick={exportDocPDF} style={{padding:'9px 14px',background:'#dc2626',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 PDF</button>
+            </div>)
+          })()}
         </>}
         {d.active.length>0&&<>
           <div style={{fontSize:11,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:6,marginTop:d.discharged.length>0?12:0}}>🟢 Currently admitted</div>
