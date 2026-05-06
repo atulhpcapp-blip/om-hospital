@@ -1251,23 +1251,19 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
               </div>}
             </div>
             {!isIP&&itype==='op'&&(<>
-              {(()=>{
-                const selSpec=iF.speciality||'General Medicine'
-                const matchedCons=db.consultants.filter(d=>d.speciality===selSpec)
-                const otherCons=db.consultants.filter(d=>d.speciality!==selSpec)
-                return(<>
-                  <FSel label={`Visiting consultant — ${selSpec}`} value={iF.consultant_name||''} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,consultant_name:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):0})}}>
-                    <option value="">- No visiting consultant -</option>
-                    {matchedCons.length>0&&<optgroup label={`── ${selSpec} specialists ──`}>
-                      {matchedCons.map(d=><option key={d.id} value={d.name}>Dr. {d.name} ({d.fee_share_pct}%)</option>)}
-                    </optgroup>}
-                    {otherCons.length>0&&<optgroup label="── Other consultants ──">
-                      {otherCons.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.speciality?' — '+d.speciality:''} ({d.fee_share_pct}%)</option>)}
-                    </optgroup>}
-                  </FSel>
-                  {matchedCons.length>0&&!iF.consultant_name&&<div style={{fontSize:11,color:'#7e22ce',marginTop:-6,marginBottom:6}}>⭐ {matchedCons.length} {selSpec} specialist{matchedCons.length!==1?'s':''} available</div>}
-                </>)
-              })()}
+              <FSel label={`Visiting consultant — ${iF.speciality||'All'}`} value={iF.consultant_name||''} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,consultant_name:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):0})}}>
+                <option value="">- No visiting consultant -</option>
+                {(()=>{
+                  const spec=iF.speciality||'General Medicine'
+                  const matched=db.consultants.filter(d=>d.speciality===spec)
+                  const others=db.consultants.filter(d=>d.speciality!==spec)
+                  return(<>
+                    {matched.length>0&&matched.map(d=><option key={d.id} value={d.name}>⭐ Dr. {d.name} — {d.speciality} ({d.fee_share_pct}%)</option>)}
+                    {others.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.speciality?' — '+d.speciality:''} ({d.fee_share_pct}%)</option>)}
+                  </>)
+                })()}
+              </FSel>
+              {(()=>{const spec=iF.speciality||'General Medicine';const cnt=db.consultants.filter(d=>d.speciality===spec).length;return cnt>0?<div style={{fontSize:11,color:'#7e22ce',marginTop:-6,marginBottom:6}}>⭐ {cnt} {spec} specialist{cnt!==1?'s':''} listed first</div>:null})()}
               {iF.consultant_name&&iF.consultant_name!=='__new_cons__'&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
 
                 {iF.ref==='__new__'&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px',marginTop:6}}>
@@ -4846,19 +4842,6 @@ const SlowLoadWarning=()=>{
   return null
 }
 
-class ErrorBoundary extends React.Component{
-  constructor(p){super(p);this.state={err:null}}
-  static getDerivedStateFromError(e){return{err:e}}
-  render(){
-    if(this.state.err)return(<div style={{padding:20,background:'#fef2f2',color:'#dc2626',fontFamily:'monospace',fontSize:12,whiteSpace:'pre-wrap',position:'fixed',top:0,left:0,right:0,bottom:0,overflow:'auto',zIndex:99999}}>
-      <h2>Runtime Error — please screenshot</h2>
-      <p>{this.state.err?.message}</p>
-      <p>{this.state.err?.stack?.slice(0,800)}</p>
-    </div>)
-    return this.props.children
-  }
-}
-import React from 'react'
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -6038,3 +6021,4 @@ const AnalyticsDash=({db})=>{
   )
 }
 
+import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<App/>)
