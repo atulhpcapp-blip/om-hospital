@@ -437,7 +437,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const loadHospData=async(h)=>{
     setDataLoading(true)
     const [inc,exp,pts,rds]=await Promise.all([
-      supabase.from('income').select('id,date,type,amount,patient_name,ref_doctor,payment,consultant_fee').eq('hospital_id',h.id).order('date',{ascending:false}).limit(500),
+      supabase.from('income').select('id,date,type,amount,patient_name,ref_doctor,payment,consultant_fee,speciality,patient_area').eq('hospital_id',h.id).order('date',{ascending:false}).limit(500),
       supabase.from('expenses').select('id,date,category,amount,description').eq('hospital_id',h.id).order('date',{ascending:false}).limit(200),
       supabase.from('ip_patients').select('id,name,admission_date,discharge_date,ref_doctor,is_package').eq('hospital_id',h.id).order('admission_date',{ascending:false}).limit(200),
       supabase.from('ref_doctors').select('id,name,area').eq('hospital_id',h.id)
@@ -574,7 +574,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={async()=>{
           setDataLoading(true)
           const [inc,exp,pts,rds,cons]=await Promise.all([
-            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone').eq('hospital_id',sel.id).order('date',{ascending:false}),
+            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality').eq('hospital_id',sel.id).order('date',{ascending:false}),
             supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',sel.id).order('date',{ascending:false}),
             supabase.from('ip_patients').select('*').eq('hospital_id',sel.id).order('admission_date',{ascending:false}),
             supabase.from('ref_doctors').select('*').eq('hospital_id',sel.id),
