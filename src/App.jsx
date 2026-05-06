@@ -1068,6 +1068,8 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [vcConsultant,setVcConsultant]=useState(entry.consultant_name||'')
   const [vcFee,setVcFee]=useState(entry.consultant_fee!=null?String(entry.consultant_fee):'')
   const [busy,setBusy]=useState(false)
+  const [editConditions,setEditConditions]=useState((entry.conditions||'').split(',').filter(Boolean))
+  const [newCond,setNewCond]=useState('')
   const isOP=entry.type==='op'
   const isVC=entry.type==='vc'
   const isIPtype=['ip','ip_r','ip_l','ip_p'].includes(entry.type)
@@ -1111,6 +1113,22 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%)`} type="number" inputMode="numeric" value={custComm} onChange={e=>setCustComm(e.target.value)} placeholder={String(defaultCommPct)}/>}
         {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {ref}: {fmt(comm)} ({commPct}%)</div>}
         <FInp label="Notes (optional)" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
+        {(isOP||entry.type==='opd')&&<div style={{marginBottom:10}}>
+          <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Conditions / Comorbidities</label>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
+            {['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease',...editConditions.filter(c=>!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(c))].map(cond=>{
+              const sel=editConditions.includes(cond)
+              return(<button key={cond} type="button" onClick={()=>setEditConditions(prev=>sel?prev.filter(x=>x!==cond):[...prev,cond])} style={{padding:'4px 12px',borderRadius:20,border:sel?'none':'1.5px solid #e8e2d9',background:sel?'#1a1a2e':'#fff',color:sel?'#c9a84c':'#555',fontSize:12,fontWeight:sel?700:400,cursor:'pointer'}}>
+                {sel?'✓ ':''}{cond}
+              </button>)
+            })}
+          </div>
+          <div style={{display:'flex',gap:6}}>
+            <input type="text" value={newCond} onChange={e=>setNewCond(e.target.value)} placeholder="Add condition..." style={{...S.inp,flex:1,fontSize:12,padding:'7px 10px'}}/>
+            <button type="button" onClick={()=>{if(newCond.trim()){setEditConditions(prev=>[...prev,newCond.trim()]);setNewCond('')}}} style={{padding:'7px 14px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>+ Add</button>
+          </div>
+          {editConditions.length>0&&<div style={{marginTop:6,fontSize:11,color:'#7c3aed',fontWeight:600}}>Selected: {editConditions.join(', ')}</div>}
+        </div>}
         <PBtn onClick={go} disabled={busy} style={{marginTop:8}}>{busy?'Saving...':'Save changes'}</PBtn>
         <button onClick={onCancel} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
       </div>
