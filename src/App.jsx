@@ -3961,17 +3961,7 @@ const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
     {areaList.length>0&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
       {[{l:'Areas',v:areaList.length,c:'#1d4ed8'},{l:'Total income',v:fmt(grandTotal),c:'#16a34a'},{l:'Real income',v:fmt(grandTotal-grandComm),c:'#065f46'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:10,padding:'10px 14px',textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div><div style={{fontSize:15,fontWeight:800,color:m.c}}>{m.v}</div></div>))}
     </div>}
-    {/* PIE CHART */}
-    {areaList.length>0&&<div style={{background:'#fff',border:'1px solid #ede9e3',borderRadius:16,padding:'16px',marginBottom:14,display:'flex',flexDirection:'column',alignItems:'center'}}>
-      <div style={{fontSize:12,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>Income by area</div>
-      <PieChart size={200} data={areaList.map((ar,i)=>({label:ar.area,value:ar.total,color:['#1d4ed8','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#065f46','#92400e'][i%8]}))}/>
-      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12,justifyContent:'center'}}>
-        {areaList.map((ar,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}>
-          <div style={{width:10,height:10,borderRadius:2,background:['#1d4ed8','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#065f46','#92400e'][i%8]}}/>
-          <span>{ar.area}</span>
-        </div>)}
-      </div>
-    </div>}
+
     {areaList.map(ar=>(
       <Card key={ar.area} style={{marginBottom:12,borderLeft:'3px solid #1d4ed8'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
@@ -5076,7 +5066,6 @@ const SpecialityReport=({db})=>{
     })
   }catch(err){console.error('consBySpec error',err)}
 
-  const COLORS=['#7c3aed','#16a34a','#d97706','#1d4ed8','#dc2626','#0891b2','#065f46','#92400e']
 
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
@@ -5101,17 +5090,7 @@ const SpecialityReport=({db})=>{
 
     {specs.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No speciality data found for this period.<br/>Add visiting consultants with speciality and admit IP patients to see this report.</div>}
 
-        {/* PIE CHART */}
-    {specs.length>0&&<div style={{background:'#fff',border:'1px solid #ede9e3',borderRadius:16,padding:'16px',marginBottom:14,display:'flex',flexDirection:'column',alignItems:'center'}}>
-      <div style={{fontSize:12,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>Income by department</div>
-      <PieChart size={200} data={specs.map((s,i)=>({label:s.speciality,value:s.grossIncome,color:COLORS[i%COLORS.length]}))}/>
-      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12,justifyContent:'center'}}>
-        {specs.map((s,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}>
-          <div style={{width:10,height:10,borderRadius:2,background:COLORS[i%COLORS.length]}}/>
-          <span>{s.speciality} — {fmt(s.grossIncome)}</span>
-        </div>)}
-      </div>
-    </div>}
+    
     {specs.map((s,i)=>(<div key={i} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:10,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
         <div>
