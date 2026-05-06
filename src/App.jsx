@@ -1241,9 +1241,11 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
             <div style={{marginBottom:8}}>
               <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Department / Speciality</label>
               <select value={iF.speciality||'General Medicine'} onChange={e=>setIF({...iF,speciality:e.target.value==='__new__'?'__new__':e.target.value,newSpec:''})} style={{...S.sel,marginBottom:iF.speciality==='__new__'?6:0}}>
-                {['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology',
-                  ...[...new Set([...db.income.map(e=>e.speciality),...db.ip_patients.map(p=>p.speciality)].filter(s=>s&&!['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology'].includes(s)))]]
-                  .map(s=><option key={s} value={s}>{s}</option>)}
+                {(()=>{
+                  const base=['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology']
+                  const custom=[...new Set([...db.income.map(e=>e.speciality),...db.ip_patients.map(p=>p.speciality),...(iF.speciality&&!base.includes(iF.speciality)?[iF.speciality]:[])].filter(s=>s&&!base.includes(s)))]
+                  return[...base,...custom].map(s=><option key={s} value={s}>{s}</option>)
+                })()}
                 <option value="__new__">+ Add new speciality...</option>
               </select>
               {iF.speciality==='__new__'&&<div style={{display:'flex',gap:8,marginTop:4}}>
@@ -4664,42 +4666,23 @@ const SpecialityReport=({db})=>{
   const conMap={}
   db.consultants.forEach(con=>{conMap[con.name]={speciality:con.speciality||'General',con}})
 
-  // Group income by patient's department/speciality
+  // Group ALL income by speciality field
   const specData={}
-  
-  // From IP patients - use patient's speciality field
-  db.ip_patients.forEach(p=>{
-    const spec=p.speciality||'General Medicine'
-    if(!specData[spec])specData[spec]={speciality:spec,consultants:new Set(),patients:0,grossIncome:0,doctorEarning:0,hospitalEarning:0,entries:[]}
-    
-    // Get all income entries for this patient
-    const patIncome=incList.filter(e=>e.patient_id===p.id)
-    patIncome.forEach(e=>{
-      const rate=e.type==='ip'?(con?.ip_fee_share_pct||0):
-        e.type==='ip_l'?(con?.ip_l_pct||0):
-        e.type==='ip_r'?(con?.ip_r_pct||0):0
-      const doctorShare=e.amount*(rate/100)
-      const hospitalShare=e.amount-doctorShare
-      specData[spec].grossIncome+=e.amount
-      specData[spec].doctorEarning+=doctorShare
-      specData[spec].hospitalEarning+=hospitalShare
-      specData[spec].consultants.add(p.visiting_consultant)
-    })
-    specData[spec].patients++
-    specData[spec].entries.push(p)
-  })
+  const addToSpec=(spec,amount,doctorShare,patName,conName)=>{
+    const s=spec||'General Medicine'
+    if(!specData[s])specData[s]={speciality:s,patients:new Set(),visits:0,grossIncome:0,doctorEarning:0,hospitalEarning:0}
+    specData[s].grossIncome+=amount
+    specData[s].doctorEarning+=doctorShare
+    specData[s].hospitalEarning+=amount-doctorShare
+    specData[s].visits++
+    if(patName)specData[s].patients.add(patName.toLowerCase())
+  }
 
-  // Also from VC type income entries
-  incList.filter(e=>e.type==='vc').forEach(e=>{
-    const conName=e.ref_doctor||e.consultant_name||'Unknown'
-    const con=db.consultants.find(c=>c.name===conName)
-    const spec=con?.speciality||conName
-    if(!specData[spec])specData[spec]={speciality:spec,consultants:new Set(),patients:0,grossIncome:0,doctorEarning:0,hospitalEarning:0,entries:[]}
-    const doctorShare=e.consultant_fee||0
-    specData[spec].grossIncome+=e.amount
-    specData[spec].doctorEarning+=doctorShare
-    specData[spec].hospitalEarning+=e.amount-doctorShare
-    specData[spec].consultants.add(conName)
+  // From income entries (OP, OPD, IP, IP-R, IP-L etc.) - use entry's speciality field
+  incList.forEach(e=>{
+    const spec=e.speciality||'General Medicine'
+    const comm=getComm(e)
+    addToSpec(spec,e.amount,comm,e.patient_name,e.consultant_name)
   })
 
   const specs=Object.values(specData).sort((a,b)=>b.grossIncome-a.grossIncome)
@@ -4735,7 +4718,7 @@ const SpecialityReport=({db})=>{
         <div>
           <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{s.speciality}</div>
           <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>
-            {[...s.consultants].join(', ')} · {s.patients} patient{s.patients!==1?'s':''}
+            {s.patients.size} patient{s.patients.size!==1?'s':''} · {s.visits} visit{s.visits!==1?'s':''}
           </div>
         </div>
         <div style={{textAlign:'right'}}>
@@ -4743,9 +4726,9 @@ const SpecialityReport=({db})=>{
           <div style={{fontSize:10,color:'#94a3b8'}}>total billed</div>
         </div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
         <div style={{textAlign:'center',background:'#fdf4ff',borderRadius:8,padding:'8px'}}>
-          <div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Doctor earned</div>
+          <div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Ref Commission</div>
           <div style={{fontSize:14,fontWeight:800,color:'#7e22ce'}}>{fmt(s.doctorEarning)}</div>
           <div style={{fontSize:10,color:'#9333ea'}}>{s.grossIncome>0?Math.round(s.doctorEarning/s.grossIncome*100):0}%</div>
         </div>
@@ -4753,11 +4736,6 @@ const SpecialityReport=({db})=>{
           <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Hospital earned</div>
           <div style={{fontSize:14,fontWeight:800,color:'#16a34a'}}>{fmt(s.hospitalEarning)}</div>
           <div style={{fontSize:10,color:'#22c55e'}}>{s.grossIncome>0?Math.round(s.hospitalEarning/s.grossIncome*100):0}%</div>
-        </div>
-        <div style={{textAlign:'center',background:'#f8fafc',borderRadius:8,padding:'8px'}}>
-          <div style={{fontSize:9,color:'#64748b',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Patients</div>
-          <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{s.patients}</div>
-          <div style={{fontSize:10,color:'#94a3b8'}}>{[...s.consultants].length} dr{[...s.consultants].length!==1?'s':''}</div>
         </div>
       </div>
     </div>))}
