@@ -1630,9 +1630,10 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               <strong>Dr. {doc.name}</strong> commission rates: IP {doc.ip_pct}%  IP-Pharmacy {doc.ip_r_pct}%  IP-Lab {doc.ip_l_pct}%{pF.patient_type==='Package'?'  Package '+doc.ip_pct+'%':''}
             </div>
           </div>)})()}
-          <FSel label="Visiting consultant (optional)" value={pF.consultant||''} onChange={e=>setPF({...pF,consultant:e.target.value})}>
+          <FSel label={`Visiting consultant${pF.speciality&&pF.speciality!=="General Medicine"?" — "+pF.speciality:""} (optional)`} value={pF.consultant||''} onChange={e=>setPF({...pF,consultant:e.target.value})}>
             <option value="">- No visiting consultant -</option>
-            {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} — IP {d.ip_pct||0}% | IP Lab {d.ip_l_pct||0}% | IP Pharm {d.ip_r_pct||0}%</option>)}
+            {db.consultants.filter(d=>d.speciality===pF.speciality).map(d=><option key={d.id} value={d.name}>⭐ Dr. {d.name} — IP {d.ip_pct||0}% | Lab {d.ip_l_pct||0}% | Pharm {d.ip_r_pct||0}%</option>)}
+            {db.consultants.filter(d=>d.speciality!==pF.speciality||!d.speciality).map(d=><option key={'o'+d.id} value={d.name}>Dr. {d.name}{d.speciality?' — '+d.speciality:''} — IP {d.ip_pct||0}%</option>)}
           </FSel>
           {pF.consultant&&(()=>{const con=db.consultants.find(d=>d.name===pF.consultant);if(!con)return null;return(<div style={{background:'#fdf4ff',border:'1px solid #e9d5ff',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12,color:'#7e22ce'}}>
             <strong>Dr. {con.name}</strong>{con.speciality?' — '+con.speciality:''}<br/>IP rates: Consultation fee {con.ip_fee_share_pct||0}% | Charges {con.ip_pct||0}% | Lab {con.ip_l_pct||0}% | Pharmacy {con.ip_r_pct||0}%
