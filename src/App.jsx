@@ -5370,17 +5370,23 @@ export default function App(){
       if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{
-      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||''}
-      const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
+      const updates={
+        amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',
+        notes:row.notes||'',date:row.date,op_type:row.op_type||'',
+        custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,
+        consultant_name:row.consultant_name||'',patient_name:row.patient_name||'',
+        patient_area:row.patient_area||'',patient_phone:row.patient_phone||'',
+        speciality:row.speciality||'General Medicine',
+        conditions:row.conditions||''
+      }
       let {error}=await supabase.from('income').update(updates).eq('id',row.id)
       if(error){
-        // Retry with core fields only (schema cache issue)
+        const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
         const r2=await supabase.from('income').update(safe).eq('id',row.id)
         error=r2.error
       }
       if(error){alert('Could not save: '+error.message);return false}
-      // Always update local state optimistically (works even if RLS blocks select)
-      setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...safe}:e)}))
+      setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...updates}:e)}))
       return true
     },
     addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
