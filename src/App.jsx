@@ -4352,12 +4352,56 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           </div>
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
-          {opInc>0&&<R l="OP Consultation" v={fmt(opInc)} green/>}
-          {opdInc>0&&<R l="OPD Services" v={fmt(opdInc)} green/>}
+          {/* OP Consultation - names */}
+          {opInc>0&&<>
+            <R l="OP Consultation" v={fmt(opInc)} green/>
+            {dI.filter(e=>e.type==='op'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>{e.patient_name||'—'}{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {/* OPD Services */}
+          {opdInc>0&&<>
+            <R l="OPD Services" v={fmt(opdInc)} green/>
+            {dI.filter(e=>e.type==='opd'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>{e.patient_name||'—'}{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
-          {oprInc>0&&<R l="OP Pharmacy" v={fmt(oprInc)} green/>}
-          {ipInc>0&&<R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>}
-          {(opComm+oprComm+ipComm)>0&&<R l="Ref commissions" v={'- '+fmt(opComm+oprComm+ipComm)} red/>}
+          {/* OP Pharmacy - names + amounts */}
+          {oprInc>0&&<>
+            <R l="OP Pharmacy" v={fmt(oprInc)} green/>
+            {dI.filter(e=>e.type==='op_r'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>{e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {/* IP Charges + Pharmacy - names + amounts */}
+          {ipInc>0&&<>
+            <R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>
+            {(()=>{
+              const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type)&&e.payment!=='credit')
+              const byPat={}
+              ipEnts.forEach(e=>{const k=e.patient_name||'—';if(!byPat[k])byPat[k]=0;byPat[k]+=e.amount})
+              return Object.entries(byPat).map(([name,amt],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+                <span>{name}</span><span style={{fontWeight:600}}>{fmt(amt)}</span>
+              </div>)
+            })()}
+          </>}
+          {/* Ref commissions - by doctor */}
+          {(opComm+oprComm+ipComm)>0&&<>
+            <R l="Ref commissions" v={'- '+fmt(opComm+oprComm+ipComm)} red/>
+            {(()=>{
+              const commByDoc={}
+              dI.filter(e=>!['op_l','ip_l'].includes(e.type)).forEach(e=>{
+                const comm=getComm(e)
+                if(!comm||!e.ref_doctor)return
+                if(!commByDoc[e.ref_doctor])commByDoc[e.ref_doctor]=0
+                commByDoc[e.ref_doctor]+=comm
+              })
+              return Object.entries(commByDoc).map(([doc,amt],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#dc2626',padding:'2px 0 2px 10px',borderLeft:'2px solid #fca5a5'}}>
+                <span>Dr. {doc}</span><span style={{fontWeight:600}}>- {fmt(amt)}</span>
+              </div>)
+            })()}
+          </>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
@@ -4375,6 +4419,26 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               {segIns>0&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>Insurance {fmt(segIns)}</span>}
               {segCredit>0&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(segCredit)}</span>}
             </div>)
+          })()}
+          {/* Credit breakdown - who owes how much today */}
+          {(()=>{
+            const creditEnts=dI.filter(e=>e.payment==='credit'&&!['op_l','ip_l'].includes(e.type))
+            if(!creditEnts.length)return null
+            return(<>
+              <div style={{height:1,background:'#bae6fd',margin:'6px 0'}}/>
+              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Credit outstanding today</div>
+              {creditEnts.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderBottom:'1px solid #f5f5f5'}}>
+                <div>
+                  <span style={{fontSize:12,fontWeight:600,color:'#374151'}}>{e.patient_name||'—'}</span>
+                  <span style={{fontSize:10,color:'#94a3b8',marginLeft:6}}>{ITYPES.find(t=>t.key===e.type)?.full||e.type}</span>
+                </div>
+                <span style={{fontSize:12,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</span>
+              </div>)}
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:6,paddingTop:4,borderTop:'1px solid #fca5a5'}}>
+                <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Total credit outstanding</span>
+                <span style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>{fmt(creditEnts.reduce((a,e)=>a+e.amount,0))}</span>
+              </div>
+            </>)
           })()}
         </div>
       </div>
