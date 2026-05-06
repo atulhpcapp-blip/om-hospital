@@ -4653,9 +4653,145 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         })}
       </>)
     })()}
-    <SecL>Doctor referrals</SecL>
-    <ReferralsReport db={db} income={dI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>
+    <SecL>Doctor Referrals</SecL>
+    <DailyReferralSection db={db} dI={dI} rd={rd} allPaidComm={allPaidComm} actions={actions}/>
   </>)
+}
+
+const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
+  const [tab,setTab]=useState('op')
+  const [paying,setPaying]=useState(null) // {doc, amount, mode}
+
+  const fmtD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}catch{return d}}
+
+  // ── OP Referrals (to give today) ──
+  // Group today's OP/OPD entries by ref doctor
+  const opRefToday={}
+  dI.filter(e=>e.ref_doctor&&e.ref_doctor.trim()&&['op','opd','op_r','op_l'].includes(e.type)).forEach(e=>{
+    const doc=e.ref_doctor.trim()
+    if(!opRefToday[doc])opRefToday[doc]={doc,patients:[],totalBilled:0,totalComm:0}
+    const comm=getComm(e)
+    const existing=opRefToday[doc].patients.find(p=>p.name===e.patient_name)
+    if(!existing)opRefToday[doc].patients.push({name:e.patient_name,types:[],amount:0,comm:0,payment:e.payment})
+    const pat=opRefToday[doc].patients.find(p=>p.name===e.patient_name)
+    pat.types.push(e.type)
+    pat.amount+=e.amount
+    pat.comm+=comm
+    opRefToday[doc].totalBilled+=e.amount
+    opRefToday[doc].totalComm+=comm
+  })
+  const opDocs=Object.values(opRefToday).sort((a,b)=>b.totalComm-a.totalComm)
+
+  // ── IP Referrals ──
+  // Admitted patients with ref doctor - split by discharged/active
+  const ipWithRef=db.ip_patients.filter(p=>p.ref_doctor&&p.ref_doctor.trim())
+  const ipByDoc={}
+  ipWithRef.forEach(p=>{
+    const doc=p.ref_doctor.trim()
+    if(!ipByDoc[doc])ipByDoc[doc]={doc,discharged:[],active:[]}
+    const ipEnts=db.income.filter(e=>e.patient_id===p.id)
+    const totalBilled=ipEnts.reduce((a,e)=>a+e.amount,0)
+    const totalComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
+    const alreadyPaid=allPaidComm?.[doc]||0
+    const entry={id:p.id,name:p.name,admDate:p.admission_date,disDate:p.discharge_date,totalBilled,totalComm,reg:p.reg_no}
+    if(p.discharge_date)ipByDoc[doc].discharged.push(entry)
+    else ipByDoc[doc].active.push(entry)
+  })
+  const ipDocs=Object.values(ipByDoc).sort((a,b)=>b.discharged.length-a.discharged.length)
+
+  const tabStyle=(k)=>({padding:'8px 16px',borderRadius:20,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,background:tab===k?'#1a1a2e':'#f1f5f9',color:tab===k?'#c9a84c':'#64748b'})
+
+  return(<div>
+    <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+      <button style={tabStyle('op')} onClick={()=>setTab('op')}>📋 OP Referrals today ({opDocs.length})</button>
+      <button style={tabStyle('ip')} onClick={()=>setTab('ip')}>🏥 IP Referrals ({ipDocs.length})</button>
+    </div>
+
+    {/* OP REFERRALS TAB */}
+    {tab==='op'&&(<div>
+      {opDocs.length===0&&<div style={{textAlign:'center',padding:32,color:'#ccc',fontSize:13}}>No OP referrals today</div>}
+      {opDocs.map((d,di)=>(<div key={di} style={{background:'#fff',border:'1px solid #e8e2d9',borderRadius:14,padding:'14px',marginBottom:10}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#1a1a2e'}}>Dr. {d.doc}</div>
+            <div style={{fontSize:11,color:'#94a3b8'}}>{d.patients.length} patient{d.patients.length!==1?'s':''} today</div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>Commission: {fmt(d.totalComm)}</div>
+            <div style={{fontSize:10,color:'#94a3b8'}}>Billed: {fmt(d.totalBilled)}</div>
+          </div>
+        </div>
+        {d.patients.map((p,pi)=>(<div key={pi} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:'1px solid #f5f5f5'}}>
+          <div>
+            <span style={{fontSize:12,fontWeight:600}}>{pi+1}. {p.name}</span>
+            <span style={{fontSize:10,color:'#94a3b8',marginLeft:6}}>{[...new Set(p.types)].map(t=>ITYPES.find(x=>x.key===t)?.label||t).join(', ')}</span>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:12,fontWeight:700}}>{fmt(p.amount)}</div>
+            {p.comm>0&&<div style={{fontSize:10,color:'#dc2626'}}>Comm: {fmt(p.comm)}</div>}
+          </div>
+        </div>))}
+        {d.totalComm>0&&<button onClick={()=>setPaying({doc:d.doc,amount:d.totalComm,type:'op'})} style={{width:'100%',marginTop:10,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+          💸 Record commission payment — {fmt(d.totalComm)}
+        </button>}
+      </div>))}
+    </div>)}
+
+    {/* IP REFERRALS TAB */}
+    {tab==='ip'&&(<div>
+      {ipDocs.length===0&&<div style={{textAlign:'center',padding:32,color:'#ccc',fontSize:13}}>No IP referral doctors</div>}
+      {ipDocs.map((d,di)=>(<div key={di} style={{background:'#fff',border:'1px solid #e8e2d9',borderRadius:14,padding:'14px',marginBottom:10}}>
+        <div style={{fontSize:14,fontWeight:700,color:'#1a1a2e',marginBottom:10}}>Dr. {d.doc}</div>
+        {d.discharged.length>0&&<>
+          <div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>🔴 Discharged — commission due</div>
+          {d.discharged.map((p,pi)=>(<div key={pi} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderTop:'1px solid #f5f5f5'}}>
+            <div>
+              <div style={{fontSize:12,fontWeight:600}}>{pi+1}. {p.name}</div>
+              <div style={{fontSize:10,color:'#94a3b8'}}>Admitted: {fmtD(p.admDate)} · Discharged: {fmtD(p.disDate)}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:12,fontWeight:700}}>{fmt(p.totalBilled)}</div>
+              {p.totalComm>0&&<div style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Comm: {fmt(p.totalComm)}</div>}
+            </div>
+          </div>))}
+          {d.discharged.reduce((a,p)=>a+p.totalComm,0)>0&&<button onClick={()=>setPaying({doc:d.doc,amount:d.discharged.reduce((a,p)=>a+p.totalComm,0),type:'ip'})} style={{width:'100%',marginTop:8,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+            💸 Record commission — {fmt(d.discharged.reduce((a,p)=>a+p.totalComm,0))}
+          </button>}
+        </>}
+        {d.active.length>0&&<>
+          <div style={{fontSize:11,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:6,marginTop:d.discharged.length>0?12:0}}>🟢 Currently admitted</div>
+          {d.active.map((p,pi)=>(<div key={pi} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #f5f5f5'}}>
+            <div>
+              <div style={{fontSize:12,fontWeight:600}}>{p.name}</div>
+              <div style={{fontSize:10,color:'#94a3b8'}}>Admitted: {fmtD(p.admDate)} · pending discharge</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:12}}>{fmt(p.totalBilled)}</div>
+              {p.totalComm>0&&<div style={{fontSize:10,color:'#94a3b8'}}>Comm pending: {fmt(p.totalComm)}</div>}
+            </div>
+          </div>))}
+        </>}
+      </div>))}
+    </div>)}
+
+    {/* COMMISSION PAYMENT MODAL */}
+    {paying&&(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520}}>
+        <div style={{fontSize:15,fontWeight:700,color:'#1a1a2e',marginBottom:4}}>Record commission payment</div>
+        <div style={{fontSize:13,color:'#64748b',marginBottom:16}}>Dr. {paying.doc} — {fmt(paying.amount)}</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+          {['cash','upi','bank','card'].map(m=><button key={m} onClick={async()=>{
+            await actions.addExpense({id:uid(),date:rd,category:'ref_paid',amount:paying.amount,description:'Commission to Dr. '+paying.doc,payment:m,is_monthly:false})
+            setPaying(null)
+            alert('Commission of '+fmt(paying.amount)+' recorded to Dr. '+paying.doc)
+          }} style={{padding:'12px',background:'#f8f7f5',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',color:'#1a1a2e'}}>
+            {m==='upi'?'📱 UPI':m==='cash'?'💵 Cash':m==='bank'?'🏦 Bank':'💳 Card'}
+          </button>)}
+        </div>
+        <button onClick={()=>setPaying(null)} style={{width:'100%',padding:'12px',background:'#f1f5f9',border:'none',borderRadius:10,fontSize:13,cursor:'pointer',color:'#64748b'}}>Cancel</button>
+      </div>
+    </div>)}
+  </div>)
 }
 
 
