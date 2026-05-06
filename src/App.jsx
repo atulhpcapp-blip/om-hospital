@@ -5065,14 +5065,16 @@ const SpecialityReport=({db})=>{
 
   // Build consultant breakdown per speciality
   const consBySpec={}
-  db.consultants.filter(con=>con.speciality).forEach(con=>{
-    const spec=con.speciality
-    if(!consBySpec[spec])consBySpec[spec]=[]
-    const conEnts=incList.filter(e=>e.consultant_name===con.name||e.type==='vc'&&e.consultant_name===con.name)
-    const conIncome=conEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
-    const hospIncome=conEnts.reduce((a,e)=>a+e.amount-(e.consultant_fee||0),0)
-    consBySpec[spec].push({name:con.name,conFee:conIncome,hospShare:hospIncome,visits:conEnts.length})
-  })
+  try{
+    ;(db.consultants||[]).filter(con=>con&&con.speciality).forEach(con=>{
+      const spec=con.speciality
+      if(!consBySpec[spec])consBySpec[spec]=[]
+      const conEnts=(incList||[]).filter(e=>e.consultant_name===con.name)
+      const conIncome=conEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
+      const hospIncome=conEnts.reduce((a,e)=>a+(e.amount||0)-(e.consultant_fee||0),0)
+      consBySpec[spec].push({name:con.name,conFee:conIncome,hospShare:hospIncome,visits:conEnts.length})
+    })
+  }catch(err){console.error('consBySpec error',err)}
 
   const COLORS=['#7c3aed','#16a34a','#d97706','#1d4ed8','#dc2626','#0891b2','#065f46','#92400e']
 
