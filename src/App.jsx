@@ -4456,7 +4456,37 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           <R l="Lab income (OP-Lab + IP-Lab)" v={fmt(labInc)} green/>
-          <R l="Ref commissions" v={'- '+fmt(labComm)} red/>
+          {/* OP Lab - patient names */}
+          {opLabEnts.length>0&&<>
+            <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>OP Lab</div>
+            {opLabEnts.filter(e=>e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #e9d5ff'}}>
+              <span>{e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {/* IP Lab - patient names */}
+          {ipLabEnts.length>0&&<>
+            <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:2,marginTop:4}}>IP Lab</div>
+            {ipLabEnts.filter(e=>e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #e9d5ff'}}>
+              <span>{e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {/* Ref commissions by doctor */}
+          {labComm>0&&<>
+            <R l="Ref commissions" v={'- '+fmt(labComm)} red/>
+            {(()=>{
+              const commByDoc={}
+              dI.filter(e=>['op_l','ip_l'].includes(e.type)).forEach(e=>{
+                const comm=getComm(e)
+                if(!comm||!e.ref_doctor)return
+                if(!commByDoc[e.ref_doctor])commByDoc[e.ref_doctor]=0
+                commByDoc[e.ref_doctor]+=comm
+              })
+              return Object.entries(commByDoc).map(([doc,amt],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#dc2626',padding:'2px 0 2px 10px',borderLeft:'2px solid #fca5a5'}}>
+                <span>Dr. {doc}</span><span style={{fontWeight:600}}>- {fmt(amt)}</span>
+              </div>)
+            })()}
+          </>}
+          {labComm===0&&<R l="Ref commissions" v={'- '+fmt(labComm)} red/>}
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
@@ -4465,11 +4495,15 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             const labCreditEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type)&&e.payment==='credit'&&e.amount>0)
             if(!labCreditEnts.length)return null
             return(<>
-              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit to settle</div>
-              {labCreditEnts.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid #f5f5f5'}}>
-                <span style={{fontSize:11,color:'#374151'}}>{e.patient_name||'—'}</span>
+              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit outstanding today</div>
+              {labCreditEnts.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',borderBottom:'1px solid #f5f5f5'}}>
+                <div><span style={{fontSize:11,fontWeight:600,color:'#374151'}}>{e.patient_name||'—'}</span><span style={{fontSize:10,color:'#94a3b8',marginLeft:6}}>{e.type==='op_l'?'OP Lab':'IP Lab'}</span></div>
                 <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</span>
               </div>)}
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:4,paddingTop:4,borderTop:'1px solid #fca5a5'}}>
+                <span style={{fontSize:10,fontWeight:700,color:'#dc2626'}}>Total lab credit</span>
+                <span style={{fontSize:12,fontWeight:800,color:'#dc2626'}}>{fmt(labCreditEnts.reduce((a,e)=>a+e.amount,0))}</span>
+              </div>
               <div style={{height:1,background:'#e9d5ff',margin:'6px 0'}}/>
             </>)
           })()}
