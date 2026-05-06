@@ -1135,8 +1135,8 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
     let regNo=null;if(!isIP&&(itype==='op'||itype==='opd')){regNo=iF.linkedRegNo?.trim()||await genRegNo()}
-    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:iF.notes,patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||''})
-    if(ok!==false){const ks=iF.speciality||'General Medicine';setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:'',speciality:ks,newSpec:''})}
+    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:iF.notes,patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
+    if(ok!==false){const ks=iF.speciality||'General Medicine';setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:'',speciality:ks,newSpec:'',conditions:[],newCondition:''})}
   }
   return(
     <div>
@@ -1238,6 +1238,22 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
         </div>}
 
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
+            {['op','opd'].includes(itype)&&<div style={{marginBottom:8}}>
+              <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Conditions / Comorbidities</label>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
+                {['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease',...(db.income.flatMap(e=>(e.conditions||'').split(',').filter(x=>x&&!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(x)))).filter((v,i,a)=>a.indexOf(v)===i)].map(cond=>{
+                  const sel=(iF.conditions||[]).includes(cond)
+                  return(<button key={cond} type="button" onClick={()=>setIF(f=>({...f,conditions:sel?f.conditions.filter(c=>c!==cond):[...(f.conditions||[]),cond]}))} style={{padding:'4px 12px',borderRadius:20,border:sel?'none':'1.5px solid #e8e2d9',background:sel?'#1a1a2e':'#fff',color:sel?'#c9a84c':'#555',fontSize:12,fontWeight:sel?700:400,cursor:'pointer'}}>
+                    {sel?'✓ ':''}{cond}
+                  </button>)
+                })}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <input type="text" value={iF.newCondition||''} onChange={e=>setIF(f=>({...f,newCondition:e.target.value}))} placeholder="Add condition..." style={{...S.inp,flex:1,fontSize:12,padding:'7px 10px'}}/>
+                <button type="button" onClick={()=>{if(iF.newCondition?.trim()){setIF(f=>({...f,conditions:[...(f.conditions||[]),f.newCondition.trim()],newCondition:''}));}}} style={{padding:'7px 14px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>+ Add</button>
+              </div>
+              {(iF.conditions||[]).length>0&&<div style={{marginTop:6,fontSize:11,color:'#7c3aed',fontWeight:600}}>Selected: {iF.conditions.join(', ')}</div>}
+            </div>}
             <div style={{marginBottom:8}}>
               <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Department / Speciality</label>
               <select value={iF.speciality||'General Medicine'} onChange={e=>setIF(f=>({...f,speciality:e.target.value==='__new__'?'__new__':e.target.value,newSpec:''}))} style={{...S.sel,marginBottom:iF.speciality==='__new__'?6:0}}>
@@ -1370,7 +1386,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
                 <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
-                {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}
+                {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}{e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{fontSize:10,color:'#7c3aed',marginTop:1}}>{e.conditions.split(',').filter(Boolean).join(' · ')}</div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -4899,6 +4915,7 @@ const PatientDataReport=({db})=>{
   const [filterArea,setFilterArea]=useState('')
   const [filterRef,setFilterRef]=useState('')
   const [filterSpec,setFilterSpec]=useState('')
+  const [filterCond,setFilterCond]=useState('')
   const [search,setSearch]=useState('')
 
   // Build unique patient registry
@@ -4928,13 +4945,21 @@ const PatientDataReport=({db})=>{
   let pats=Object.values(patMap).sort((a,b)=>a.name.localeCompare(b.name))
 
   // Get filter options
+  // Build conditions from income entries
+  pats.forEach(p=>{
+    const patEnts=db.income.filter(e=>(e.patient_name||'').toLowerCase().trim()===(p.name||'').toLowerCase().trim()&&e.conditions)
+    const allConds=[...new Set(patEnts.flatMap(e=>e.conditions.split(',').filter(Boolean)))]
+    p.conditions=allConds
+  })
   const areas=[...new Set(pats.map(p=>p.area).filter(Boolean))].sort()
   const refs=[...new Set(pats.map(p=>p.ref_doctor).filter(Boolean))].sort()
+  const allConditions=[...new Set(pats.flatMap(p=>p.conditions||[]))].sort()
   const specs=[...new Set(db.consultants.map(c=>c.speciality).filter(Boolean))].sort()
 
   // Apply filters
   if(filterArea)pats=pats.filter(p=>p.area===filterArea)
   if(filterRef)pats=pats.filter(p=>p.ref_doctor===filterRef)
+  if(filterCond)pats=pats.filter(p=>(p.conditions||[]).includes(filterCond))
   if(search.trim().length>1){const s=search.trim().toLowerCase();pats=pats.filter(p=>p.name.toLowerCase().includes(s)||p.phone?.includes(s)||p.reg_no?.toLowerCase().includes(s))}
 
   const exportPDF=()=>{
@@ -5272,7 +5297,7 @@ export default function App(){
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(500).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
@@ -5305,7 +5330,8 @@ export default function App(){
         patient_area:row.patient_area||'',
         patient_phone:row.patient_phone||'',
         speciality:row.speciality||'General Medicine',
-        entered_by:row.entered_by||''
+        entered_by:row.entered_by||'',
+        conditions:row.conditions||''
       }
       const {data,error}=await supabase.from('income').insert([insertRow]).select()
       if(error){alert('Save failed: '+error.message);return false}
