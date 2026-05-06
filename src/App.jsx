@@ -1596,7 +1596,15 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <div style={{marginBottom:10}}>
           <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Department / Speciality</label>
           <select value={pF.speciality} onChange={e=>setPF({...pF,speciality:e.target.value==='__new__'?'__new__':e.target.value,newSpec:''})} style={{...S.sel,marginBottom:pF.speciality==='__new__'?6:0}}>
-            {['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology',...(db.ip_patients.map(p=>p.speciality).filter(s=>s&&!['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology'].includes(s)))].filter((s,i,a)=>a.indexOf(s)===i).map(s=><option key={s} value={s}>{s}</option>)}
+            {(()=>{
+              const base=['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology']
+              const custom=[...new Set([
+                ...db.ip_patients.map(p=>p.speciality),
+                ...db.income.map(e=>e.speciality),
+                ...(pF.speciality&&!base.includes(pF.speciality)?[pF.speciality]:[])
+              ].filter(s=>s&&!base.includes(s)))]
+              return[...base,...custom].map(s=><option key={s} value={s}>{s}</option>)
+            })()}
             <option value="__new__">+ Add new speciality...</option>
           </select>
           {pF.speciality==='__new__'&&<div style={{display:'flex',gap:8,marginTop:4}}>
