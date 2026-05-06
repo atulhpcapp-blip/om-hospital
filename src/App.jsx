@@ -1370,6 +1370,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
                 <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
+                {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
