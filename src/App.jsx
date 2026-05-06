@@ -4355,23 +4355,23 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {/* OP Consultation - names */}
           {opInc>0&&<>
             <R l="OP Consultation" v={fmt(opInc)} green/>
-            {dI.filter(e=>e.type==='op'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{e.patient_name||'—'}{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='op'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} {e.patient_name||'—'}{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {/* OPD Services */}
           {opdInc>0&&<>
             <R l="OPD Services" v={fmt(opdInc)} green/>
-            {dI.filter(e=>e.type==='opd'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{e.patient_name||'—'}{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='opd'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} {e.patient_name||'—'}{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
           {/* OP Pharmacy - names + amounts */}
           {oprInc>0&&<>
             <R l="OP Pharmacy" v={fmt(oprInc)} green/>
-            {dI.filter(e=>e.type==='op_r'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='op_r'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} {e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {/* IP Charges + Pharmacy - names + amounts */}
@@ -4381,8 +4381,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type)&&e.payment!=='credit')
               const byPat={}
               ipEnts.forEach(e=>{const k=e.patient_name||'—';if(!byPat[k])byPat[k]=0;byPat[k]+=e.amount})
-              return Object.entries(byPat).map(([name,amt],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-                <span>{name}</span><span style={{fontWeight:600}}>{fmt(amt)}</span>
+              return Object.entries(byPat).map(([name,amt],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+                <span>🏥 {name}</span><span style={{fontWeight:600}}>{fmt(amt)}</span>
               </div>)
             })()}
           </>}
@@ -4459,16 +4459,22 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {/* OP Lab - patient names */}
           {opLabEnts.length>0&&<>
             <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>OP Lab</div>
-            {opLabEnts.filter(e=>e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #e9d5ff'}}>
-              <span>{e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
-            </div>)}
+            {opLabEnts.filter(e=>e.payment!=='credit').map((e,i)=>{const comm=getComm(e);return(<div key={i} style={{padding:'3px 0 3px 10px',borderLeft:'2px solid #e9d5ff'}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151'}}>
+                <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} {e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              </div>
+              {e.ref_doctor&&comm>0&&<div style={{fontSize:10,color:'#dc2626',marginLeft:4}}>Dr. {e.ref_doctor} — comm: {fmt(comm)}</div>}
+            </div>)})}
           </>}
           {/* IP Lab - patient names */}
           {ipLabEnts.length>0&&<>
             <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:2,marginTop:4}}>IP Lab</div>
-            {ipLabEnts.filter(e=>e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0 2px 10px',borderLeft:'2px solid #e9d5ff'}}>
-              <span>{e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
-            </div>)}
+            {ipLabEnts.filter(e=>e.payment!=='credit').map((e,i)=>{const comm=getComm(e);return(<div key={i} style={{padding:'3px 0 3px 10px',borderLeft:'2px solid #e9d5ff'}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151'}}>
+                <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} {e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              </div>
+              {e.ref_doctor&&comm>0&&<div style={{fontSize:10,color:'#dc2626',marginLeft:4}}>Dr. {e.ref_doctor} — comm: {fmt(comm)}</div>}
+            </div>)})}
           </>}
           {/* Ref commissions by doctor */}
           {labComm>0&&<>
