@@ -1240,7 +1240,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
             <div style={{marginBottom:8}}>
               <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Department / Speciality</label>
-              <select value={iF.speciality||'General Medicine'} onChange={e=>setIF({...iF,speciality:e.target.value==='__new__'?'__new__':e.target.value,newSpec:''})} style={{...S.sel,marginBottom:iF.speciality==='__new__'?6:0}}>
+              <select value={iF.speciality||'General Medicine'} onChange={e=>setIF(f=>({...f,speciality:e.target.value==='__new__'?'__new__':e.target.value,newSpec:''}))} style={{...S.sel,marginBottom:iF.speciality==='__new__'?6:0}}>
                 {(()=>{
                   const base=['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology']
                   const custom=[...new Set([...db.income.map(e=>e.speciality),...db.ip_patients.map(p=>p.speciality),...(iF.speciality&&!base.includes(iF.speciality)?[iF.speciality]:[])].filter(s=>s&&!base.includes(s)))]
@@ -1250,7 +1250,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
               </select>
               {iF.speciality==='__new__'&&<div style={{display:'flex',gap:8,marginTop:4}}>
                 <input type="text" value={iF.newSpec||''} onChange={e=>setIF({...iF,newSpec:e.target.value})} placeholder="Type new speciality..." style={{...S.inp,flex:1}}/>
-                <button onClick={()=>{if(iF.newSpec?.trim())setIF({...iF,speciality:iF.newSpec.trim(),newSpec:''})}} style={{padding:'13px 16px',background:'#1a1a2e',color:'#f0e8d8',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add</button>
+                <button onClick={()=>{if(iF.newSpec?.trim()){const ns=iF.newSpec.trim();setIF(f=>({...f,speciality:ns,newSpec:''}))}}} style={{padding:'13px 16px',background:'#1a1a2e',color:'#f0e8d8',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add</button>
               </div>}
             </div>
             {!isIP&&itype==='op'&&(<>
