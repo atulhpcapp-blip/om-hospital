@@ -4846,6 +4846,19 @@ const SlowLoadWarning=()=>{
   return null
 }
 
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={err:null}}
+  static getDerivedStateFromError(e){return{err:e}}
+  render(){
+    if(this.state.err)return(<div style={{padding:20,background:'#fef2f2',color:'#dc2626',fontFamily:'monospace',fontSize:12,whiteSpace:'pre-wrap',position:'fixed',top:0,left:0,right:0,bottom:0,overflow:'auto',zIndex:99999}}>
+      <h2>Runtime Error — please screenshot</h2>
+      <p>{this.state.err?.message}</p>
+      <p>{this.state.err?.stack?.slice(0,800)}</p>
+    </div>)
+    return this.props.children
+  }
+}
+import React from 'react'
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
