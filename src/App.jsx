@@ -1059,6 +1059,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [patName,setPatName]=useState(entry.patient_name||'')
   const [patPhone,setPatPhone]=useState(entry.patient_phone||'')
   const [patArea,setPatArea]=useState(entry.patient_area||'')
+  const [editSpec,setEditSpec]=useState(entry.speciality||'General Medicine')
   const [ref,setRef]=useState(entry.ref_doctor||'')
   const [custComm,setCustComm]=useState(entry.custom_commission!=null?String(Math.round(entry.custom_commission)):'')
   const [pay,setPay]=useState(entry.payment||'cash')
@@ -1078,7 +1079,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const go=async()=>{
     const amt=parseFloat(amount)||0;if(amt<0){alert('Amount cannot be negative');return}
     setBusy(true)
-    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
+    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee,speciality:editSpec||'General Medicine'})
     setBusy(false)
   }
   return(
@@ -4038,8 +4039,10 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const ipLabEnts=Object.values(ipLabByPat)
 
   // Totals
-  const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
-  const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
+  const opEnts=dI.filter(e=>e.type==='op')
+  const opInc=opEnts.reduce((a,e)=>a+e.amount,0)
+  const opConsFee=opEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const opComm=opEnts.reduce((a,e)=>a+getComm(e),0)
   const opdEnts=dI.filter(e=>e.type==='opd')
   const opdInc=opdEnts.reduce((a,e)=>a+e.amount,0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
@@ -4057,7 +4060,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labActual=labInc-labComm-labToLab
 
   // OP+IP segment: (op+vc profit to hospital+op_r+ip+ip_r) - (non-lab expenses)
-  const opIpInc=opInc+opdInc+vcProfit+oprInc+ipInc
+  const opIpInc=(opInc-opConsFee)+opdInc+vcProfit+oprInc+ipInc
   const opIpComm=opComm+oprComm+ipComm
   const nonLabExpTotal=dExpNonLab.reduce((a,e)=>a+e.amount,0)
   const opIpActual=opIpInc-opIpComm-nonLabExpTotal
@@ -4343,6 +4346,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           {opInc>0&&<R l="OP Consultation" v={fmt(opInc)} green/>}
           {opdInc>0&&<R l="OPD Services" v={fmt(opdInc)} green/>}
+          {opConsFee>0&&<R l="OP Consultant fees paid" v={'- '+fmt(opConsFee)} red sub="Visiting consultant share"/>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
           {oprInc>0&&<R l="OP Pharmacy" v={fmt(oprInc)} green/>}
           {ipInc>0&&<R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>}
@@ -5347,7 +5351,7 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
     // Create Razorpay Subscription
     const res=await fetch(SUPABASE_URL+'/functions/v1/create-subscription',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsZ2Jocm15Y2VxdXVpYWJwd3FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxODIwMjAsImV4cCI6MjA5Mjc1ODAyMH0.9cDZdZufK0EcWWjIpqp3gLPlwfKVvs5LEOLnw8wM4dw'},
       body:JSON.stringify({hospital_id:hid,plan,billing})
     })
     const subData=await res.json()
@@ -5362,7 +5366,7 @@ const PaymentPage=({onBack=null,session:passedSession=null})=>{
       handler:async(response)=>{
         const vres=await fetch(SUPABASE_URL+'/functions/v1/verify-subscription',{
           method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'sb_publishable_1I_V4RUqeSpzu7d0NXlhVg_z4rs0UbZ'},
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token,'apikey':'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsZ2Jocm15Y2VxdXVpYWJwd3FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxODIwMjAsImV4cCI6MjA5Mjc1ODAyMH0.9cDZdZufK0EcWWjIpqp3gLPlwfKVvs5LEOLnw8wM4dw'},
           body:JSON.stringify({...response,hospital_id:hid,plan,billing,subscription_id:subData.subscription_id})
         })
         const vdata=await vres.json()
