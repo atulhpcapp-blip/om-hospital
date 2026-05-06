@@ -1406,6 +1406,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
   const [ipSearch,setIpSearch]=useState('')
+  const [ipDxFilter,setIpDxFilter]=useState('')
   const [ipView,setIpView]=useState('all')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
   const [ipRefFilter,setIpRefFilter]=useState('')
@@ -1692,14 +1693,19 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       </div>
 
       {(ipView==='all'||ipView==='active'||ipView==='discharged')&&(<>
-        <div style={{position:'relative',marginBottom:12}}>
+        <div style={{position:'relative',marginBottom:8}}>
           <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
           <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>
           {ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}
         </div>
+        <select value={ipDxFilter} onChange={e=>setIpDxFilter(e.target.value)} style={{...S.sel,marginBottom:12}}>
+          <option value="">Filter by diagnosis</option>
+          {[...new Set(db.ip_patients.map(p=>p.diagnosis).filter(Boolean))].sort().map(dx=><option key={dx} value={dx}>{dx}</option>)}
+        </select>
         {(()=>{
           const pool=ipView==='active'?active:ipView==='discharged'?disc.slice().reverse():allIP
-          const filtered=ipSearch.trim()?pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch)):pool
+          let filtered=ipSearch.trim()?pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch)):pool
+          if(ipDxFilter)filtered=filtered.filter(p=>(p.diagnosis||'').toLowerCase().includes(ipDxFilter.toLowerCase()))
           if(!filtered.length)return <div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{ipSearch?'No results for "'+ipSearch+'"':'No patients yet'}</div>
           return(<>
             {ipSearch&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{filtered.length} result{filtered.length!==1?'s':''} for "{ipSearch}"</div>}
