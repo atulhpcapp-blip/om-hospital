@@ -6021,4 +6021,3 @@ const AnalyticsDash=({db})=>{
   )
 }
 
-import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<App/>)
