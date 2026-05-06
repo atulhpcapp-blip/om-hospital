@@ -1059,7 +1059,6 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [patName,setPatName]=useState(entry.patient_name||'')
   const [patPhone,setPatPhone]=useState(entry.patient_phone||'')
   const [patArea,setPatArea]=useState(entry.patient_area||'')
-  const [editSpec,setEditSpec]=useState(entry.speciality||'General Medicine')
   const [ref,setRef]=useState(entry.ref_doctor||'')
   const [custComm,setCustComm]=useState(entry.custom_commission!=null?String(Math.round(entry.custom_commission)):'')
   const [pay,setPay]=useState(entry.payment||'cash')
@@ -1079,7 +1078,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const go=async()=>{
     const amt=parseFloat(amount)||0;if(amt<0){alert('Amount cannot be negative');return}
     setBusy(true)
-    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee,speciality:editSpec||'General Medicine'})
+    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
     setBusy(false)
   }
   return(
@@ -1137,7 +1136,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
     let regNo=null;if(!isIP&&(itype==='op'||itype==='opd')){regNo=iF.linkedRegNo?.trim()||await genRegNo()}
     const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:(isIP||itype==='vc')?'':iF.ref.trim(),notes:iF.notes,patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine'})
-    if(ok!==false){setLastSpec(iF.speciality||'General Medicine');setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:'',speciality:iF.speciality||'General Medicine',newSpec:''})}
+    if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:'',speciality:'General Medicine',newSpec:''})
   }
   return(
     <div>
@@ -1175,7 +1174,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
         )})}
       </div>
       <Card>
-        {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>{const pat=db.ip_patients.find(p=>p.id===e.target.value);const refDoc=pat?db.ref_doctors.find(d=>d.name===pat.ref_doctor):null;const pctKey=itype==='ip_r'?'ip_r_pct':itype==='ip_l'?'ip_l_pct':'ip_pct';const pct=refDoc?refDoc[pctKey]:null;setIF({...iF,pid:e.target.value,ref:pat?.ref_doctor||'',custom_commission:pct!=null?String(pct):'',speciality:pat?.speciality&&pat.speciality!==''?pat.speciality:iF.speciality||'General Medicine'})}}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.speciality?' ['+p.speciality+']':''}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
+        {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>{const pat=db.ip_patients.find(p=>p.id===e.target.value);const refDoc=pat?db.ref_doctors.find(d=>d.name===pat.ref_doctor):null;const pctKey=itype==='ip_r'?'ip_r_pct':itype==='ip_l'?'ip_l_pct':'ip_pct';const pct=refDoc?refDoc[pctKey]:null;setIF({...iF,pid:e.target.value,ref:pat?.ref_doctor||'',custom_commission:pct!=null?String(pct):'',speciality:pat?.speciality||'General Medicine'})}}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.speciality?' ['+p.speciality+']':''}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
           :<>
             {(()=>{
               // Build patient registry from income history
@@ -1242,28 +1241,23 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
             <div style={{marginBottom:8}}>
               <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Department / Speciality</label>
               <select value={iF.speciality||'General Medicine'} onChange={e=>setIF({...iF,speciality:e.target.value==='__new__'?'__new__':e.target.value,newSpec:''})} style={{...S.sel,marginBottom:iF.speciality==='__new__'?6:0}}>
-                {savedSpecs.map(s=><option key={s} value={s}>{s}</option>)}
+                {(()=>{
+                  const base=['General Medicine','General Surgery','Gynecology','Orthopedics','Pediatrics','ENT','Neurology','Urology','Cardiology']
+                  const custom=[...new Set([...db.income.map(e=>e.speciality),...db.ip_patients.map(p=>p.speciality),...(iF.speciality&&!base.includes(iF.speciality)?[iF.speciality]:[])].filter(s=>s&&!base.includes(s)))]
+                  return[...base,...custom].map(s=><option key={s} value={s}>{s}</option>)
+                })()}
                 <option value="__new__">+ Add new speciality...</option>
               </select>
               {iF.speciality==='__new__'&&<div style={{display:'flex',gap:8,marginTop:4}}>
                 <input type="text" value={iF.newSpec||''} onChange={e=>setIF({...iF,newSpec:e.target.value})} placeholder="Type new speciality..." style={{...S.inp,flex:1}}/>
-                <button onClick={()=>{if(iF.newSpec?.trim()){const ns=iF.newSpec.trim();setSavedSpecs(prev=>prev.includes(ns)?prev:[...prev,ns]);setIF({...iF,speciality:ns,newSpec:''})}}} style={{padding:'13px 16px',background:'#1a1a2e',color:'#f0e8d8',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add</button>
+                <button onClick={()=>{if(iF.newSpec?.trim())setIF({...iF,speciality:iF.newSpec.trim(),newSpec:''})}} style={{padding:'13px 16px',background:'#1a1a2e',color:'#f0e8d8',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add</button>
               </div>}
             </div>
             {!isIP&&itype==='op'&&(<>
-              <FSel label={`Visiting consultant — ${iF.speciality||'All'}`} value={iF.consultant_name||''} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,consultant_name:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):0})}}>
+              <FSel label="Visiting consultant (optional)" value={iF.consultant_name||''} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,consultant_name:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):0})}}>
                 <option value="">- No visiting consultant -</option>
-                {(()=>{
-                  const spec=iF.speciality||'General Medicine'
-                  const matched=db.consultants.filter(d=>d.speciality===spec)
-                  const others=db.consultants.filter(d=>d.speciality!==spec)
-                  return(<>
-                    {matched.length>0&&matched.map(d=><option key={d.id} value={d.name}>⭐ Dr. {d.name} — {d.speciality} ({d.fee_share_pct}%)</option>)}
-                    {others.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.speciality?' — '+d.speciality:''} ({d.fee_share_pct}%)</option>)}
-                  </>)
-                })()}
+                {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name} ({d.fee_share_pct}%)</option>)}
               </FSel>
-              {(()=>{const spec=iF.speciality||'General Medicine';const cnt=db.consultants.filter(d=>d.speciality===spec).length;return cnt>0?<div style={{fontSize:11,color:'#7e22ce',marginTop:-6,marginBottom:6}}>⭐ {cnt} {spec} specialist{cnt!==1?'s':''} listed first</div>:null})()}
               {iF.consultant_name&&iF.consultant_name!=='__new_cons__'&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
 
                 {iF.ref==='__new__'&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px',marginTop:6}}>
@@ -4044,10 +4038,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const ipLabEnts=Object.values(ipLabByPat)
 
   // Totals
-  const opEnts=dI.filter(e=>e.type==='op')
-  const opInc=opEnts.reduce((a,e)=>a+e.amount,0)
-  const opConsFee=opEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
-  const opComm=opEnts.reduce((a,e)=>a+getComm(e),0)
+  const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
+  const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
   const opdEnts=dI.filter(e=>e.type==='opd')
   const opdInc=opdEnts.reduce((a,e)=>a+e.amount,0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
@@ -4065,7 +4057,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labActual=labInc-labComm-labToLab
 
   // OP+IP segment: (op+vc profit to hospital+op_r+ip+ip_r) - (non-lab expenses)
-  const opIpInc=(opInc-opConsFee)+opdInc+vcProfit+oprInc+ipInc
+  const opIpInc=opInc+opdInc+vcProfit+oprInc+ipInc
   const opIpComm=opComm+oprComm+ipComm
   const nonLabExpTotal=dExpNonLab.reduce((a,e)=>a+e.amount,0)
   const opIpActual=opIpInc-opIpComm-nonLabExpTotal
@@ -4351,7 +4343,6 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           {opInc>0&&<R l="OP Consultation" v={fmt(opInc)} green/>}
           {opdInc>0&&<R l="OPD Services" v={fmt(opdInc)} green/>}
-          {opConsFee>0&&<R l="OP Consultant fees paid" v={'- '+fmt(opConsFee)} red sub="Visiting consultant share"/>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
           {oprInc>0&&<R l="OP Pharmacy" v={fmt(oprInc)} green/>}
           {ipInc>0&&<R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>}
@@ -6021,3 +6012,4 @@ const AnalyticsDash=({db})=>{
   )
 }
 
+import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<App/>)
