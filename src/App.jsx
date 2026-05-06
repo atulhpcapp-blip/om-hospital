@@ -4459,22 +4459,34 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {/* OP Lab - patient names */}
           {opLabEnts.length>0&&<>
             <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>OP Lab</div>
-            {opLabEnts.filter(e=>e.payment!=='credit').map((e,i)=>{const comm=getComm(e);return(<div key={i} style={{padding:'3px 0 3px 10px',borderLeft:'2px solid #e9d5ff'}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151'}}>
-                <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} {e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
-              </div>
-              {e.ref_doctor&&comm>0&&<div style={{fontSize:10,color:'#dc2626',marginLeft:4}}>Dr. {e.ref_doctor} — comm: {fmt(comm)}</div>}
-            </div>)})}
+            {opLabEnts.filter(e=>e.credit===0||e.amount>e.credit).map((e,i)=>{
+              const paidAmt=e.amount-e.credit
+              const icon=e.cash>0?'💵':e.upi>0?'📱':e.card>0?'💳':'💰'
+              const commRate=e.ref?(()=>{const doc=db.ref_doctors.find(d=>d.name===e.ref);return doc?.op_l_pct||0})():0
+              const comm=e.ref&&commRate>0?Math.round(paidAmt*commRate/100):0
+              return(<div key={i} style={{padding:'3px 0 3px 10px',borderLeft:'2px solid #e9d5ff'}}>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151'}}>
+                  <span>{icon} {e.name}</span><span style={{fontWeight:600}}>{fmt(paidAmt)}</span>
+                </div>
+                {e.ref&&comm>0&&<div style={{fontSize:10,color:'#dc2626',marginLeft:4}}>Dr. {e.ref} — comm: {fmt(comm)}</div>}
+              </div>)
+            })}
           </>}
           {/* IP Lab - patient names */}
           {ipLabEnts.length>0&&<>
             <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:2,marginTop:4}}>IP Lab</div>
-            {ipLabEnts.filter(e=>e.payment!=='credit').map((e,i)=>{const comm=getComm(e);return(<div key={i} style={{padding:'3px 0 3px 10px',borderLeft:'2px solid #e9d5ff'}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151'}}>
-                <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} {e.patient_name||'—'}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
-              </div>
-              {e.ref_doctor&&comm>0&&<div style={{fontSize:10,color:'#dc2626',marginLeft:4}}>Dr. {e.ref_doctor} — comm: {fmt(comm)}</div>}
-            </div>)})}
+            {ipLabEnts.filter(e=>e.credit===0||e.amount>e.credit).map((e,i)=>{
+              const paidAmt=e.amount-e.credit
+              const icon=e.cash>0?'💵':e.upi>0?'📱':e.card>0?'💳':'💰'
+              const commRate=e.ref?(()=>{const doc=db.ref_doctors.find(d=>d.name===e.ref);return doc?.ip_l_pct||0})():0
+              const comm=e.ref&&commRate>0?Math.round(paidAmt*commRate/100):0
+              return(<div key={i} style={{padding:'3px 0 3px 10px',borderLeft:'2px solid #e9d5ff'}}>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151'}}>
+                  <span>{icon} {e.name}</span><span style={{fontWeight:600}}>{fmt(paidAmt)}</span>
+                </div>
+                {e.ref&&comm>0&&<div style={{fontSize:10,color:'#dc2626',marginLeft:4}}>Dr. {e.ref} — comm: {fmt(comm)}</div>}
+              </div>)
+            })}
           </>}
           {/* Ref commissions by doctor */}
           {labComm>0&&<>
