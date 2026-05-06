@@ -2302,6 +2302,7 @@ const PatientListReport=({db,gotoTimeline})=>{
   const [opConFilter,setOpConFilter]=useState('')
   const [ipView,setIpView]=useState('all')
   const [ipSearch,setIpSearch]=useState('')
+  const [ipDxFilter,setIpDxFilter]=useState('')
   const [ipRefFilter2,setIpRefFilter2]=useState('')
   const yrs=[...new Set(db.ip_patients.map(e=>e.admission_date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry2))yrs.unshift(ry2)
@@ -2324,6 +2325,7 @@ const PatientListReport=({db,gotoTimeline})=>{
       {showType==='ip'&&<>
         <div style={{display:'flex',gap:6,marginBottom:10,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'ref',l:'By Ref Doctor'}].map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
         {ipView!=='ref'&&<div style={{position:'relative',marginBottom:10}}><input style={{...S.inp,paddingLeft:36}} placeholder="Search name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/><span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>{ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}</div>}
+        {ipView!=='ref'&&<select value={ipDxFilter} onChange={e=>setIpDxFilter(e.target.value)} style={{...S.sel,marginBottom:8}}><option value="">Filter by diagnosis</option>{[...new Set(ipPats.map(p=>p.diagnosis).filter(Boolean))].sort().map(dx=><option key={dx} value={dx}>{dx}</option>)}</select>}
         {ipView==='ref'&&<FSel label="Select referral doctor" value={ipRefFilter2} onChange={e=>setIpRefFilter2(e.target.value)}><option value="">- Select doctor -</option>{[...new Set(ipPats.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
       </>}
       {(()=>{
@@ -2333,6 +2335,7 @@ const PatientListReport=({db,gotoTimeline})=>{
           if(ipView==='discharged')pool=ipPats.filter(p=>p.discharge_date)
           if(ipView==='ref'&&ipRefFilter2)pool=ipPats.filter(p=>p.ref_doctor===ipRefFilter2)
           if(ipSearch.trim()&&ipView!=='ref')pool=pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch))
+          if(ipDxFilter)pool=pool.filter(p=>(p.diagnosis||'').toLowerCase().includes(ipDxFilter.toLowerCase()))
         }
         if(!pool.length)return null
         return(<><SecL>IP patients ({pool.length})</SecL>{pool.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);const cash=cashTotal(ents);const credit=credTotal(ents);const pkgPd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0)+(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<Card key={p.id} style={{marginBottom:10}}>
@@ -5015,6 +5018,9 @@ const PatientDataReport=({db})=>{
       <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
         <option value="">All Ref Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
       </select>
+      <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+        <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
+      </select>
       <button onClick={exportPDF} style={{padding:'7px 16px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📄 Export PDF</button>
     </div>
     <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>{pats.length} patients found</div>
@@ -5025,6 +5031,7 @@ const PatientDataReport=({db})=>{
           <th style={{padding:'8px'}}>Phone</th>
           <th style={{padding:'8px'}}>Area</th>
           <th style={{padding:'8px'}}>Ref Doctor</th>
+          <th style={{padding:'8px'}}>Conditions</th>
           <th style={{padding:'8px'}}>Visits</th>
           <th style={{padding:'8px'}}>Last Visit</th>
         </tr></thead>
@@ -5033,6 +5040,7 @@ const PatientDataReport=({db})=>{
           <td style={{padding:'7px 8px',textAlign:'center'}}>{p.phone||<span style={{color:'#ccc'}}>—</span>}</td>
           <td style={{padding:'7px 8px'}}>{p.area||<span style={{color:'#ccc'}}>—</span>}</td>
           <td style={{padding:'7px 8px'}}>{p.ref_doctor?<span style={{color:'#1d4ed8'}}>Dr. {p.ref_doctor}</span>:<span style={{color:'#94a3b8'}}>Self</span>}</td>
+          <td style={{padding:'7px 8px'}}>{(p.conditions||[]).length>0?<div style={{display:'flex',flexWrap:'wrap',gap:3}}>{p.conditions.slice(0,3).map((cond,ci)=><span key={ci} style={{fontSize:10,padding:'1px 6px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:600}}>{cond}</span>)}{p.conditions.length>3&&<span style={{fontSize:10,color:'#94a3b8'}}>+{p.conditions.length-3}</span>}</div>:<span style={{color:'#ccc',fontSize:11}}>—</span>}</td>
           <td style={{padding:'7px 8px',textAlign:'center',fontWeight:600}}>{p.visits}</td>
           <td style={{padding:'7px 8px',fontSize:11,color:'#64748b'}}>{p.lastVisit||'—'}</td>
         </tr>))}
