@@ -2079,7 +2079,47 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
             <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
             <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div>
           </div>
+          {/* Type breakdown */}
           {Object.entries(doc.by_type).map(([tk,v])=>(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(v.income)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(v.commission)}</span>}/>))}
+          {/* OP patients */}
+          {(()=>{
+            const opPats=fi.filter(e=>e.ref_doctor===doc.name&&['op','opd','op_r','op_l'].includes(e.type))
+            if(!opPats.length)return null
+            const byName={}
+            opPats.forEach(e=>{if(!byName[e.patient_name])byName[e.patient_name]={name:e.patient_name,amount:0,comm:0,types:[]};byName[e.patient_name].amount+=e.amount;byName[e.patient_name].comm+=getComm(e);byName[e.patient_name].types.push(e.type)})
+            return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
+              <div style={{fontSize:10,color:'#0369a1',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>OP Patients</div>
+              {Object.values(byName).map((p,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'3px 0',borderBottom:'1px solid #f9f9f9'}}>
+                <span>{i+1}. {p.name} <span style={{color:'#94a3b8'}}>{[...new Set(p.types)].map(t=>ITYPES.find(x=>x.key===t)?.label).join(', ')}</span></span>
+                <span style={{fontWeight:600}}>{fmt(p.amount)} {p.comm>0&&<span style={{color:'#dc2626'}}>· {fmt(p.comm)}</span>}</span>
+              </div>)}
+            </div>)
+          })()}
+          {/* IP patients */}
+          {(()=>{
+            const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name)
+            if(!ipPats.length)return null
+            return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
+              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>IP Patients</div>
+              {ipPats.map((p,i)=>{
+                const ipEnts=fi.filter(e=>e.patient_id===p.id)
+                const ipC=ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
+                const ipR=ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
+                const ipL=ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
+                const ipTotal=ipEnts.reduce((a,e)=>a+e.amount,0)
+                const ipComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
+                return(<div key={i} style={{padding:'6px 0',borderBottom:'1px solid #f9f9f9'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,fontWeight:600}}>
+                    <span>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'}</span>
+                    <span>{fmt(ipTotal)} <span style={{color:'#dc2626',fontSize:11}}>· {fmt(ipComm)}</span></span>
+                  </div>
+                  <div style={{fontSize:10,color:'#94a3b8',marginLeft:12}}>
+                    {ipC>0&&`Charges: ${fmt(ipC)} `}{ipR>0&&`Pharm: ${fmt(ipR)} `}{ipL>0&&`Lab: ${fmt(ipL)}`}
+                  </div>
+                </div>)
+              })}
+            </div>)
+          })()}
           {paid>0&&(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
             <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payments made</div>
             {allPaid.filter(e=>e.description===doc.name).map(e=>{
@@ -3921,6 +3961,17 @@ const AreaReport=({db,rm,setRm,ry,setRy,yrs})=>{
     {areaList.length>0&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
       {[{l:'Areas',v:areaList.length,c:'#1d4ed8'},{l:'Total income',v:fmt(grandTotal),c:'#16a34a'},{l:'Real income',v:fmt(grandTotal-grandComm),c:'#065f46'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:10,padding:'10px 14px',textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div><div style={{fontSize:15,fontWeight:800,color:m.c}}>{m.v}</div></div>))}
     </div>}
+    {/* PIE CHART */}
+    {areaList.length>0&&<div style={{background:'#fff',border:'1px solid #ede9e3',borderRadius:16,padding:'16px',marginBottom:14,display:'flex',flexDirection:'column',alignItems:'center'}}>
+      <div style={{fontSize:12,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>Income by area</div>
+      <PieChart size={200} data={areaList.map((ar,i)=>({label:ar.area,value:ar.total,color:['#1d4ed8','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#065f46','#92400e'][i%8]}))}/>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12,justifyContent:'center'}}>
+        {areaList.map((ar,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}>
+          <div style={{width:10,height:10,borderRadius:2,background:['#1d4ed8','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#065f46','#92400e'][i%8]}}/>
+          <span>{ar.area}</span>
+        </div>)}
+      </div>
+    </div>}
     {areaList.map(ar=>(
       <Card key={ar.area} style={{marginBottom:12,borderLeft:'3px solid #1d4ed8'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
@@ -5012,6 +5063,19 @@ const SpecialityReport=({db})=>{
   const totalDoc=specs.reduce((a,s)=>a+s.doctorEarning,0)
   const totalHosp=specs.reduce((a,s)=>a+s.hospitalEarning,0)
 
+  // Build consultant breakdown per speciality
+  const consBySpec={}
+  db.consultants.filter(con=>con.speciality).forEach(con=>{
+    const spec=con.speciality
+    if(!consBySpec[spec])consBySpec[spec]=[]
+    const conEnts=incList.filter(e=>e.consultant_name===con.name||e.type==='vc'&&e.consultant_name===con.name)
+    const conIncome=conEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
+    const hospIncome=conEnts.reduce((a,e)=>a+e.amount-(e.consultant_fee||0),0)
+    consBySpec[spec].push({name:con.name,conFee:conIncome,hospShare:hospIncome,visits:conEnts.length})
+  })
+
+  const COLORS=['#7c3aed','#16a34a','#d97706','#1d4ed8','#dc2626','#0891b2','#065f46','#92400e']
+
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
       {[{k:'month',l:'This Month'},{k:'year',l:'This Year'},{k:'all',l:'All Time'}].map(p=>(
@@ -5035,6 +5099,17 @@ const SpecialityReport=({db})=>{
 
     {specs.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No speciality data found for this period.<br/>Add visiting consultants with speciality and admit IP patients to see this report.</div>}
 
+        {/* PIE CHART */}
+    {specs.length>0&&<div style={{background:'#fff',border:'1px solid #ede9e3',borderRadius:16,padding:'16px',marginBottom:14,display:'flex',flexDirection:'column',alignItems:'center'}}>
+      <div style={{fontSize:12,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:12}}>Income by department</div>
+      <PieChart size={200} data={specs.map((s,i)=>({label:s.speciality,value:s.grossIncome,color:COLORS[i%COLORS.length]}))}/>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:12,justifyContent:'center'}}>
+        {specs.map((s,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}>
+          <div style={{width:10,height:10,borderRadius:2,background:COLORS[i%COLORS.length]}}/>
+          <span>{s.speciality} — {fmt(s.grossIncome)}</span>
+        </div>)}
+      </div>
+    </div>}
     {specs.map((s,i)=>(<div key={i} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:10,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
         <div>
@@ -5048,7 +5123,7 @@ const SpecialityReport=({db})=>{
           <div style={{fontSize:10,color:'#94a3b8'}}>total billed</div>
         </div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:8}}>
         <div style={{textAlign:'center',background:'#fdf4ff',borderRadius:8,padding:'8px'}}>
           <div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Ref Commission</div>
           <div style={{fontSize:14,fontWeight:800,color:'#7e22ce'}}>{fmt(s.doctorEarning)}</div>
@@ -5060,6 +5135,17 @@ const SpecialityReport=({db})=>{
           <div style={{fontSize:10,color:'#22c55e'}}>{s.grossIncome>0?Math.round(s.hospitalEarning/s.grossIncome*100):0}%</div>
         </div>
       </div>
+      {/* Visiting consultants for this speciality */}
+      {consBySpec[s.speciality]&&consBySpec[s.speciality].length>0&&<div style={{borderTop:'1px solid #f5f5f5',paddingTop:8,marginTop:4}}>
+        <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Visiting Consultants</div>
+        {consBySpec[s.speciality].map((con,ci)=><div key={ci} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid #f9f9f9',fontSize:11}}>
+          <span style={{fontWeight:600}}>Dr. {con.name}</span>
+          <div style={{textAlign:'right'}}>
+            <span style={{color:'#7c3aed'}}>Dr: {fmt(con.conFee)}</span>
+            <span style={{color:'#16a34a',marginLeft:8}}>Hosp: {fmt(con.hospShare)}</span>
+          </div>
+        </div>)}
+      </div>}
     </div>))}
   </>)
 }
