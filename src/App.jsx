@@ -4914,7 +4914,8 @@ export default function App(){
         custom_commission:row.custom_commission!=null?row.custom_commission:null,
         reg_no:row.reg_no||'',
         patient_area:row.patient_area||'',
-        patient_phone:row.patient_phone||''
+        patient_phone:row.patient_phone||'',
+        speciality:row.speciality||'General Medicine'
       }
       const {data,error}=await supabase.from('income').insert([insertRow]).select()
       if(error){alert('Save failed: '+error.message);return false}
