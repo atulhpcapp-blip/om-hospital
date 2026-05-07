@@ -997,7 +997,10 @@ const CreditTab=({db,actions})=>{
                 {typeEntries.map(e=>(
                   <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6,paddingLeft:6}}>
                     <span style={{fontSize:12,color:'#aaa'}}>{fmtD(e.date)} - {fmt(e.amount)}{e.notes?' - '+e.notes:''}</span>
-                    <button onClick={()=>setCollectEntry(e)} style={{padding:'4px 12px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700,whiteSpace:'nowrap'}}>Collect</button>
+                    <div style={{display:'flex',gap:6}}>
+                      <button onClick={()=>setCollectEntry(e)} style={{padding:'4px 12px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>
+                      <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+' — '+it?.full+'\nfor '+pt.name+'?\nThis settles the debt without payment.'))actions.editIncome({...e,payment:'written_off'})}} style={{padding:'4px 10px',background:'#6b7280',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Write off</button>
+                    </div>
                   </div>
                 ))}
               </div>
