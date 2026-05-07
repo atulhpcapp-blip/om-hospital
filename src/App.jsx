@@ -4835,21 +4835,29 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
 
   // ── OP Referrals (to give today) ──
   // Group today's OP/OPD entries by ref doctor
-  const opRefToday={}
-  dI.filter(e=>e.ref_doctor&&e.ref_doctor.trim()&&['op','opd','op_r','op_l'].includes(e.type)).forEach(e=>{
+  // OP referrals: all entries UP TO selected date (not just today)
+  const opRefAll={}
+  db.income.filter(e=>e.date<=rd&&e.ref_doctor&&e.ref_doctor.trim()&&['op','opd','op_r','op_l'].includes(e.type)).forEach(e=>{
     const doc=e.ref_doctor.trim()
-    if(!opRefToday[doc])opRefToday[doc]={doc,patients:[],totalBilled:0,totalComm:0}
+    if(!opRefAll[doc])opRefAll[doc]={doc,patients:[],totalBilled:0,totalComm:0,paid:0}
     const comm=getComm(e)
-    const existing=opRefToday[doc].patients.find(p=>p.name===e.patient_name)
-    if(!existing)opRefToday[doc].patients.push({name:e.patient_name,types:[],amount:0,comm:0,payment:e.payment})
-    const pat=opRefToday[doc].patients.find(p=>p.name===e.patient_name)
+    // Group by patient name + date for unique visits
+    const visitKey=e.patient_name+'|'+e.date
+    const existing=opRefAll[doc].patients.find(p=>p.key===visitKey)
+    if(!existing)opRefAll[doc].patients.push({key:visitKey,name:e.patient_name,date:e.date,types:[],amount:0,comm:0,payment:e.payment})
+    const pat=opRefAll[doc].patients.find(p=>p.key===visitKey)
     pat.types.push(e.type)
     pat.amount+=e.amount
     pat.comm+=comm
-    opRefToday[doc].totalBilled+=e.amount
-    opRefToday[doc].totalComm+=comm
+    opRefAll[doc].totalBilled+=e.amount
+    opRefAll[doc].totalComm+=comm
   })
-  const opDocs=Object.values(opRefToday).sort((a,b)=>b.totalComm-a.totalComm)
+  // Deduct already paid commissions
+  db.expenses.filter(e=>e.category==='ref_paid').forEach(e=>{
+    const doc=(e.description||'').replace('Commission to Dr. ','').trim()
+    if(opRefAll[doc])opRefAll[doc].paid+=(e.amount||0)
+  })
+  const opDocs=Object.values(opRefAll).sort((a,b)=>b.totalComm-a.totalComm)
 
   // ── IP Referrals ──
   // Admitted patients with ref doctor - split by discharged/active
@@ -4872,7 +4880,7 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
 
   return(<div>
     <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
-      <button style={tabStyle('op')} onClick={()=>setTab('op')}>📋 OP Referrals today ({opDocs.length})</button>
+      <button style={tabStyle('op')} onClick={()=>setTab('op')}>📋 OP Referrals upto {rd} ({opDocs.length})</button>
       <button style={tabStyle('ip')} onClick={()=>setTab('ip')}>🏥 IP Referrals ({ipDocs.length})</button>
     </div>
 
@@ -4886,8 +4894,8 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
             <div style={{fontSize:11,color:'#94a3b8'}}>{d.patients.length} patient{d.patients.length!==1?'s':''} today</div>
           </div>
           <div style={{textAlign:'right'}}>
-            <div style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>Commission: {fmt(d.totalComm)}</div>
-            <div style={{fontSize:10,color:'#94a3b8'}}>Billed: {fmt(d.totalBilled)}</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>Due: {fmt(d.totalComm-(d.paid||0))}</div>
+            <div style={{fontSize:10,color:'#94a3b8'}}>Total: {fmt(d.totalComm)} · Paid: {fmt(d.paid||0)}</div>
           </div>
         </div>
         {d.patients.map((p,pi)=>(<div key={pi} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:'1px solid #f5f5f5'}}>
@@ -4900,8 +4908,8 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
             {p.comm>0&&<div style={{fontSize:10,color:'#dc2626'}}>Comm: {fmt(p.comm)}</div>}
           </div>
         </div>))}
-        {d.totalComm>0&&<button onClick={()=>setPaying({doc:d.doc,amount:d.totalComm,type:'op'})} style={{width:'100%',marginTop:10,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
-          💸 Record commission payment — {fmt(d.totalComm)}
+        {(d.totalComm-(d.paid||0))>0&&<button onClick={()=>setPaying({doc:d.doc,amount:d.totalComm-(d.paid||0),type:'op'})} style={{width:'100%',marginTop:10,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+          💸 Record commission — Due: {fmt(d.totalComm-(d.paid||0))}
         </button>}
       </div>))}
     </div>)}
