@@ -1412,15 +1412,36 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
           </div>
           {(()=>{
             const admPats=db.ip_patients.filter(p=>!p.discharge_date)
-            const ipOutstanding=admPats.reduce((a,p)=>{
-              const creds=db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit'&&['ip','ip_r','ip_p'].includes(e.type))
-              return a+creds.reduce((b,e)=>b+e.amount,0)
-            },0)
-            if(!ipOutstanding)return null
-            return(<div style={{background:'#fef2f2',borderRadius:12,padding:'10px 14px',gridColumn:'span 2',marginTop:-8}}>
-              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>🏥 IP credit outstanding (since admission)</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#dc2626'}}>{fmt(ipOutstanding)}</div>
-              <div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{admPats.filter(p=>db.income.some(e=>e.patient_id===p.id&&e.payment==='credit')).length} admitted patient{admPats.filter(p=>db.income.some(e=>e.patient_id===p.id&&e.payment==='credit')).length!==1?'s':''} with credit</div>
+            const patCreds=admPats.map(p=>({
+              pat:p,
+              creds:db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit'&&['ip','ip_r','ip_p'].includes(e.type))
+            })).filter(x=>x.creds.length>0)
+            if(!patCreds.length)return null
+            const ipOutstanding=patCreds.reduce((a,x)=>a+x.creds.reduce((b,e)=>b+e.amount,0),0)
+            return(<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:12,padding:'12px 14px',gridColumn:'span 2',marginTop:-8}}>
+              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>🏥 IP Credit Outstanding</div>
+              {patCreds.map(({pat,creds},pi)=>{
+                const patTotal=creds.reduce((a,e)=>a+e.amount,0)
+                return(<div key={pi} style={{borderBottom:'1px solid #fee2e2',paddingBottom:8,marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                    <div>
+                      <span style={{fontSize:12,fontWeight:700,color:'#1a1a2e'}}>{pat.name}</span>
+                      <span style={{fontSize:10,color:'#94a3b8',marginLeft:6}}>Reg: {pat.reg_no||'—'}</span>
+                    </div>
+                    <span style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>{fmt(patTotal)}</span>
+                  </div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                    {creds.map((e,ci)=><div key={ci} style={{display:'flex',alignItems:'center',gap:6,background:'#fff',border:'1px solid #fecaca',borderRadius:8,padding:'4px 8px'}}>
+                      <span style={{fontSize:11,color:'#555'}}>{ITYPES.find(t=>t.key===e.type)?.label||e.type}: {fmt(e.amount)}</span>
+                      <button onClick={()=>setCollectEntry(e)} style={{padding:'2px 8px',background:'#16a34a',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Collect</button>
+                    </div>)}
+                  </div>
+                </div>)
+              })}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Total outstanding</span>
+                <span style={{fontSize:15,fontWeight:800,color:'#dc2626'}}>{fmt(ipOutstanding)}</span>
+              </div>
             </div>)
           })()}
         </div>
