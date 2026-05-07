@@ -1407,9 +1407,22 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
             <div style={{fontSize:18,fontWeight:700,color:'#15803d'}}>{fmt(todayCash)}</div>
           </div>
           <div style={{background:todayCredit>0?'#fff7ed':'#f9f9f9',borderRadius:12,padding:'10px 14px'}}>
-            <div style={{fontSize:10,color:todayCredit>0?'#92400e':'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit given</div>
+            <div style={{fontSize:10,color:todayCredit>0?'#92400e':'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit given today</div>
             <div style={{fontSize:18,fontWeight:700,color:todayCredit>0?'#c2410c':'#ccc'}}>{fmt(todayCredit)}</div>
           </div>
+          {(()=>{
+            const admPats=db.ip_patients.filter(p=>!p.discharge_date)
+            const ipOutstanding=admPats.reduce((a,p)=>{
+              const creds=db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit'&&['ip','ip_r','ip_p'].includes(e.type))
+              return a+creds.reduce((b,e)=>b+e.amount,0)
+            },0)
+            if(!ipOutstanding)return null
+            return(<div style={{background:'#fef2f2',borderRadius:12,padding:'10px 14px',gridColumn:'span 2',marginTop:-8}}>
+              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>🏥 IP credit outstanding (since admission)</div>
+              <div style={{fontSize:18,fontWeight:800,color:'#dc2626'}}>{fmt(ipOutstanding)}</div>
+              <div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{admPats.filter(p=>db.income.some(e=>e.patient_id===p.id&&e.payment==='credit')).length} admitted patient{admPats.filter(p=>db.income.some(e=>e.patient_id===p.id&&e.payment==='credit')).length!==1?'s':''} with credit</div>
+            </div>)
+          })()}
         </div>
       )}
       <SecL>Entries for {fmtD(eDate)} - {fmt(tot)}</SecL>
@@ -4165,7 +4178,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const vcProfit=vcInc-vcConsFee  // hospital keeps gross minus consultant's share
   const oprInc=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+e.amount,0)
   const oprComm=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+getComm(e),0)
-  const ipEnts=dI.filter(e=>['ip','ip_r'].includes(e.type))
+  const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type))
   const ipInc=ipEnts.reduce((a,e)=>a+e.amount,0)
   const ipComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
   const labInc=opLabEnts.reduce((a,e)=>a+e.amount,0)+ipLabEnts.reduce((a,e)=>a+e.amount,0)
