@@ -2103,6 +2103,46 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
 }
 
 /*  EXPENSES TAB  */
+const ExpRow=({e,cat,actions,ECATS,PMODES})=>{
+  const [editing,setEditing]=useState(false)
+  const [ef,setEf]=useState({amount:String(e.amount),description:e.description||'',category:e.category||'misc',payment:e.payment||'cash'})
+  if(editing)return(<div style={{background:'#f8f7f5',border:'1px solid #e8e2d9',borderRadius:10,padding:'12px',marginBottom:6}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+      <div><label style={{fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',display:'block',marginBottom:4}}>Category</label>
+        <select value={ef.category} onChange={e=>setEf(f=>({...f,category:e.target.value}))} style={{width:'100%',padding:'8px 10px',border:'1.5px solid #e8e2d9',borderRadius:8,fontSize:13,fontFamily:'inherit'}}>
+          {ECATS.filter(c=>c.key!=='ref_paid').map(c=><option key={c.key} value={c.key}>{c.label}</option>)}
+        </select>
+      </div>
+      <div><label style={{fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',display:'block',marginBottom:4}}>Amount (Rs)</label>
+        <input type="number" value={ef.amount} onChange={e=>setEf(f=>({...f,amount:e.target.value}))} style={{width:'100%',padding:'8px 10px',border:'1.5px solid #e8e2d9',borderRadius:8,fontSize:13,fontFamily:'inherit'}}/>
+      </div>
+    </div>
+    <div style={{marginBottom:8}}><label style={{fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',display:'block',marginBottom:4}}>Description</label>
+      <input type="text" value={ef.description} onChange={e=>setEf(f=>({...f,description:e.target.value}))} style={{width:'100%',padding:'8px 10px',border:'1.5px solid #e8e2d9',borderRadius:8,fontSize:13,fontFamily:'inherit'}}/>
+    </div>
+    <div style={{marginBottom:10}}><label style={{fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',display:'block',marginBottom:4}}>Payment</label>
+      <select value={ef.payment} onChange={e=>setEf(f=>({...f,payment:e.target.value}))} style={{width:'100%',padding:'8px 10px',border:'1.5px solid #e8e2d9',borderRadius:8,fontSize:13,fontFamily:'inherit'}}>
+        {PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}
+      </select>
+    </div>
+    <div style={{display:'flex',gap:8}}>
+      <button onClick={async()=>{const amt=parseFloat(ef.amount);if(!amt||amt<=0){alert('Enter valid amount');return}await actions.updateExpense(e.id,{amount:amt,description:ef.description,category:ef.category,payment:ef.payment});setEditing(false)}} style={{flex:1,padding:'10px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
+      <button onClick={()=>setEditing(false)} style={{padding:'10px 16px',background:'#f1f5f9',border:'none',borderRadius:10,fontSize:13,cursor:'pointer',color:'#64748b'}}>Cancel</button>
+    </div>
+  </div>)
+  return(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+    <div style={{flex:1}}>
+      <div style={{fontSize:13,fontWeight:600,color:'#1a1a2e'}}>{cat?.label||e.category}{e.is_monthly&&<span style={{fontSize:10,padding:'1px 7px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700,marginLeft:6}}>monthly</span>}</div>
+      <div style={{fontSize:11,color:'#94a3b8'}}>{e.description||'—'} · {e.payment}</div>
+    </div>
+    <div style={{display:'flex',alignItems:'center',gap:8}}>
+      <span style={{color:'#ef4444',fontWeight:700,fontSize:14}}>{fmt(e.amount)}</span>
+      <button onClick={()=>setEditing(true)} style={{padding:'4px 10px',background:'#f8f7f5',border:'1px solid #e8e2d9',borderRadius:8,fontSize:11,color:'#3d3d5c',cursor:'pointer',fontWeight:600}}>Edit</button>
+      <button onClick={()=>{if(window.confirm('Delete this expense?'))actions.delExpense(e.id)}} style={{padding:'4px 10px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:600}}>Del</button>
+    </div>
+  </div>)
+}
+
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const exp=db.expenses.filter(e=>e.category!=='ref_paid').filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
   const go=async()=>{
@@ -2136,7 +2176,7 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
         <PBtn onClick={go}>Save expense</PBtn>
       </Card>
       <SecL>Expenses - {fmtD(exD)} - {fmt(etot)}</SecL>
-      {exp.length===0?<div style={{textAlign:'center',padding:'24px 0',color:'#ccc',fontSize:13}}>No expenses</div>:<Card>{exp.map(e=>{const c=ECATS.find(c=>c.key===e.category);return<Row key={e.id} left={<span>{c?.label||e.category}{e.is_monthly&&<Pill label="monthly" bg="#dbeafe" tx="#1d4ed8"/>}</span>} sub={(e.description||'-')+' - '+e.payment} right={<><span style={{color:'#ef4444',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span><DBtn onClick={()=>actions.delExpense(e.id)}>X</DBtn></>}/>})}</Card>}
+      {exp.length===0?<div style={{textAlign:'center',padding:'24px 0',color:'#ccc',fontSize:13}}>No expenses</div>:<Card>{exp.map(e=>{const cat=ECATS.find(c=>c.key===e.category);return<ExpRow key={e.id} e={e} cat={cat} actions={actions} ECATS={ECATS} PMODES={PMODES}/>})}</Card>}
     </div>
   )
 }
