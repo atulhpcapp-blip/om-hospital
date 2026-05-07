@@ -1436,7 +1436,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                     {creds.map((e,ci)=><div key={ci} style={{display:'flex',alignItems:'center',gap:6,background:'#fff',border:'1px solid #fecaca',borderRadius:8,padding:'4px 8px'}}>
                       <span style={{fontSize:11,color:'#555'}}>{ITYPES.find(t=>t.key===e.type)?.label||e.type}: {fmt(e.amount)}</span>
                       <button onClick={()=>setCollectEntry(e)} style={{padding:'2px 8px',background:'#16a34a',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Collect</button>
-                      <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+' for '+e.patient_name+'? This marks the debt as settled without payment.'))actions.editIncome({...e,payment:'writeoff'})}} style={{padding:'2px 8px',background:'#6b7280',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Write off</button>
+                      <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+' for '+e.patient_name+'? This marks it as settled.'))actions.editIncome({...e,payment:'written_off'})}} style={{padding:'2px 8px',background:'#6b7280',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Write off</button>
                     </div>)}
                   </div>
                 </div>)
@@ -1462,7 +1462,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   <TypeTag t={t.key}/>{e.patient_name||'-'}
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{settled?'⚫ Written off/Settled':cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
+                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
                 {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}{e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{fontSize:10,color:'#7c3aed',marginTop:1}}>{e.conditions.split(',').filter(Boolean).join(' · ')}</div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
@@ -2355,7 +2355,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
           allEvents.push({date:p.admission_date,label:'Admitted: '+p.name,sub:(p.patient_type||'Regular')+(p.is_package?' - Package':'')+' IP patient'+(p.discharge_date?' - Discharged '+fmtD(p.discharge_date):''),color:'#1d4ed8',type:'admit'})
         })
         docIncome.forEach(e=>{
-          const cr=isCredit(e);const settled=e.payment==='writeoff'||e.payment==='settled';const comm=getComm(e);const it=ITYPES.find(t=>t.key===e.type)
+          const cr=isCredit(e);const comm=getComm(e);const it=ITYPES.find(t=>t.key===e.type)
           allEvents.push({date:e.date,label:(e.patient_name||'Patient')+' - '+fmt(e.amount),sub:(it?.full||e.type)+(cr?' (credit)':' '+e.payment)+(comm>0?' - Comm: '+fmt(comm):''),color:cr?'#c2410c':'#16a34a',type:'income',amount:e.amount,comm})
         })
         allEvents.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
@@ -4642,17 +4642,12 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               {ipCreditPats.length>0&&<>
                 <div style={{fontSize:10,color:'#16a34a',fontWeight:700,marginBottom:4,marginTop:opCreditEnts.length?8:0}}>IP — Since Admission</div>
                 {ipCreditPats.map((p,i)=><div key={i} style={{padding:'5px 0 5px 8px',borderLeft:'2px solid #bbf7d0',marginBottom:4}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                    <div>
-                      <span style={{fontSize:12,fontWeight:700,color:'#374151'}}>🏥 {p.name}</span>
-                      <div style={{fontSize:10,color:'#94a3b8'}}>{p.entries.map(e=>ITYPES.find(t=>t.key===e.type)?.label+': '+fmt(e.amount)).join(' · ')}</div>
-                    </div>
-                    <div style={{display:'flex',flexDirection:'column',gap:4,alignItems:'flex-end'}}>
-                      <span style={{fontSize:12,fontWeight:800,color:'#dc2626'}}>{fmt(p.total)}</span>
-                      <div style={{display:'flex',gap:4}}>
-                        {p.entries.map((e,ei)=><button key={ei} onClick={()=>{if(window.confirm('Write off '+ITYPES.find(t=>t.key===e.type)?.label+' of Rs '+e.amount+' for '+p.name+'?'))actions.editIncome({...e,payment:'writeoff'})}} style={{padding:'1px 7px',background:'#6b7280',color:'#fff',border:'none',borderRadius:5,fontSize:10,cursor:'pointer'}}>Write off {ITYPES.find(t=>t.key===e.type)?.label}</button>)}
-                      </div>
-                    </div>
+                  <div style={{display:'flex',justifyContent:'space-between'}}>
+                    <span style={{fontSize:12,fontWeight:700,color:'#374151'}}>🏥 {p.name}</span>
+                    <span style={{fontSize:12,fontWeight:800,color:'#dc2626'}}>{fmt(p.total)}</span>
+                  </div>
+                  <div style={{fontSize:10,color:'#94a3b8'}}>
+                    {p.entries.map(e=>ITYPES.find(t=>t.key===e.type)?.label+': '+fmt(e.amount)).join(' · ')}
                   </div>
                 </div>)}
               </>}
