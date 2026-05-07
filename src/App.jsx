@@ -4527,23 +4527,49 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               {segCredit>0&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(segCredit)}</span>}
             </div>)
           })()}
-          {/* Credit breakdown - who owes how much today */}
+          {/* Credit breakdown - today's OP credits + ALL outstanding IP credits since admission */}
           {(()=>{
-            const creditEnts=dI.filter(e=>e.payment==='credit'&&!['op_l','ip_l'].includes(e.type))
-            if(!creditEnts.length)return null
+            // OP credits today
+            const opCreditEnts=dI.filter(e=>e.payment==='credit'&&['op','opd','op_r'].includes(e.type))
+            // IP credits from time of admission (all admitted patients)
+            const admittedPats=db.ip_patients.filter(p=>!p.discharge_date)
+            const ipCreditByPat={}
+            admittedPats.forEach(p=>{
+              const patCredits=db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit'&&['ip','ip_r','ip_p'].includes(e.type))
+              if(patCredits.length){
+                const total=patCredits.reduce((a,e)=>a+e.amount,0)
+                ipCreditByPat[p.name]={name:p.name,total,admDate:p.admission_date,entries:patCredits}
+              }
+            })
+            const ipCreditPats=Object.values(ipCreditByPat)
+            if(!opCreditEnts.length&&!ipCreditPats.length)return null
+            const totalOPCredit=opCreditEnts.reduce((a,e)=>a+e.amount,0)
+            const totalIPCredit=ipCreditPats.reduce((a,p)=>a+p.total,0)
             return(<>
               <div style={{height:1,background:'#bae6fd',margin:'6px 0'}}/>
-              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Credit outstanding today</div>
-              {creditEnts.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderBottom:'1px solid #f5f5f5'}}>
-                <div>
-                  <span style={{fontSize:12,fontWeight:600,color:'#374151'}}>{e.patient_name||'—'}</span>
-                  <span style={{fontSize:10,color:'#94a3b8',marginLeft:6}}>{ITYPES.find(t=>t.key===e.type)?.full||e.type}</span>
-                </div>
-                <span style={{fontSize:12,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</span>
-              </div>)}
-              <div style={{display:'flex',justifyContent:'space-between',marginTop:6,paddingTop:4,borderTop:'1px solid #fca5a5'}}>
-                <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Total credit outstanding</span>
-                <span style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>{fmt(creditEnts.reduce((a,e)=>a+e.amount,0))}</span>
+              <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Credit outstanding</div>
+              {opCreditEnts.length>0&&<>
+                <div style={{fontSize:10,color:'#0369a1',fontWeight:700,marginBottom:4}}>OP — Today</div>
+                {opCreditEnts.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'3px 0 3px 8px',borderLeft:'2px solid #bae6fd',marginBottom:2}}>
+                  <span style={{fontSize:11,color:'#374151'}}>{e.patient_name||'—'} <span style={{color:'#94a3b8'}}>{ITYPES.find(t=>t.key===e.type)?.label}</span></span>
+                  <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</span>
+                </div>)}
+              </>}
+              {ipCreditPats.length>0&&<>
+                <div style={{fontSize:10,color:'#16a34a',fontWeight:700,marginBottom:4,marginTop:opCreditEnts.length?8:0}}>IP — Since Admission</div>
+                {ipCreditPats.map((p,i)=><div key={i} style={{padding:'5px 0 5px 8px',borderLeft:'2px solid #bbf7d0',marginBottom:4}}>
+                  <div style={{display:'flex',justifyContent:'space-between'}}>
+                    <span style={{fontSize:12,fontWeight:700,color:'#374151'}}>🏥 {p.name}</span>
+                    <span style={{fontSize:12,fontWeight:800,color:'#dc2626'}}>{fmt(p.total)}</span>
+                  </div>
+                  <div style={{fontSize:10,color:'#94a3b8'}}>
+                    {p.entries.map(e=>ITYPES.find(t=>t.key===e.type)?.label+': '+fmt(e.amount)).join(' · ')}
+                  </div>
+                </div>)}
+              </>}
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:8,paddingTop:6,borderTop:'1px solid #fca5a5'}}>
+                <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Total outstanding</span>
+                <span style={{fontSize:14,fontWeight:800,color:'#dc2626'}}>{fmt(totalOPCredit+totalIPCredit)}</span>
               </div>
             </>)
           })()}
