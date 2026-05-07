@@ -1135,7 +1135,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%)`} type="number" inputMode="numeric" value={custComm} onChange={e=>setCustComm(e.target.value)} placeholder={String(defaultCommPct)}/>}
         {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {ref}: {fmt(comm)} ({commPct}%)</div>}
         <FInp label="Notes (optional)" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
-        {(isOP||entry.type==='opd')&&<div style={{marginBottom:10}}>
+        {(isOP||entry.type==='opd'||entry.type==='op_r')&&<div style={{marginBottom:10}}>
           <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Conditions / Comorbidities</label>
           <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
             {['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease',...editConditions.filter(c=>!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(c))].map(cond=>{
@@ -1280,7 +1280,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
         </div>}
 
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
-            {['op','opd'].includes(itype)&&<div style={{marginBottom:8}}>
+            {['op','opd','op_r'].includes(itype)&&<div style={{marginBottom:8}}>
               <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Conditions / Comorbidities</label>
               <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
                 {['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease',...(db.income.flatMap(e=>(e.conditions||'').split(',').filter(x=>x&&!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(x)))).filter((v,i,a)=>a.indexOf(v)===i)].map(cond=>{
@@ -5086,7 +5086,7 @@ const PatientDataReport=({db})=>{
 
   // Build unique patient registry
   const patMap={}
-  db.income.filter(e=>e.patient_name&&e.type==='op').forEach(e=>{
+  db.income.filter(e=>e.patient_name&&['op','opd','op_r'].includes(e.type)).forEach(e=>{
     const k=(e.patient_name||'').trim().toLowerCase()
     if(!k)return
     if(!patMap[k]){patMap[k]={name:e.patient_name,phone:e.patient_phone||'',area:e.patient_area||'',ref_doctor:e.ref_doctor||'',reg_no:e.reg_no||'',visits:0,lastVisit:e.date}}
