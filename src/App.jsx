@@ -4852,10 +4852,9 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
     opRefAll[doc].totalBilled+=e.amount
     opRefAll[doc].totalComm+=comm
   })
-  // Deduct already paid commissions
-  db.expenses.filter(e=>e.category==='ref_paid').forEach(e=>{
-    const doc=(e.description||'').replace('Commission to Dr. ','').trim()
-    if(opRefAll[doc])opRefAll[doc].paid+=(e.amount||0)
+  // Deduct already paid commissions using allPaidComm
+  Object.entries(allPaidComm||{}).forEach(([doc,paid])=>{
+    if(opRefAll[doc])opRefAll[doc].paid=paid||0
   })
   const opDocs=Object.values(opRefAll).sort((a,b)=>b.totalComm-a.totalComm)
 
@@ -4908,9 +4907,9 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
             {p.comm>0&&<div style={{fontSize:10,color:'#dc2626'}}>Comm: {fmt(p.comm)}</div>}
           </div>
         </div>))}
-        {(d.totalComm-(d.paid||0))>0&&<button onClick={()=>setPaying({doc:d.doc,amount:d.totalComm-(d.paid||0),type:'op'})} style={{width:'100%',marginTop:10,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
-          💸 Record commission — Due: {fmt(d.totalComm-(d.paid||0))}
-        </button>}
+        <button onClick={()=>setPaying({doc:d.doc,amount:Math.max(0,d.totalComm-(d.paid||0)),type:'op'})} style={{width:'100%',marginTop:10,padding:'9px',background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>
+          💸 Record commission — {(d.totalComm-(d.paid||0))>0?'Due: '+fmt(d.totalComm-(d.paid||0)):'✅ Fully paid'}
+        </button>
       </div>))}
     </div>)}
 
