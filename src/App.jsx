@@ -2105,7 +2105,14 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
 /*  EXPENSES TAB  */
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const exp=db.expenses.filter(e=>e.category!=='ref_paid').filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
-  const go=async()=>{const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return};const ok=await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon});if(ok!==false)setExF({...exF,amt:'',desc:''})}
+  const go=async()=>{
+    const amt=parseFloat(exF.amt)
+    if(!amt||amt<=0){alert('Enter amount');return}
+    try{
+      const ok=await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc||'',payment:exF.pay||'cash',is_monthly:exF.mon||false})
+      if(ok!==false)setExF(f=>({...f,amt:'',desc:''}))
+    }catch(err){alert('Save error: '+err.message)}
+  }
   return(
     <div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -5481,7 +5488,19 @@ export default function App(){
       setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...updates}:e)}))
       return true
     },
-    addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
+    addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}
+      // Optimistic update - show immediately
+      const tempRow={...row,hospital_id:hid}
+      setDb(d=>({...d,expenses:[tempRow,...d.expenses]}))
+      const {data,error}=await supabase.from('expenses').insert([tempRow]).select()
+      if(error){
+        // Rollback on error
+        setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==row.id)}))
+        alert('Save failed: '+error.message);return false
+      }
+      // Replace temp with real data
+      if(data)setDb(d=>({...d,expenses:d.expenses.map(e=>e.id===row.id?data[0]:e)}))
+      return true},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     updateExpense:async(id,updates)=>{await supabase.from('expenses').update(updates).eq('id',id);setDb(d=>({...d,expenses:d.expenses.map(e=>e.id===id?{...e,...updates}:e)}))},
     admitPatient:async row=>{
