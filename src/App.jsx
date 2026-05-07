@@ -1080,8 +1080,30 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const go=async()=>{
     const amt=parseFloat(amount)||0;if(amt<0){alert('Amount cannot be negative');return}
     setBusy(true)
-    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee,speciality:entry.speciality||'General Medicine',conditions:editConditions.join(',')})
-    setBusy(false)
+    try{
+      const row={
+        ...entry,
+        amount:amt,
+        patient_name:patName,
+        patient_phone:patPhone||'',
+        patient_area:patArea||'',
+        ref_doctor:ref.trim(),
+        payment:pay,
+        notes,
+        date,
+        op_type:opType,
+        custom_commission:custComm!==''?parseFloat(custComm):null,
+        consultant_name:isVC?vcConsultant:'',
+        consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee,
+        speciality:entry.speciality||'General Medicine',
+        conditions:Array.isArray(editConditions)?editConditions.join(','):''
+      }
+      await onSave(row)
+    }catch(err){
+      alert('Save error: '+err.message)
+    }finally{
+      setBusy(false)
+    }
   }
   return(
     <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
@@ -1474,6 +1496,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             </div>
             <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>
             {!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}
+            {p.discharge_date&&<button onClick={()=>actions.undoDischarge(p.id)} style={{padding:'7px 14px',background:'#fef3c7',border:'1.5px solid #fde68a',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',color:'#92400e'}}>↩ Undo Discharge</button>}
             <button onClick={()=>setEditIPPatient&&setEditIPPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date||'',dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||'',patient_area:p.patient_area||'',insurance_type:p.insurance_type||'',insurance_policy_no:p.insurance_policy_no||'',insurance_expected:p.insurance_expected||0,insurance_status:p.insurance_status||'pending'})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button>
             <button onClick={()=>setBillPatient(p)} style={{padding:'6px 12px',background:'#fefce8',border:'1.5px solid #d97706',borderRadius:8,fontSize:12,color:'#d97706',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>🧾 Generate Bill</button>
           </div>
@@ -5408,6 +5431,7 @@ export default function App(){
       return true
     },
     dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
+    undoDischarge:async id=>{if(!window.confirm('Undo discharge? Patient will be marked as still admitted.'))return;const {data,error}=await supabase.from('ip_patients').update({discharge_date:null,discharge_time:null}).eq('id',id).select();if(error){alert('Error: '+error.message);return}if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePatient:async id=>{await supabase.from('income').delete().eq('patient_id',id);await supabase.from('ip_patients').delete().eq('id',id);setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))},
