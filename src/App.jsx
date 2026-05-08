@@ -1405,6 +1405,42 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
         {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit - not yet collected</div>}
         <PBtn onClick={go}>Save income entry</PBtn>
       </Card>
+      {/* IP Credit Outstanding - always visible */}
+      {(()=>{
+        const admPats=db.ip_patients.filter(p=>!p.discharge_date)
+        const patCreds=admPats.map(p=>({
+          pat:p,
+          creds:db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit'&&['ip','ip_r','ip_p'].includes(e.type)&&e.amount>0)
+        })).filter(x=>x.creds.length>0)
+        if(!patCreds.length)return null
+        const ipOutstanding=patCreds.reduce((a,x)=>a+x.creds.reduce((b,e)=>b+e.amount,0),0)
+        return(<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+          <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>🏥 IP Credit Outstanding</div>
+          {patCreds.map(({pat,creds},pi)=>{
+            const patTotal=creds.reduce((a,e)=>a+e.amount,0)
+            return(<div key={pi} style={{borderBottom:'1px solid #fee2e2',paddingBottom:8,marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                <div>
+                  <span style={{fontSize:12,fontWeight:700,color:'#1a1a2e'}}>{pat.name}</span>
+                  <span style={{fontSize:10,color:'#94a3b8',marginLeft:6}}>Reg: {pat.reg_no||'—'}</span>
+                </div>
+                <span style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>{fmt(patTotal)}</span>
+              </div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {creds.map((e,ci)=><div key={ci} style={{display:'flex',alignItems:'center',gap:6,background:'#fff',border:'1px solid #fecaca',borderRadius:8,padding:'4px 8px'}}>
+                  <span style={{fontSize:11,color:'#555'}}>{ITYPES.find(t=>t.key===e.type)?.label||e.type}: {fmt(e.amount)}</span>
+                  <button onClick={()=>setCollectEntry(e)} style={{padding:'2px 8px',background:'#16a34a',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Collect</button>
+                  <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+' for '+pat.name+'?'))actions.editIncome({...e,payment:'written_off'})}} style={{padding:'2px 8px',background:'#6b7280',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Write off</button>
+                </div>)}
+              </div>
+            </div>)
+          })}
+          <div style={{display:'flex',justifyContent:'space-between',paddingTop:4}}>
+            <span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>Total outstanding</span>
+            <span style={{fontSize:15,fontWeight:800,color:'#dc2626'}}>{fmt(ipOutstanding)}</span>
+          </div>
+        </div>)
+      })()}
       {di.length>0&&(
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:4}}>
           <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px'}}>
