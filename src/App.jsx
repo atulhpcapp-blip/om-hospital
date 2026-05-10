@@ -89,6 +89,15 @@ const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=ECATS.filter(c=>c.key!=='ref_paid').reduce((a,c)=>a+(r[c.key]||0),0);return r}
 const totalRef=list=>list.reduce((a,e)=>a+getComm(e),0)
 const cashTotal=list=>list.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
+const collectedTotal=list=>{
+  let total=cashTotal(list)
+  // Add partially collected amounts from credit entries
+  list.filter(e=>isCredit(e)).forEach(e=>{
+    const colls=JSON.parse(e.collections||'[]')
+    total+=colls.reduce((a,cl)=>a+cl.amount,0)
+  })
+  return total
+}
 const credTotal=list=>list.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
 // Get all package payments from all patients, optionally filtered by date prefix
 const getPkgPayments=(pats,datePrefix)=>{
@@ -1500,10 +1509,19 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                 <span style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>{fmt(patTotal)}</span>
               </div>
               <div style={{marginBottom:6}}>
-                {creds.map((e,ci)=><div key={ci} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0'}}>
-                  <span>{ITYPES.find(t=>t.key===e.type)?.label||e.type}</span>
-                  <span style={{fontWeight:600,color:'#dc2626'}}>{fmt(e.amount)}</span>
-                </div>)}
+                {creds.map((e,ci)=>{
+                  const colls=JSON.parse(e.collections||'[]')
+                  const totalCollected=colls.reduce((a,cl)=>a+cl.amount,0)
+                  return(<div key={ci} style={{marginBottom:4}}>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555'}}>
+                      <span>{ITYPES.find(t=>t.key===e.type)?.label||e.type}</span>
+                      <span style={{fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</span>
+                    </div>
+                    {colls.map((cl,ci2)=><div key={ci2} style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#16a34a',paddingLeft:8}}>
+                      <span>✓ {fmtD(cl.date)} · {cl.payment}</span><span>{fmt(cl.amount)}</span>
+                    </div>)}
+                  </div>)
+                })}
               </div>
               <div style={{display:'flex',gap:8,marginTop:4}}>
                 <button onClick={()=>setCollectEntry({...creds[0],amount:patTotal,_creds:creds})} style={{flex:1,padding:'6px 0',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>💰 Collect — {fmt(patTotal)}</button>
@@ -1643,8 +1661,11 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 </div>
                 {te.map(e=>(
                   <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6,paddingTop:6,borderTop:'1px dashed #fef3c7'}}>
-                    <span style={{fontSize:12,color:'#92400e'}}>{fmtD(e.date)} — {fmt(e.amount)}{e.notes?' · '+e.notes:''}</span>
-                    <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,color:'#92400e'}}>{fmtD(e.date)} — <span style={{fontWeight:700}}>{fmt(e.amount)}</span> remaining{e.notes?' · '+e.notes:''}</div>
+                      {(()=>{const colls=JSON.parse(e.collections||'[]');if(!colls.length)return null;return(<div style={{marginTop:3}}>{colls.map((cl,ci)=><div key={ci} style={{fontSize:10,color:'#16a34a'}}>✓ Collected {fmt(cl.amount)} · {cl.payment} · {fmtD(cl.date)}</div>)}</div>)})()}
+                    </div>
+                    <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700,flexShrink:0}}>Credit</span>
                   </div>
                 ))}
                 <div style={{display:'flex',gap:8,marginTop:8}}>
@@ -5578,7 +5599,7 @@ export default function App(){
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,collections').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(500).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
@@ -5612,7 +5633,8 @@ export default function App(){
         patient_phone:row.patient_phone||'',
         speciality:row.speciality||'General Medicine',
         entered_by:row.entered_by||'',
-        conditions:row.conditions||''
+        conditions:row.conditions||'',
+        collections:row.collections||'[]'
       }
       const {data,error}=await supabase.from('income').insert([insertRow]).select()
       if(error){alert('Save failed: '+error.message);return false}
@@ -5629,7 +5651,8 @@ export default function App(){
         speciality:row.speciality||'General Medicine',
         conditions:row.conditions||'',
         original_amount:row.original_amount??null,
-        collected_amount:row.collected_amount??null
+        collected_amount:row.collected_amount??null,
+        collections:row.collections??'[]'
       }
       let {error}=await supabase.from('income').update(updates).eq('id',row.id)
       if(error){
