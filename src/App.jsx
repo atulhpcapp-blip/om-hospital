@@ -1016,13 +1016,33 @@ const CreditTab=({db,actions})=>{
 /*  DAILY ENTRY  */
 
 /*  COLLECT CREDIT PAYMENT FORM  */
-const CollectCreditForm=({entry,onSave,onCancel})=>{
+const CollectCreditForm=({entry,onSave,onCancel,actions})=>{
   const [date,setDate]=useState(todayStr())
   const [pay,setPay]=useState('cash')
+  const [collectAmt,setCollectAmt]=useState(String(entry.amount))
   const [busy,setBusy]=useState(false)
   const it=ITYPES.find(t=>t.key===entry.type)
-  const previewComm=getComm({...entry,payment:pay})
-  const go=async()=>{setBusy(true);await onSave({...entry,payment:pay,date});setBusy(false)}
+  const totalDue=entry.amount
+  const partialAmt=parseFloat(collectAmt)||0
+  const remaining=totalDue-partialAmt
+  const isPartial=partialAmt>0&&partialAmt<totalDue
+  const previewComm=getComm({...entry,payment:pay,amount:partialAmt})
+  const go=async()=>{
+    if(partialAmt<=0){alert('Enter amount to collect');return}
+    if(partialAmt>totalDue){alert('Cannot collect more than due');return}
+    setBusy(true)
+    try{
+      if(isPartial){
+        // Collect partial: update original to remaining balance, create new collected entry
+        await onSave({...entry,amount:remaining,payment:'credit'})
+        // Add new collected income entry
+        if(actions){await actions.addIncome({...entry,id:uid(),amount:partialAmt,payment:pay,date})}
+      } else {
+        // Full collection
+        await onSave({...entry,payment:pay,date,amount:partialAmt})
+      }
+    }finally{setBusy(false)}
+  }
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520}}>
@@ -1031,25 +1051,31 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
           <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer',color:'#555'}}>x</button>
         </div>
         <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
-          <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Amount to collect</div>
-          <div style={{fontSize:24,fontWeight:800,color:'#16a34a'}}>{fmt(entry.amount)}</div>
-          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} - {entry.patient_name||'Patient'} - originally {fmtD(entry.date)}</div>
+          <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Total due</div>
+          <div style={{fontSize:24,fontWeight:800,color:'#16a34a'}}>{fmt(totalDue)}</div>
+          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} · {entry.patient_name||'Patient'}</div>
+        </div>
+        <div style={{marginBottom:12}}>
+          <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Amount collecting now</label>
+          <input type="number" inputMode="numeric" value={collectAmt} onChange={e=>setCollectAmt(e.target.value)} style={{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:20,fontWeight:700,color:'#16a34a',fontFamily:'inherit',boxSizing:'border-box'}}/>
+          {isPartial&&<div style={{fontSize:12,color:'#f59e0b',fontWeight:600,marginTop:4}}>⚠️ Partial — Rs {remaining.toLocaleString('en-IN')} will remain as credit</div>}
+          {partialAmt===totalDue&&<div style={{fontSize:12,color:'#16a34a',fontWeight:600,marginTop:4}}>✅ Full payment</div>}
         </div>
         <FInp label="Collection date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
         <div style={{marginBottom:14}}>
           <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8,fontWeight:700}}>Payment received via</label>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-            {['cash','upi','card','other'].map(m=>(
+            {['cash','upi','card','bank'].map(m=>(
               <button key={m} onClick={()=>setPay(m)} style={{padding:'10px 4px',border:pay===m?'2px solid #16a34a':'1px solid #e5e7eb',borderRadius:10,background:pay===m?'#f0fdf4':'#fff',color:pay===m?'#16a34a':'#555',fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                {m[0].toUpperCase()+m.slice(1)}
+                {m==='upi'?'UPI/Scan':m[0].toUpperCase()+m.slice(1)}
               </button>
             ))}
           </div>
         </div>
-        {previewComm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. {entry.ref_doctor}: <strong>{fmt(previewComm)}</strong> will now be counted</div>}
+        {previewComm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission: <strong>{fmt(previewComm)}</strong></div>}
         <div style={{display:'flex',gap:8}}>
           <button onClick={onCancel} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
-          <PBtn onClick={go} disabled={busy} style={{flex:2,marginTop:0,background:'#16a34a'}}>{busy?'Saving...':'Mark as collected'}</PBtn>
+          <PBtn onClick={go} disabled={busy} style={{flex:2,marginTop:0,background:'#16a34a'}}>{busy?'Saving...':'Collect '+fmt(partialAmt)}</PBtn>
         </div>
       </div>
     </div>
@@ -1190,7 +1216,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:iF.notes,patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
     if(ok!==false){const ks=iF.speciality||'General Medicine';setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:'',speciality:ks,newSpec:'',conditions:[],newCondition:''})}
   }
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   return(
     <div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -1516,7 +1542,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const balance=pats?.is_package?0:credit
     return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
 
   if(billPatient)return(<IPBillingModule p={billPatient} db={db} onClose={()=>setBillPatient(null)} hospital={db.hospital}/>)
@@ -1618,8 +1644,31 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           </FSel>
           <PBtn style={{background:'#16a34a'}} onClick={async()=>{const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return};const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const comm=p.ref_doctor?Math.round(amt*pkgRate):0;await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''});setPyF({...pyF,amt:''})}}>Save package payment</PBtn>
         </Card></>)}
-        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','ip_p','vc'].includes(t.key)).map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL><Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>{cr&&<><button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>
-              <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+'?'))actions.editIncome({...e,payment:'written_off'})}} style={{padding:'4px 10px',background:'#6b7280',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Write off</button></>}<button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card></div>)})}
+        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','ip_p','vc'].includes(t.key)).map(t=>{
+          const te=ents.filter(e=>e.type===t.key)
+          if(!te.length)return null
+          const teCredits=te.filter(e=>isCredit(e))
+          const creditTotal=teCredits.reduce((a,e)=>a+e.amount,0)
+          return(<div key={t.key}>
+            <SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL>
+            <Card>
+              {te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>
+                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
+                  <button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
+                  <DBtn onClick={()=>actions.delIncome(e.id)}>X</DBtn>
+                </div>
+              </div>)})}
+              {teCredits.length>0&&<div style={{display:'flex',gap:8,marginTop:10,paddingTop:8,borderTop:'1px solid #fee2e2'}}>
+                <button onClick={()=>setCollectEntry({...teCredits[0],amount:creditTotal})} style={{flex:1,padding:'8px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Collect All — {fmt(creditTotal)}</button>
+                <button onClick={()=>{if(window.confirm('Write off Rs '+creditTotal+' credit for '+t.full+'?'))teCredits.forEach(e=>actions.editIncome({...e,payment:'written_off'}))}} style={{padding:'8px 14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Write off</button>
+              </div>}
+            </Card>
+          </div>)})}
         {p.insurance_type&&(<>
 
           <Card>
@@ -1886,7 +1935,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
       if(byPat[k]){setSelPat(k);setFromReport(true)}
     }
   },[opSearch])
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   if(selPat){
     const pat=byPat[selPat?.trim().toLowerCase()]||byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
