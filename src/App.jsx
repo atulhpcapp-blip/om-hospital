@@ -1562,7 +1562,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
                 <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
-                {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}{e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{fontSize:10,color:'#7c3aed',marginTop:1}}>{e.conditions.split(',').filter(Boolean).join(' · ')}</div>}
+                {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}{e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{fontSize:10,color:'#7c3aed',marginTop:1}}>{e.conditions.split(',').filter(Boolean).join(' · ')}</div>}{(()=>{const colls=JSON.parse(e.collections||'[]');if(!colls.length)return null;return(<div style={{marginTop:2}}>{colls.map((cl,ci)=><div key={ci} style={{fontSize:10,color:'#16a34a',fontWeight:600}}>✓ Collected {fmt(cl.amount)} · {cl.payment} · {fmtD(cl.date)}</div>)}</div>)})()}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -4373,16 +4373,17 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
   const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
   const opdEnts=dI.filter(e=>e.type==='opd')
-  const opdInc=opdEnts.reduce((a,e)=>a+e.amount,0)
+  const opdInc=opdEnts.reduce((a,e)=>a+(isCredit(e)?JSON.parse(e.collections||'[]').reduce((b,cl)=>b+cl.amount,0):e.amount),0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
   const vcConsFee=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const vcProfit=vcInc-vcConsFee  // hospital keeps gross minus consultant's share
-  const oprInc=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+e.amount,0)
-  const oprComm=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+getComm(e),0)
+  const oprEnts2=dI.filter(e=>e.type==='op_r')
+  const oprInc=oprEnts2.reduce((a,e)=>a+(isCredit(e)?JSON.parse(e.collections||'[]').reduce((b,cl)=>b+cl.amount,0):e.amount),0)
+  const oprComm=oprEnts2.filter(e=>!isCredit(e)).reduce((a,e)=>a+getComm(e),0)
   const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type))
-  const ipInc=ipEnts.reduce((a,e)=>a+e.amount,0)
-  const ipComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
-  const labInc=opLabEnts.reduce((a,e)=>a+e.amount,0)+ipLabEnts.reduce((a,e)=>a+e.amount,0)
+  const ipInc=ipEnts.reduce((a,e)=>a+(isCredit(e)?JSON.parse(e.collections||'[]').reduce((b,cl)=>b+cl.amount,0):e.amount),0)
+  const ipComm=ipEnts.filter(e=>!isCredit(e)).reduce((a,e)=>a+getComm(e),0)
+  const labInc=opLabEnts.reduce((a,e)=>a+(isCredit(e)?JSON.parse(e.collections||'[]').reduce((b,cl)=>b+cl.amount,0):e.amount),0)+ipLabEnts.reduce((a,e)=>a+(isCredit(e)?JSON.parse(e.collections||'[]').reduce((b,cl)=>b+cl.amount,0):e.amount),0)
   const labRawEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
   const labComm=labRawEnts.reduce((a,e)=>a+getComm(e),0)
   const labToLab=dExpLab.reduce((a,e)=>a+e.amount,0)
