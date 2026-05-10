@@ -1434,12 +1434,15 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                 </div>
                 <span style={{fontSize:13,fontWeight:800,color:'#dc2626'}}>{fmt(patTotal)}</span>
               </div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                {creds.map((e,ci)=><div key={ci} style={{display:'flex',alignItems:'center',gap:6,background:'#fff',border:'1px solid #fecaca',borderRadius:8,padding:'4px 8px'}}>
-                  <span style={{fontSize:11,color:'#555'}}>{ITYPES.find(t=>t.key===e.type)?.label||e.type}: {fmt(e.amount)}</span>
-                  <button onClick={()=>setCollectEntry(e)} style={{padding:'2px 8px',background:'#16a34a',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Collect</button>
-                  <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+' for '+pat.name+'?'))actions.editIncome({...e,payment:'written_off'})}} style={{padding:'2px 8px',background:'#6b7280',color:'#fff',border:'none',borderRadius:6,fontSize:11,fontWeight:700,cursor:'pointer'}}>Write off</button>
+              <div style={{marginBottom:6}}>
+                {creds.map((e,ci)=><div key={ci} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#555',padding:'2px 0'}}>
+                  <span>{ITYPES.find(t=>t.key===e.type)?.label||e.type}</span>
+                  <span style={{fontWeight:600,color:'#dc2626'}}>{fmt(e.amount)}</span>
                 </div>)}
+              </div>
+              <div style={{display:'flex',gap:8,marginTop:4}}>
+                <button onClick={()=>setCollectEntry(creds[0]&&{...creds[0],amount:patTotal,_isBulk:true,_allIds:creds.map(e=>e.id)})} style={{flex:1,padding:'6px 0',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>💰 Collect All — {fmt(patTotal)}</button>
+                <button onClick={()=>{if(window.confirm('Write off total Rs '+patTotal+' for '+pat.name+'?\nThis settles all credit dues without payment.'))creds.forEach(e=>actions.editIncome({...e,payment:'written_off'}))}} style={{padding:'6px 14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Write off</button>
               </div>
             </div>)
           })}
