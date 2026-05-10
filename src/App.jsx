@@ -5624,7 +5624,7 @@ export default function App(){
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,collections').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(500).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
@@ -5658,8 +5658,7 @@ export default function App(){
         patient_phone:row.patient_phone||'',
         speciality:row.speciality||'General Medicine',
         entered_by:row.entered_by||'',
-        conditions:row.conditions||'',
-        collections:row.collections||'[]'
+        conditions:row.conditions||''
       }
       const {data,error}=await supabase.from('income').insert([insertRow]).select()
       if(error){alert('Save failed: '+error.message);return false}
@@ -5676,8 +5675,7 @@ export default function App(){
         speciality:row.speciality||'General Medicine',
         conditions:row.conditions||'',
         original_amount:row.original_amount??null,
-        collected_amount:row.collected_amount??null,
-        collections:row.collections??'[]'
+        collected_amount:row.collected_amount??null
       }
       let {error}=await supabase.from('income').update(updates).eq('id',row.id)
       if(error){
