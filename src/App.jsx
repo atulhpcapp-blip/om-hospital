@@ -1071,6 +1071,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [vcConsultant,setVcConsultant]=useState(entry.consultant_name||'')
   const [vcFee,setVcFee]=useState(entry.consultant_fee!=null?String(entry.consultant_fee):'')
   const [busy,setBusy]=useState(false)
+  const [editType,setEditType]=useState(entry.type||'op')
   const [editConditions,setEditConditions]=useState((entry.conditions||'').split(',').filter(Boolean))
   const [newCond,setNewCond]=useState('')
   const isOP=entry.type==='op'
@@ -1086,6 +1087,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
     try{
       const row={
         ...entry,
+        type:editType,
         amount:amt,
         patient_name:patName,
         patient_phone:patPhone||'',
@@ -1112,7 +1114,13 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
     <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
         <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>Cancel</button>
-        <div style={{display:'flex',alignItems:'center',gap:8}}><TypeTag t={entry.type}/><span style={{fontSize:14,fontWeight:700}}>Edit entry</span></div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}><TypeTag t={editType}/><span style={{fontSize:14,fontWeight:700}}>Edit entry</span></div>
+        <div style={{marginBottom:10}}>
+          <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Income Type</label>
+          <select value={editType} onChange={e=>setEditType(e.target.value)} style={{width:'100%',padding:'10px 14px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:14,fontFamily:'inherit',background:'#fff'}}>
+            {ITYPES.map(t=><option key={t.key} value={t.key}>{t.full}</option>)}
+          </select>
+        </div>
         <button onClick={go} disabled={busy} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.6:1}}>{busy?'Saving...':'Save'}</button>
       </div>
       <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
@@ -5519,6 +5527,7 @@ export default function App(){
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{
       const updates={
+        type:row.type||'op',
         amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',
         notes:row.notes||'',date:row.date,op_type:row.op_type||'',
         custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,
