@@ -1119,12 +1119,36 @@ const collectFromEntries=async(creds,collectAmt,pay,date,actions)=>{
   for(const e of creds){
     if(remaining<=0)break
     if(e.amount<=remaining){
-      // Collect this entry fully
+      // Full: mark as collected
       await actions.editIncome({...e,payment:pay,date})
       remaining-=e.amount
     } else {
-      // Partial on this entry
-      await actions.editIncome({...e,amount:e.amount-remaining,payment:'credit'})
+      // Partial: reduce credit, create new collected entry
+      const collectedNow=remaining
+      await actions.editIncome({...e,amount:e.amount-collectedNow,payment:'credit'})
+      // New income entry for collected portion - shows in reports
+      const newEntry={
+        id:uid(),
+        date:date,
+        type:e.type,
+        amount:collectedNow,
+        payment:pay,
+        patient_id:e.patient_id||null,
+        patient_name:e.patient_name||'',
+        ref_doctor:e.ref_doctor||'',
+        notes:'Partial collection'+(e.notes?' - '+e.notes:''),
+        consultant_fee:0,
+        consultant_name:'',
+        op_type:e.op_type||'',
+        custom_commission:null,
+        reg_no:e.reg_no||'',
+        patient_area:e.patient_area||'',
+        patient_phone:e.patient_phone||'',
+        speciality:e.speciality||'General Medicine',
+        entered_by:e.entered_by||'',
+        conditions:e.conditions||''
+      }
+      await actions.addIncome(newEntry)
       remaining=0
     }
   }
