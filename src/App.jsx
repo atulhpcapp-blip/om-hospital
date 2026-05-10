@@ -1016,7 +1016,7 @@ const CreditTab=({db,actions})=>{
 /*  DAILY ENTRY  */
 
 /*  COLLECT CREDIT PAYMENT FORM  */
-const CollectCreditForm=({entry,onSave,onCancel})=>{
+const CollectCreditForm=({entry,onSave,onCancel,actions})=>{
   const [collectAmt,setCollectAmt]=useState(String(entry.amount))
   const [pay,setPay]=useState('cash')
   const [date,setDate]=useState(todayStr())
@@ -1032,12 +1032,15 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
     if(amt<=0){alert('Enter amount to collect');return}
     setBusy(true)
     try{
+      const creds=entry._creds||[entry]
       if(isPartial){
-        // Just reduce the credit amount - simple and clean
-        await onSave({...entry, amount:remaining, payment:'credit'})
+        // Reduce credit entries from first to last
+        await collectFromEntries(creds,amt,pay,date,actions)
+        onCancel()
       } else {
-        // Full payment - mark as collected
-        await onSave({...entry, amount:outstanding, payment:pay, date})
+        // Full payment - mark all as collected
+        for(const e of creds) await actions.editIncome({...e,payment:pay,date})
+        onCancel()
       }
     }finally{setBusy(false)}
   }
@@ -1099,6 +1102,23 @@ const CollectCreditForm=({entry,onSave,onCancel})=>{
       </div>
     </div>
   )
+}
+
+// Helper: collect amount from an array of credit entries (first-to-last)
+const collectFromEntries=async(creds,collectAmt,pay,date,actions)=>{
+  let remaining=collectAmt
+  for(const e of creds){
+    if(remaining<=0)break
+    if(e.amount<=remaining){
+      // Collect this entry fully
+      await actions.editIncome({...e,payment:pay,date})
+      remaining-=e.amount
+    } else {
+      // Partial on this entry
+      await actions.editIncome({...e,amount:e.amount-remaining,payment:'credit'})
+      remaining=0
+    }
+  }
 }
 
 /*  EDIT ENTRY FORM  */
@@ -1486,8 +1506,8 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                 </div>)}
               </div>
               <div style={{display:'flex',gap:8,marginTop:4}}>
-                <button onClick={()=>setCollectEntry(creds[0]&&{...creds[0],amount:patTotal,_isBulk:true,_allIds:creds.map(e=>e.id)})} style={{flex:1,padding:'6px 0',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>💰 Collect All — {fmt(patTotal)}</button>
-                <button onClick={()=>{if(window.confirm('Write off total Rs '+patTotal+' for '+pat.name+'?\nThis settles all credit dues without payment.'))creds.forEach(e=>actions.editIncome({...e,payment:'written_off'}))}} style={{padding:'6px 14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Write off</button>
+                <button onClick={()=>setCollectEntry({...creds[0],amount:patTotal,_creds:creds})} style={{flex:1,padding:'6px 0',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>💰 Collect — {fmt(patTotal)}</button>
+                <button onClick={()=>{if(window.confirm('Write off Rs '+patTotal+' for '+pat.name+'?'))creds.forEach(e=>actions.editIncome({...e,payment:'written_off'}))}} style={{padding:'6px 14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Write off</button>
               </div>
             </div>)
           })}
@@ -1683,7 +1703,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 </div>
               </div>)})}
               {teCredits.length>0&&<div style={{display:'flex',gap:8,marginTop:10,paddingTop:8,borderTop:'1px solid #fee2e2'}}>
-                <button onClick={()=>setCollectEntry({...teCredits[0],amount:creditTotal})} style={{flex:1,padding:'8px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Collect All — {fmt(creditTotal)}</button>
+                <button onClick={()=>setCollectEntry({...teCredits[0],amount:creditTotal,_creds:teCredits})} style={{flex:1,padding:'8px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Collect — {fmt(creditTotal)}</button>
                 <button onClick={()=>{if(window.confirm('Write off Rs '+creditTotal+' credit for '+t.full+'?'))teCredits.forEach(e=>actions.editIncome({...e,payment:'written_off'}))}} style={{padding:'8px 14px',background:'#6b7280',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Write off</button>
               </div>}
             </Card>
@@ -2007,8 +2027,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
               <span style={{float:'right',fontWeight:700,color:'#1d4ed8'}}>{fmt(db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0))}</span>
             </div>))}
             <Card>
-              {allEnts.map(e=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{e.notes}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:2,fontWeight:600}}>✎ {e.entered_by}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&<><button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>
-              <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+'?'))actions.editIncome({...e,payment:'written_off'})}} style={{padding:'4px 10px',background:'#6b7280',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Write off</button></>}{!isIP&&<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>}<span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
+              {allEnts.map(e=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{e.notes}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:2,fontWeight:600}}>✎ {e.entered_by}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit</span>}{!isIP&&<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>}<span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
             </Card>
           </>)
         })()}
