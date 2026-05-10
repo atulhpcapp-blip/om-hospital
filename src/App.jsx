@@ -1136,7 +1136,7 @@ const collectFromEntries=async(creds,collectAmt,pay,date,actions)=>{
         patient_id:e.patient_id||null,
         patient_name:e.patient_name||'',
         ref_doctor:e.ref_doctor||'',
-        notes:'Partial collection'+(e.notes?' - '+e.notes:''),
+        notes:'[credit:'+e.id+':'+collectedNow+'] Partial collection'+(e.notes?' - '+e.notes:''),
         consultant_fee:0,
         consultant_name:'',
         op_type:e.op_type||'',
@@ -5663,7 +5663,25 @@ export default function App(){
       const {data,error}=await supabase.from('income').insert([insertRow]).select()
       if(error){alert('Save failed: '+error.message);return false}
       if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
-    delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
+    delIncome:async id=>{
+      // Check if this is a partial collection - if so, restore original credit
+      const entry=db.income.find(e=>e.id===id)
+      if(entry?.notes){
+        const match=entry.notes.match(/\[credit:([^:]+):(\d+(?:\.\d+)?)\]/)
+        if(match){
+          const [,creditId,collectedAmt]=match
+          const creditEntry=db.income.find(e=>e.id===creditId)
+          if(creditEntry&&creditEntry.payment==='credit'){
+            // Restore credit amount
+            const restoredAmt=creditEntry.amount+parseFloat(collectedAmt)
+            await supabase.from('income').update({amount:restoredAmt}).eq('id',creditId)
+            setDb(d=>({...d,income:d.income.map(e=>e.id===creditId?{...e,amount:restoredAmt}:e)}))
+          }
+        }
+      }
+      await supabase.from('income').delete().eq('id',id)
+      setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))
+    },
     editIncome:async row=>{
       const updates={
         type:row.type||'op',
