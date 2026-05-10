@@ -1033,12 +1033,12 @@ const CollectCreditForm=({entry,onSave,onCancel,actions})=>{
     setBusy(true)
     try{
       if(isPartial){
-        // Collect partial: update original to remaining balance, create new collected entry
-        await onSave({...entry,amount:remaining,payment:'credit'})
-        // Add new collected income entry
-        if(actions){await actions.addIncome({...entry,id:uid(),amount:partialAmt,payment:pay,date})}
+        // Partial: reduce original entry amount to remaining, keep as credit
+        // Store original_amount for ledger if not already set
+        const origAmt=entry.original_amount||entry.amount
+        await onSave({...entry,amount:remaining,payment:'credit',original_amount:origAmt,collected_amount:(origAmt-remaining)})
       } else {
-        // Full collection
+        // Full collection: mark as collected with payment mode
         await onSave({...entry,payment:pay,date,amount:partialAmt})
       }
     }finally{setBusy(false)}
@@ -1051,9 +1051,18 @@ const CollectCreditForm=({entry,onSave,onCancel,actions})=>{
           <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer',color:'#555'}}>x</button>
         </div>
         <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
-          <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Total due</div>
-          <div style={{fontSize:24,fontWeight:800,color:'#16a34a'}}>{fmt(totalDue)}</div>
-          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} · {entry.patient_name||'Patient'}</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+            <div>
+              <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Outstanding balance</div>
+              <div style={{fontSize:24,fontWeight:800,color:'#16a34a'}}>{fmt(totalDue)}</div>
+              <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} · {entry.patient_name||'Patient'}</div>
+            </div>
+            {entry.original_amount&&entry.original_amount>totalDue&&<div style={{textAlign:'right'}}>
+              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase'}}>Paid so far</div>
+              <div style={{fontSize:16,fontWeight:800,color:'#16a34a'}}>{fmt(entry.original_amount-totalDue)}</div>
+              <div style={{fontSize:10,color:'#aaa'}}>of {fmt(entry.original_amount)}</div>
+            </div>}
+          </div>
         </div>
         <div style={{marginBottom:12}}>
           <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Amount collecting now</label>
@@ -5586,7 +5595,9 @@ export default function App(){
         consultant_name:row.consultant_name||'',patient_name:row.patient_name||'',
         patient_area:row.patient_area||'',patient_phone:row.patient_phone||'',
         speciality:row.speciality||'General Medicine',
-        conditions:row.conditions||''
+        conditions:row.conditions||'',
+        original_amount:row.original_amount??null,
+        collected_amount:row.collected_amount??null
       }
       let {error}=await supabase.from('income').update(updates).eq('id',row.id)
       if(error){
