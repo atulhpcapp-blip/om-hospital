@@ -1016,75 +1016,85 @@ const CreditTab=({db,actions})=>{
 /*  DAILY ENTRY  */
 
 /*  COLLECT CREDIT PAYMENT FORM  */
-const CollectCreditForm=({entry,onSave,onCancel,actions})=>{
-  const [date,setDate]=useState(todayStr())
-  const [pay,setPay]=useState('cash')
+const CollectCreditForm=({entry,onSave,onCancel})=>{
   const [collectAmt,setCollectAmt]=useState(String(entry.amount))
+  const [pay,setPay]=useState('cash')
+  const [date,setDate]=useState(todayStr())
   const [busy,setBusy]=useState(false)
   const it=ITYPES.find(t=>t.key===entry.type)
-  const totalDue=entry.amount
-  const partialAmt=parseFloat(collectAmt)||0
-  const remaining=totalDue-partialAmt
-  const isPartial=partialAmt>0&&partialAmt<totalDue
-  const previewComm=getComm({...entry,payment:pay,amount:partialAmt})
+  const outstanding=entry.amount
+  const amt=Math.min(parseFloat(collectAmt)||0, outstanding)
+  const remaining=outstanding-amt
+  const isPartial=amt>0&&amt<outstanding
+  const isFull=amt===outstanding
+
   const go=async()=>{
-    if(partialAmt<=0){alert('Enter amount to collect');return}
-    if(partialAmt>totalDue){alert('Cannot collect more than due');return}
+    if(amt<=0){alert('Enter amount to collect');return}
     setBusy(true)
     try{
       if(isPartial){
-        // Partial: reduce original entry amount to remaining, keep as credit
-        // Store original_amount for ledger if not already set
-        const origAmt=entry.original_amount||entry.amount
-        await onSave({...entry,amount:remaining,payment:'credit',original_amount:origAmt,collected_amount:(origAmt-remaining)})
+        // Just reduce the credit amount - simple and clean
+        await onSave({...entry, amount:remaining, payment:'credit'})
       } else {
-        // Full collection: mark as collected with payment mode
-        await onSave({...entry,payment:pay,date,amount:partialAmt})
+        // Full payment - mark as collected
+        await onSave({...entry, amount:outstanding, payment:pay, date})
       }
     }finally{setBusy(false)}
   }
+
   return(
-    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.55)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <div style={{fontSize:15,fontWeight:700,color:'#16a34a'}}>Collect credit payment</div>
-          <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer',color:'#555'}}>x</button>
+          <div style={{fontSize:15,fontWeight:700,color:'#1a1a2e'}}>Collect Payment</div>
+          <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer'}}>×</button>
         </div>
-        <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-            <div>
-              <div style={{fontSize:11,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>Outstanding balance</div>
-              <div style={{fontSize:24,fontWeight:800,color:'#16a34a'}}>{fmt(totalDue)}</div>
-              <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} · {entry.patient_name||'Patient'}</div>
-            </div>
-            {entry.original_amount&&entry.original_amount>totalDue&&<div style={{textAlign:'right'}}>
-              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase'}}>Paid so far</div>
-              <div style={{fontSize:16,fontWeight:800,color:'#16a34a'}}>{fmt(entry.original_amount-totalDue)}</div>
-              <div style={{fontSize:10,color:'#aaa'}}>of {fmt(entry.original_amount)}</div>
-            </div>}
+
+        {/* Patient + type info */}
+        <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 14px',marginBottom:16,display:'flex',justifyContent:'space-between'}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:'#1a1a2e'}}>{entry.patient_name||'Patient'}</div>
+            <div style={{fontSize:11,color:'#94a3b8'}}>{it?.full||entry.type}</div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase'}}>Outstanding</div>
+            <div style={{fontSize:20,fontWeight:800,color:'#dc2626'}}>{fmt(outstanding)}</div>
           </div>
         </div>
+
+        {/* Amount to collect */}
         <div style={{marginBottom:12}}>
           <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Amount collecting now</label>
-          <input type="number" inputMode="numeric" value={collectAmt} onChange={e=>setCollectAmt(e.target.value)} style={{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:20,fontWeight:700,color:'#16a34a',fontFamily:'inherit',boxSizing:'border-box'}}/>
-          {isPartial&&<div style={{fontSize:12,color:'#f59e0b',fontWeight:600,marginTop:4}}>⚠️ Partial — Rs {remaining.toLocaleString('en-IN')} will remain as credit</div>}
-          {partialAmt===totalDue&&<div style={{fontSize:12,color:'#16a34a',fontWeight:600,marginTop:4}}>✅ Full payment</div>}
+          <input type="number" inputMode="numeric" value={collectAmt}
+            onChange={e=>setCollectAmt(e.target.value)}
+            style={{width:'100%',padding:'14px 16px',border:'2px solid '+(isFull?'#16a34a':isPartial?'#f59e0b':'#e8e2d9'),borderRadius:10,fontSize:22,fontWeight:800,color:isFull?'#16a34a':isPartial?'#b45309':'#1a1a2e',fontFamily:'inherit',boxSizing:'border-box',outline:'none'}}/>
+          {isPartial&&<div style={{marginTop:6,padding:'8px 12px',background:'#fefce8',border:'1px solid #fde68a',borderRadius:8,fontSize:12,color:'#854d0e',fontWeight:600}}>
+            Balance remaining after collection: <strong>{fmt(remaining)}</strong> (stays as credit)
+          </div>}
+          {isFull&&<div style={{marginTop:6,padding:'6px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:12,color:'#16a34a',fontWeight:600}}>
+            ✅ Full payment — credit cleared
+          </div>}
         </div>
-        <FInp label="Collection date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
-        <div style={{marginBottom:14}}>
-          <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8,fontWeight:700}}>Payment received via</label>
+
+        {/* Payment mode - only for full collection */}
+        {isFull&&<div style={{marginBottom:14}}>
+          <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:8}}>Payment mode</label>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
             {['cash','upi','card','bank'].map(m=>(
               <button key={m} onClick={()=>setPay(m)} style={{padding:'10px 4px',border:pay===m?'2px solid #16a34a':'1px solid #e5e7eb',borderRadius:10,background:pay===m?'#f0fdf4':'#fff',color:pay===m?'#16a34a':'#555',fontSize:12,fontWeight:600,cursor:'pointer'}}>
-                {m==='upi'?'UPI/Scan':m[0].toUpperCase()+m.slice(1)}
+                {m==='upi'?'UPI':m[0].toUpperCase()+m.slice(1)}
               </button>
             ))}
           </div>
-        </div>
-        {previewComm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission: <strong>{fmt(previewComm)}</strong></div>}
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={onCancel} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
-          <PBtn onClick={go} disabled={busy} style={{flex:2,marginTop:0,background:'#16a34a'}}>{busy?'Saving...':'Collect '+fmt(partialAmt)}</PBtn>
+        </div>}
+
+        {isFull&&<FInp label="Collection date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>}
+
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <button onClick={onCancel} style={{flex:1,padding:'13px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#555',cursor:'pointer'}}>Cancel</button>
+          <button onClick={go} disabled={busy||amt<=0} style={{flex:2,padding:'13px',background:amt<=0?'#ccc':isFull?'#16a34a':'#f59e0b',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:busy||amt<=0?'not-allowed':'pointer'}}>
+            {busy?'Saving...':`${isFull?'Collect Full':'Collect Partial'} — ${fmt(amt)}`}
+          </button>
         </div>
       </div>
     </div>
