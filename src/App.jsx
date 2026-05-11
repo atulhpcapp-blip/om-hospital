@@ -2763,7 +2763,7 @@ const RealIncomeReport=({db})=>{
     return true
   })
 
-  const allInc=incList.reduce((a,e)=>a+(e.amount||0),0)
+  const allInc=incList.filter(e=>!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)  // collected only
   const allComm=incList.reduce((a,e)=>a+getComm(e),0)
   const allVCFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const allDeductions=allComm+allVCFees
@@ -2771,7 +2771,7 @@ const RealIncomeReport=({db})=>{
   const allExp=expList.reduce((a,e)=>a+(e.amount||0),0)
 
   const clinInc=incList.filter(e=>['op','op_r','ip','ip_r','ip_p'].includes(e.type))
-  const clinGross=clinInc.reduce((a,e)=>a+(e.amount||0),0)
+  const clinGross=clinInc.filter(e=>!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)
   const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
   const segClinExp=expList.filter(e=>e.category!=='lab_to_lab')
   const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
@@ -2783,7 +2783,7 @@ const RealIncomeReport=({db})=>{
   })
 
   const labInc=incList.filter(e=>['op_l','ip_l'].includes(e.type))
-  const labGross=labInc.reduce((a,e)=>a+(e.amount||0),0)
+  const labGross=labInc.filter(e=>!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)
   const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
   const labToLab=expList.filter(e=>e.category==='lab_to_lab').reduce((a,e)=>a+(e.amount||0),0)
   const labActual=labGross-labComm-labToLab
@@ -6347,7 +6347,7 @@ const AnalyticsDash=({db})=>{
   // Period helpers
   const incBy=(prefix)=>inc.filter(e=>e.date?.startsWith(prefix))
   const expBy=(prefix)=>exp.filter(e=>e.date?.startsWith(prefix)&&e.category!=='ref_paid')
-  const sum=(arr)=>arr.reduce((a,e)=>a+e.amount,0)
+  const sum=(arr)=>arr.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)  // collected only
   const comm=(arr)=>arr.reduce((a,e)=>a+getComm(e),0)
   const credit=(arr)=>arr.reduce((a,e)=>a+(isCredit(e)?e.amount:0),0)
 
