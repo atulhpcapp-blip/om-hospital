@@ -584,9 +584,9 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={async()=>{
           setDataLoading(true)
           const [inc,exp,pts,rds,cons]=await Promise.all([
-            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality').eq('hospital_id',sel.id).order('date',{ascending:false}),
-            supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',sel.id).order('date',{ascending:false}),
-            supabase.from('ip_patients').select('*').eq('hospital_id',sel.id).order('admission_date',{ascending:false}),
+            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,conditions').eq('hospital_id',sel.id).order('date',{ascending:false}).limit(2000),
+            supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',sel.id).order('date',{ascending:false}).limit(1000),
+            supabase.from('ip_patients').select('id,name,admission_date,discharge_date,ref_doctor,diagnosis,room,phone,reg_no,is_package,payments,speciality,visiting_consultant,patient_area,notes').eq('hospital_id',sel.id).order('admission_date',{ascending:false}).limit(500),
             supabase.from('ref_doctors').select('*').eq('hospital_id',sel.id),
             supabase.from('consultants').select('*').eq('hospital_id',sel.id)
           ])
