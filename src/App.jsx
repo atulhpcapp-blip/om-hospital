@@ -2567,22 +2567,22 @@ const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,all
           <div style={{fontSize:18,fontWeight:800,color:'#dc2626'}}>{fmt(s.totalComm)}</div>
         </div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-        <div style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'1px solid #dbeafe'}}>
-          <div style={{fontSize:9,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>IP Charges</div>
-          <div style={{fontSize:12,fontWeight:700,color:'#1d4ed8'}}>{s.ipCharges>0?fmt(s.ipCharges):'—'}</div>
-          {s.ipChComm>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:700,marginTop:2}}>↳ {fmt(s.ipChComm)}</div>}
-        </div>
-        <div style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'1px solid #fce7f3'}}>
-          <div style={{fontSize:9,color:'#be185d',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Pharmacy</div>
-          <div style={{fontSize:12,fontWeight:700,color:'#be185d'}}>{s.ipPharm>0?fmt(s.ipPharm):'—'}</div>
-          {s.ipPhComm>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:700,marginTop:2}}>↳ {fmt(s.ipPhComm)}</div>}
-        </div>
-        <div style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'1px solid #f3e8ff'}}>
-          <div style={{fontSize:9,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Lab</div>
-          <div style={{fontSize:12,fontWeight:700,color:'#7c3aed'}}>{s.ipLab>0?fmt(s.ipLab):'—'}</div>
-          {s.ipLbComm>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:700,marginTop:2}}>↳ {fmt(s.ipLbComm)}</div>}
-        </div>
+      <div style={{background:'#fff',borderRadius:8,padding:'8px 10px',border:'1px solid #f0f0f0'}}>
+        {s.ipCharges>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderBottom:s.ipPharm>0||s.ipLab>0?'1px solid #f5f5f5':'none'}}>
+          <span style={{fontSize:12,color:'#1d4ed8',fontWeight:600}}>IP Charges</span>
+          <span style={{fontSize:12,color:'#555'}}>{fmt(s.ipCharges)} <span style={{color:'#94a3b8'}}>×</span> {s.ipCharges>0?Math.round(s.ipChComm/s.ipCharges*100):0}%</span>
+          <span style={{fontSize:13,fontWeight:800,color:'#dc2626',minWidth:70,textAlign:'right'}}>= {fmt(s.ipChComm)}</span>
+        </div>}
+        {s.ipPharm>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderBottom:s.ipLab>0?'1px solid #f5f5f5':'none'}}>
+          <span style={{fontSize:12,color:'#be185d',fontWeight:600}}>IP Pharmacy</span>
+          <span style={{fontSize:12,color:'#555'}}>{fmt(s.ipPharm)} <span style={{color:'#94a3b8'}}>×</span> {s.ipPharm>0?Math.round(s.ipPhComm/s.ipPharm*100):0}%</span>
+          <span style={{fontSize:13,fontWeight:800,color:'#dc2626',minWidth:70,textAlign:'right'}}>= {fmt(s.ipPhComm)}</span>
+        </div>}
+        {s.ipLab>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0'}}>
+          <span style={{fontSize:12,color:'#7c3aed',fontWeight:600}}>IP Lab</span>
+          <span style={{fontSize:12,color:'#555'}}>{fmt(s.ipLab)} <span style={{color:'#94a3b8'}}>×</span> {s.ipLab>0?Math.round(s.ipLbComm/s.ipLab*100):0}%</span>
+          <span style={{fontSize:13,fontWeight:800,color:'#dc2626',minWidth:70,textAlign:'right'}}>= {fmt(s.ipLbComm)}</span>
+        </div>}
       </div>
       {s.credit>0&&<div style={{fontSize:11,color:'#f59e0b',marginTop:6,fontWeight:600}}>⚠️ Credit outstanding: {fmt(s.credit)} — commission calculated on collected amounts only</div>}
     </div>)}
