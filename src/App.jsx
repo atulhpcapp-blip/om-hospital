@@ -2385,6 +2385,111 @@ const FinancialSummary=({incList,expList})=>{
   </div>)
 }
 
+const IPSlip=({ipPats,db,doc,per,rm,ry})=>{
+  const slipData=ipPats.map(p=>{
+    const ents=db.income.filter(e=>e.patient_id===p.id&&!isCredit(e)&&e.payment!=='written_off')
+    const ipCharges=ents.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
+    const ipPharm=ents.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
+    const ipLab=ents.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
+    const ipChComm=ents.filter(e=>e.type==='ip').reduce((a,e)=>a+getComm(e),0)
+    const ipPhComm=ents.filter(e=>e.type==='ip_r').reduce((a,e)=>a+getComm(e),0)
+    const ipLbComm=ents.filter(e=>e.type==='ip_l').reduce((a,e)=>a+getComm(e),0)
+    const credit=db.income.filter(e=>e.patient_id===p.id&&isCredit(e)).reduce((a,e)=>a+e.amount,0)
+    return{p,ipCharges,ipPharm,ipLab,ipChComm,ipPhComm,ipLbComm,credit,
+      totalBilled:ipCharges+ipPharm+ipLab,totalComm:ipChComm+ipPhComm+ipLbComm}
+  })
+  const grandComm=slipData.reduce((a,s)=>a+s.totalComm,0)
+  const grandBilled=slipData.reduce((a,s)=>a+s.totalBilled,0)
+  const hospName=db.hospital?.name||'Hospital'
+  const period=per==='month'?rm:ry
+  const exportSlip=()=>{
+    const rows=slipData.map((s,i)=>`
+      <tr style="border-bottom:1px solid #eee;${i%2===0?'':'background:#f8fafc'}">
+        <td style="padding:10px 8px;font-weight:700">${i+1}. ${s.p.name}</td>
+        <td style="padding:10px 8px;font-size:11px;color:#555">${fmtD(s.p.admission_date)}${s.p.discharge_date?' → '+fmtD(s.p.discharge_date):' (Active)'}</td>
+        <td style="padding:10px 8px;text-align:right">${s.ipCharges>0?fmt(s.ipCharges):'—'}</td>
+        <td style="padding:10px 8px;text-align:right;color:#dc2626">${s.ipChComm>0?fmt(s.ipChComm):'—'}</td>
+        <td style="padding:10px 8px;text-align:right">${s.ipPharm>0?fmt(s.ipPharm):'—'}</td>
+        <td style="padding:10px 8px;text-align:right;color:#dc2626">${s.ipPhComm>0?fmt(s.ipPhComm):'—'}</td>
+        <td style="padding:10px 8px;text-align:right">${s.ipLab>0?fmt(s.ipLab):'—'}</td>
+        <td style="padding:10px 8px;text-align:right;color:#dc2626">${s.ipLbComm>0?fmt(s.ipLbComm):'—'}</td>
+        <td style="padding:10px 8px;text-align:right;font-weight:800;font-size:14px;color:#dc2626">${fmt(s.totalComm)}</td>
+      </tr>`).join('')
+    exportPDF('Commission Statement — Dr. '+doc.name,`
+      <div style="border-bottom:3px solid #1a1a2e;padding-bottom:16px;margin-bottom:20px">
+        <div style="font-size:24px;font-weight:900;color:#1a1a2e">${hospName}</div>
+        <div style="font-size:16px;font-weight:700;color:#555;margin-top:6px">IP Commission Statement</div>
+        <div style="font-size:13px;color:#888;margin-top:4px">Referral Doctor: Dr. ${doc.name} &nbsp;|&nbsp; Period: ${period}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#1a1a2e;color:#c9a84c">
+            <th style="padding:10px 8px;text-align:left">Patient</th>
+            <th style="padding:10px 8px;text-align:left">Dates</th>
+            <th style="padding:10px 8px;text-align:right">IP Charges</th>
+            <th style="padding:10px 8px;text-align:right;color:#fbbf24">Comm</th>
+            <th style="padding:10px 8px;text-align:right">Pharmacy</th>
+            <th style="padding:10px 8px;text-align:right;color:#fbbf24">Comm</th>
+            <th style="padding:10px 8px;text-align:right">Lab</th>
+            <th style="padding:10px 8px;text-align:right;color:#fbbf24">Comm</th>
+            <th style="padding:10px 8px;text-align:right">Total Comm</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr style="background:#1a1a2e;color:#c9a84c;font-size:16px;font-weight:900">
+            <td colspan="8" style="padding:14px 8px">TOTAL COMMISSION DUE TO Dr. ${doc.name}</td>
+            <td style="padding:14px 8px;text-align:right">${fmt(grandComm)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style="margin-top:20px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#555">
+        Note: Commission calculated only on collected amounts. Credit outstanding not included.
+      </div>`)
+  }
+  return(<>
+    {slipData.map((s,i)=><div key={i} style={{marginBottom:10,background:s.p.discharge_date?'#f8fafc':'#f0fdf4',border:s.p.discharge_date?'1px solid #e2e8f0':'1.5px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:700}}>{i+1}. {s.p.name} {s.p.discharge_date?'✅':'🟢'}</div>
+          <div style={{fontSize:11,color:'#64748b',marginTop:2}}>{fmtD(s.p.admission_date)}{s.p.discharge_date?' → '+fmtD(s.p.discharge_date):<span style={{color:'#16a34a',fontWeight:700}}> Active</span>}</div>
+          {s.p.diagnosis&&<div style={{fontSize:11,color:'#7c3aed',marginTop:1}}>Dx: {s.p.diagnosis}</div>}
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontSize:11,color:'#94a3b8'}}>Total comm</div>
+          <div style={{fontSize:18,fontWeight:800,color:'#dc2626'}}>{fmt(s.totalComm)}</div>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+        <div style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'1px solid #dbeafe'}}>
+          <div style={{fontSize:9,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>IP Charges</div>
+          <div style={{fontSize:12,fontWeight:700,color:'#1d4ed8'}}>{s.ipCharges>0?fmt(s.ipCharges):'—'}</div>
+          {s.ipChComm>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:700,marginTop:2}}>↳ {fmt(s.ipChComm)}</div>}
+        </div>
+        <div style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'1px solid #fce7f3'}}>
+          <div style={{fontSize:9,color:'#be185d',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Pharmacy</div>
+          <div style={{fontSize:12,fontWeight:700,color:'#be185d'}}>{s.ipPharm>0?fmt(s.ipPharm):'—'}</div>
+          {s.ipPhComm>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:700,marginTop:2}}>↳ {fmt(s.ipPhComm)}</div>}
+        </div>
+        <div style={{background:'#fff',borderRadius:8,padding:'8px',textAlign:'center',border:'1px solid #f3e8ff'}}>
+          <div style={{fontSize:9,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Lab</div>
+          <div style={{fontSize:12,fontWeight:700,color:'#7c3aed'}}>{s.ipLab>0?fmt(s.ipLab):'—'}</div>
+          {s.ipLbComm>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:700,marginTop:2}}>↳ {fmt(s.ipLbComm)}</div>}
+        </div>
+      </div>
+      {s.credit>0&&<div style={{fontSize:11,color:'#f59e0b',marginTop:6,fontWeight:600}}>⚠️ Credit outstanding: {fmt(s.credit)} — commission calculated on collected amounts only</div>}
+    </div>)}
+    <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase'}}>Total Commission Due</div>
+        <div style={{fontSize:24,fontWeight:900,color:'#c9a84c'}}>{fmt(grandComm)}</div>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>on {fmt(grandBilled)} billed</div>
+      </div>
+      <button onClick={exportSlip} style={{padding:'12px 18px',background:'#c9a84c',color:'#1a1a2e',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Export Slip</button>
+    </div>
+  </>)
+}
+
 const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
   const [per,setPer]=useState('month')
   const [payDoc,setPayDoc]=useState(null)
@@ -2442,32 +2547,32 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
                 <button onClick={()=>setDocActiveTab(t=>({...t,[doc.name]:'ip'}))} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:activeTab==='ip'?'#16a34a':'#f0fdf4',color:activeTab==='ip'?'#fff':'#16a34a',fontSize:12,fontWeight:700,cursor:'pointer'}}>🏥 IP ({ipPats.length})</button>
               </div>
               {activeTab==='op'&&<div style={{marginBottom:8}}>
-                {opList.length===0?<div style={{fontSize:12,color:'#aaa',textAlign:'center',padding:'8px'}}>No pharmacy/lab OP referrals</div>:
-                opList.map((p,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid #f9f9f9',fontSize:12}}>
-                  <span><b>{i+1}.</b> {p.name} <span style={{color:'#94a3b8',fontSize:10}}>{[...new Set(p.types)].map(t=>ITYPES.find(x=>x.key===t)?.label).join(', ')}</span></span>
-                  <span style={{fontWeight:700}}>{fmt(p.amount)}{p.comm>0&&<span style={{color:'#dc2626'}}> ·{fmt(p.comm)}</span>}</span>
-                </div>)}
+                {opList.length===0
+                  ?<div style={{background:'#f8fafc',borderRadius:8,padding:'14px',textAlign:'center',color:'#94a3b8',fontSize:12}}>No pharmacy / lab referrals this period</div>
+                  :<>{opList.map((p,i)=><div key={i} style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',marginBottom:6}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'#1a1a2e'}}>{i+1}. {p.name}</div>
+                      <div style={{textAlign:'right'}}>
+                        <div style={{fontSize:14,fontWeight:800,color:'#16a34a'}}>{fmt(p.amount)}</div>
+                        {p.comm>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:600}}>Comm: {fmt(p.comm)}</div>}
+                      </div>
+                    </div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                      {[...new Set(p.types)].map(t=><span key={t} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:600}}>{ITYPES.find(x=>x.key===t)?.full}</span>)}
+                    </div>
+                  </div>)}
+                  <div style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',background:'#fff7ed',borderRadius:10,marginTop:4,fontWeight:700}}>
+                    <span style={{fontSize:12,color:'#92400e'}}>Total OP</span>
+                    <div style={{textAlign:'right'}}>
+                      <span style={{fontSize:13,color:'#16a34a'}}>{fmt(opList.reduce((a,p)=>a+p.amount,0))}</span>
+                      {opList.reduce((a,p)=>a+p.comm,0)>0&&<span style={{fontSize:11,color:'#dc2626',marginLeft:8}}>Comm: {fmt(opList.reduce((a,p)=>a+p.comm,0))}</span>}
+                    </div>
+                  </div></>}
               </div>}
               {activeTab==='ip'&&<div style={{marginBottom:8}}>
-                {ipPats.length===0?<div style={{fontSize:12,color:'#aaa',textAlign:'center',padding:'8px'}}>No IP referrals</div>:
-                ipPats.map((p,i)=>{
-                  const allEnts=db.income.filter(e=>e.patient_id===p.id)
-                  const ipC=allEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
-                  const ipR=allEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
-                  const ipL=allEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
-                  const tot=allEnts.reduce((a,e)=>a+e.amount,0)
-                  const comm=allEnts.reduce((a,e)=>a+getComm(e),0)
-                  return(<div key={i} style={{padding:'7px 0',borderBottom:'1px solid #f5f5f5'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:700}}>
-                      <span>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'}</span>
-                      <span>{fmt(tot)} <span style={{color:'#dc2626',fontSize:11}}>·{fmt(comm)}</span></span>
-                    </div>
-                    <div style={{fontSize:10,color:'#94a3b8',marginLeft:16}}>
-                      {fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):''}
-                      {' · '}{[ipC>0&&`Chg:${fmt(ipC)}`,ipR>0&&`Phm:${fmt(ipR)}`,ipL>0&&`Lab:${fmt(ipL)}`].filter(Boolean).join(' ')}
-                    </div>
-                  </div>)
-                })}
+                {ipPats.length===0
+                  ?<div style={{background:'#f8fafc',borderRadius:8,padding:'14px',textAlign:'center',color:'#94a3b8',fontSize:12}}>No IP patients referred</div>
+                  :<IPSlip ipPats={ipPats} db={db} doc={doc} per={per} rm={rm} ry={ry}/>}
               </div>}
             </>)
           })()}
