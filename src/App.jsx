@@ -2420,55 +2420,74 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Commission earned</div><div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div></div>
         <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total paid out</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalPaid)}</div></div>
       </div>
-      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;const isOpen=payDoc===doc.name;return(
-        <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.total_income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission earned</div><div style={{fontSize:18,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div></div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
-            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div>
+      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;const isOpen=payDoc===doc.name;
+        // OP patients: only pharmacy/lab (not pure consultation)
+        const opEnts=fi.filter(e=>e.ref_doctor===doc.name&&['op_r','op_l','opd'].includes(e.type))
+        const opByPat={};opEnts.forEach(e=>{const k=e.patient_name||'—';if(!opByPat[k])opByPat[k]={name:k,amount:0,comm:0,types:[]};opByPat[k].amount+=e.amount;opByPat[k].comm+=getComm(e);opByPat[k].types.push(e.type)})
+        const opPatList=Object.values(opByPat)
+        // IP patients: all admitted patients referred by this doctor
+        const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name)
+        const docTab=selDoc===doc.name+'_tab'?'ip':'op'
+        return(
+        <Card key={doc.name} style={{border:balance>0?'1.5px solid #fed7aa':'1px solid #f0f0f0',marginBottom:14}}>
+          {/* Header */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+            <div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div></div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:10,color:'#d97706',fontWeight:700,textTransform:'uppercase'}}>Commission</div>
+              <div style={{fontSize:20,fontWeight:800,color:balance>0?'#dc2626':'#16a34a'}}>{fmt(balance)} due</div>
+            </div>
           </div>
-          {/* Type breakdown */}
-          {Object.entries(doc.by_type).map(([tk,v])=>(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(v.income)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(v.commission)}</span>}/>))}
-          {/* OP patients */}
-          {(()=>{
-            const opPats=fi.filter(e=>e.ref_doctor===doc.name&&['op','opd','op_r','op_l'].includes(e.type))
-            if(!opPats.length)return null
-            const byName={}
-            opPats.forEach(e=>{if(!byName[e.patient_name])byName[e.patient_name]={name:e.patient_name,amount:0,comm:0,types:[]};byName[e.patient_name].amount+=e.amount;byName[e.patient_name].comm+=getComm(e);byName[e.patient_name].types.push(e.type)})
-            return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
-              <div style={{fontSize:10,color:'#0369a1',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>OP Patients</div>
-              {Object.values(byName).map((p,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'3px 0',borderBottom:'1px solid #f9f9f9'}}>
-                <span>{i+1}. {p.name} <span style={{color:'#94a3b8'}}>{[...new Set(p.types)].map(t=>ITYPES.find(x=>x.key===t)?.label).join(', ')}</span></span>
-                <span style={{fontWeight:600}}>{fmt(p.amount)} {p.comm>0&&<span style={{color:'#dc2626'}}>· {fmt(p.comm)}</span>}</span>
-              </div>)}
-            </div>)
-          })()}
-          {/* IP patients */}
-          {(()=>{
-            const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name)
-            if(!ipPats.length)return null
-            return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
-              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>IP Patients</div>
-              {ipPats.map((p,i)=>{
-                const ipEnts=fi.filter(e=>e.patient_id===p.id)
-                const ipC=ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
-                const ipR=ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
-                const ipL=ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
-                const ipTotal=ipEnts.reduce((a,e)=>a+e.amount,0)
-                const ipComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
-                return(<div key={i} style={{padding:'6px 0',borderBottom:'1px solid #f9f9f9'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,fontWeight:600}}>
-                    <span>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'}</span>
-                    <span>{fmt(ipTotal)} <span style={{color:'#dc2626',fontSize:11}}>· {fmt(ipComm)}</span></span>
-                  </div>
-                  <div style={{fontSize:10,color:'#94a3b8',marginLeft:12}}>
-                    {ipC>0&&`Charges: ${fmt(ipC)} `}{ipR>0&&`Pharm: ${fmt(ipR)} `}{ipL>0&&`Lab: ${fmt(ipL)}`}
-                  </div>
-                </div>)
-              })}
-            </div>)
-          })()}
+          {/* Earned / Paid / Balance strip */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:14,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:14,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div>
+          </div>
+          {/* OP / IP tabs */}
+          <div style={{display:'flex',gap:6,marginBottom:10}}>
+            <button onClick={()=>setSelDoc(docTab==='op'?doc.name+'_tab':'')} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:docTab==='op'?'#0369a1':'#f0f9ff',color:docTab==='op'?'#fff':'#0369a1',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+              📋 OP Referrals {opPatList.length>0&&`(${opPatList.length})`}
+            </button>
+            <button onClick={()=>setSelDoc(docTab==='ip'?'':doc.name+'_tab')} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:docTab==='ip'?'#16a34a':'#f0fdf4',color:docTab==='ip'?'#fff':'#16a34a',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+              🏥 IP Referrals {ipPats.length>0&&`(${ipPats.length})`}
+            </button>
+          </div>
+          {/* OP Referrals tab — pharmacy/lab only */}
+          {docTab==='op'&&<div>
+            {opPatList.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#aaa',fontSize:12}}>No pharmacy/lab referrals this period</div>:
+            opPatList.map((p,i)=><div key={i} style={{padding:'7px 0',borderBottom:'1px solid #f9f9f9'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:12,fontWeight:600}}>{i+1}. {p.name}</span>
+                <span style={{fontSize:12,fontWeight:700}}>{fmt(p.amount)} {p.comm>0&&<span style={{color:'#dc2626',fontSize:11}}>· {fmt(p.comm)}</span>}</span>
+              </div>
+              <div style={{fontSize:10,color:'#94a3b8',marginLeft:16}}>{[...new Set(p.types)].map(t=>ITYPES.find(x=>x.key===t)?.full).join(' · ')}</div>
+            </div>)}
+          </div>}
+          {/* IP Referrals tab */}
+          {docTab==='ip'&&<div>
+            {ipPats.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#aaa',fontSize:12}}>No IP referrals</div>:
+            ipPats.map((p,i)=>{
+              const ipEnts=fi.filter(e=>e.patient_id===p.id)
+              const ipC=ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
+              const ipR=ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
+              const ipL=ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
+              const ipTotal=ipEnts.reduce((a,e)=>a+e.amount,0)
+              const ipComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
+              return(<div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2}}>
+                  <span style={{fontSize:13,fontWeight:700}}>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'}</span>
+                  <span style={{fontSize:13,fontWeight:700}}>{fmt(ipTotal)} <span style={{color:'#dc2626',fontSize:11}}>· {fmt(ipComm)} comm</span></span>
+                </div>
+                <div style={{fontSize:10,color:'#94a3b8',marginLeft:20}}>
+                  Admitted: {fmtD(p.admission_date)}{p.discharge_date?' · Discharged: '+fmtD(p.discharge_date):''}
+                </div>
+                <div style={{fontSize:10,color:'#64748b',marginLeft:20}}>
+                  {ipC>0&&`Charges: ${fmt(ipC)}  `}{ipR>0&&`Pharm: ${fmt(ipR)}  `}{ipL>0&&`Lab: ${fmt(ipL)}`}
+                </div>
+              </div>)
+            })}
+          </div>}
           {paid>0&&(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
             <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payments made</div>
             {allPaid.filter(e=>e.description===doc.name).map(e=>{
