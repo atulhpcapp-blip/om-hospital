@@ -2637,7 +2637,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
   const [editPayId,setEditPayId]=useState(null)
   const [docActiveTab,setDocActiveTab]=useState({})
   const [editPayForm,setEditPayForm]=useState({amount:'',date:'',payment:'cash'})
-  const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):income.filter(e=>e.date?.startsWith(ry))
+  const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):per==='year'?income.filter(e=>e.date?.startsWith(ry)):income
   const docs=buildRef(fi)
   const exportRefPDF=()=>{
     const rows=docs.map((d,i)=>`<tr style="background:${i%2===0?'#fff':'#f8fafc'}"><td>${i+1}</td><td>Dr. ${d.name}</td><td style="text-align:right">${fmt(d.total_income)}</td><td style="text-align:right">${fmt(d.total_commission)}</td><td style="text-align:right">${fmt(d.total_income-d.total_commission)}</td></tr>`).join('')
@@ -2655,10 +2655,11 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
     {subTab==='commission'&&<>
     <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
       <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
-      {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+      {[{k:'month',l:'This month'},{k:'year',l:'This year'},{k:'all',l:'All time'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
     </div>
     {per==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
     {per==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+    {per==='all'&&<div style={{padding:'6px 12px',background:'#f0fdf4',borderRadius:8,marginBottom:12,fontSize:12,color:'#16a34a',fontWeight:600}}>Showing all referrals from the beginning</div>}
     {!docs.length&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No referral data</div>}
     {docs.length>0&&(<>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
