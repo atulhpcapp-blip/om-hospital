@@ -5116,47 +5116,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
       </>)
     })()}
     {/* ── Financial Status ── */}
-    {(()=>{
-      const _coll=dI.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)
-      const _comm=dI.reduce((a,e)=>a+getComm(e),0)
-      const _vcFee=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
-      const _credit=dI.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
-      const _wo=dI.filter(e=>e.payment==='written_off').reduce((a,e)=>a+e.amount,0)
-      const _exp=dExpAll.reduce((a,e)=>a+e.amount,0)
-      const _actual=_coll-_comm-_vcFee
-      const _real=_actual-_exp
-      return(
-        <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e293b 100%)',borderRadius:16,padding:'16px',marginBottom:14,color:'#fff'}}>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em',marginBottom:12}}>💼 Financial Status</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'10px 12px'}}>
-              <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total Collected</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#4ade80'}}>{fmt(_coll)}</div>
-            </div>
-            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'10px 12px'}}>
-              <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Actual Income</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#60a5fa'}}>{fmt(_actual)}</div>
-              <div style={{fontSize:10,color:'#64748b',marginTop:2}}>After commissions</div>
-            </div>
-            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'10px 12px'}}>
-              <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real Income</div>
-              <div style={{fontSize:18,fontWeight:800,color:_real>=0?'#34d399':'#f87171'}}>{fmt(_real)}</div>
-              <div style={{fontSize:10,color:'#64748b',marginTop:2}}>After expenses</div>
-            </div>
-            <div style={{background:'rgba(255,255,255,0.07)',borderRadius:10,padding:'10px 12px'}}>
-              <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Credit Outstanding</div>
-              <div style={{fontSize:18,fontWeight:800,color:'#fbbf24'}}>{fmt(_credit)}</div>
-            </div>
-          </div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap',paddingTop:8,borderTop:'1px solid rgba(255,255,255,0.08)',fontSize:10,color:'#64748b'}}>
-            <span>Ref comm: <span style={{color:'#f87171',fontWeight:700}}>{fmt(_comm)}</span></span>
-            <span>· Expenses: <span style={{color:'#fbbf24',fontWeight:700}}>{fmt(_exp)}</span></span>
-            {_vcFee>0&&<span>· VC fees: <span style={{color:'#c084fc',fontWeight:700}}>{fmt(_vcFee)}</span></span>}
-            {_wo>0&&<span>· Written off: <span style={{color:'#94a3b8',fontWeight:700}}>{fmt(_wo)}</span></span>}
-          </div>
-        </div>
-      )
-    })()}
+    
     <SecL>Doctor Referrals</SecL>
     <DailyReferralSection db={db} dI={dI} rd={rd} allPaidComm={allPaidComm} actions={actions}/>
   </>)
