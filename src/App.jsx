@@ -1669,13 +1669,13 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Charges breakdown</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:6,borderBottom:'1px solid #f0f0f0'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
-            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Billed</div>
-            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Comm</div>
-            <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Real</div>
+            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Billed</div>
+            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Comm</div>
+            <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Real</div>
           </div>
-          {ITYPES.map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr 72px 72px 72px',gap:2,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:12,textAlign:'right'}}>{fmt(inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444'}}>{cm>0?'-'+fmt(cm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600}}>{fmt(inc-cm)}</span></div>)})}
-          {p.is_package&&(p.payments||[]).length>0&&(()=>{const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const pkgCm=(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<div style={{display:'grid',gridTemplateColumns:'1fr 72px 72px 72px',gap:2,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{fontSize:12,color:'#1d4ed8'}}>Package received</span><span style={{fontSize:12,textAlign:'right',color:'#1d4ed8'}}>{fmt(pkgPd)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444'}}>{pkgCm>0?'-'+fmt(pkgCm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600}}>{fmt(pkgPd-pkgCm)}</span></div>)})()}
-          {(()=>{const allInc=ents.reduce((a,e)=>a+e.amount,0);const allComm=ents.reduce((a,e)=>a+getComm(e),0);const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const totDeduct=allComm+b.pkgComm;return(<div style={{display:'grid',gridTemplateColumns:'1fr 72px 72px 72px',gap:2,padding:'8px 0 2px',marginTop:2,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right'}}>{fmt(allInc+pkgPd)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444'}}>{totDeduct>0?'-'+fmt(totDeduct):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a'}}>{fmt(allInc+pkgPd-totDeduct)}</span></div>)})()}
+          {ITYPES.map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr 68px 72px 72px',gap:2,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:11,textAlign:'right'}}>{fmt(inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444'}}>{cm>0?'-'+fmt(cm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600}}>{fmt(inc-cm)}</span></div>)})}
+          {p.is_package&&(p.payments||[]).length>0&&(()=>{const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const pkgCm=(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{fontSize:12,color:'#1d4ed8'}}>Package received</span><span style={{fontSize:12,textAlign:'right',color:'#1d4ed8',minWidth:60}}>{fmt(pkgPd)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444'}}>{pkgCm>0?'-'+fmt(pkgCm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600}}>{fmt(pkgPd-pkgCm)}</span></div>)})()}
+          {(()=>{const allInc=ents.reduce((a,e)=>a+e.amount,0);const allComm=ents.reduce((a,e)=>a+getComm(e),0);const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const totDeduct=allComm+b.pkgComm;return(<div style={{display:'grid',gridTemplateColumns:'1fr 68px 72px 72px',gap:2,padding:'8px 0 2px',marginTop:2,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:12,fontWeight:800,textAlign:'right'}}>{fmt(allInc+pkgPd)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444'}}>{totDeduct>0?'-'+fmt(totDeduct):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a'}}>{fmt(allInc+pkgPd-totDeduct)}</span></div>)})()}
         </Card>
         {b.credit>0&&(<><SecL>Credit by type</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(<div key={tk} style={{padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -2050,13 +2050,13 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
         <MetGrid items={[{label:'Total billed',value:fmt(totalInc),color:'#111'},{label:'Cash collected',value:fmt(totalCash),color:'#16a34a'},{label:'Credit (due)',value:fmt(totalCredit),color:totalCredit>0?'#c2410c':'#aaa'},{label:'Real income',value:fmt(totalInc-totalComm),color:'#16a34a'}]}/>
         <SecL>Charges breakdown</SecL>
         <Card>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 72px 72px 72px',gap:2,marginBottom:8,paddingBottom:6,borderBottom:'1px solid #f0f0f0'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 68px 72px 72px',gap:2,marginBottom:8,paddingBottom:6,borderBottom:'1px solid #f0f0f0'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Billed</div>
             <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Comm</div>
             <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Real</div>
           </div>
-          {Object.entries(byType).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(<div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span><span style={{fontSize:12,textAlign:'right'}}>{fmt(v.inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444'}}>{v.comm>0?'-'+fmt(v.comm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600}}>{fmt(v.inc-v.comm)}</span></div>)})}
+          {Object.entries(byType).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(<div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span><span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(v.inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444'}}>{v.comm>0?'-'+fmt(v.comm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600}}>{fmt(v.inc-v.comm)}</span></div>)})}
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right'}}>{fmt(totalInc)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444'}}>{totalComm>0?'-'+fmt(totalComm):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a'}}>{fmt(totalInc-totalComm)}</span></div>
         </Card>
         {(()=>{
@@ -2893,23 +2893,14 @@ const RealIncomeReport=({db})=>{
       ?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No data for this period</div>
       :<>
         <Card>
-          {ITYPES.map(t=>{const ents=incList.filter(e=>e.type===t.key);const ti=ents.filter(e=>!isExcluded(e)).reduce((a,e)=>a+(e.amount||0),0);const tc=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const td=tc+vcf;if(!ti)return null;return(<div key={t.key} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-              <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600}}><TypeTag t={t.key}/>{t.full}</span>
-              <span style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(ti-td)}</span>
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',paddingLeft:28}}>
-              <span style={{fontSize:11,color:'#64748b'}}>Collected: {fmt(ti)}</span>
-              {td>0&&<span style={{fontSize:11,color:'#ef4444'}}>Comm: -{fmt(td)}</span>}
-            </div>
-          </div>)})}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0 0',marginTop:6,borderTop:'2px solid #0f172a'}}>
-            <div>
-              <div style={{fontSize:15,fontWeight:800}}>Total Real Income</div>
-              <div style={{fontSize:11,color:'#64748b',marginTop:2}}>Collected {fmt(allInc)} − Comm {fmt(allDeductions)}</div>
-            </div>
-            <div style={{fontSize:20,fontWeight:900,color:allReal>=0?'#16a34a':'#dc2626'}}>{fmt(allReal)}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 90px 90px 90px',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
+            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
+            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Collected</div>
+            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Deductions</div>
+            <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Real</div>
           </div>
+          {ITYPES.map(t=>{const ents=incList.filter(e=>e.type===t.key);const ti=ents.reduce((a,e)=>a+(e.amount||0),0);const tc=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const td=tc+vcf;if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr 90px 90px 90px',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:12,textAlign:'right',fontWeight:600}}>{fmt(ti)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444'}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:700}}>{fmt(ti-td)}</span></div>)})}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 90px 90px 90px',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}><span style={{fontSize:14,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right'}}>{fmt(allInc)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444'}}>{allDeductions>0?'-'+fmt(allDeductions):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a'}}>{fmt(allReal)}</span></div>
           {/* Payment mode breakdown */}
           <div style={{marginTop:12,paddingTop:10,borderTop:'1px dashed #e5e7eb'}}>
             <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payment mode breakdown</div>
@@ -3161,7 +3152,7 @@ const IncomeChartReport=({db})=>{
           <div style={{fontSize:10,color:'#2563eb',fontWeight:700,textAlign:'right',minWidth:72}}>Real</div>
           <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textAlign:'right',minWidth:72}}>Actual</div>
         </div>
-        {chartData.map((d,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'1fr 72px 72px 72px',gap:2,padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
+        {chartData.map((d,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
           <span style={{fontSize:12,fontWeight:600}}>{d.label}</span>
           <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#16a34a'}}>{fmt(d.gross)}</span>
           <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#2563eb'}}>{fmt(d.real)}</span>
@@ -6726,11 +6717,11 @@ const AnalyticsDash=({db})=>{
             <div style={{borderTop:'1px solid #f1f5f9',paddingTop:10}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:6}}>
                 <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Month</div>
-                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textAlign:'right'}}>Gross</div>
-                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textAlign:'right'}}>Deduct</div>
-                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textAlign:'right'}}>Actual</div>
+                <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,textAlign:'right',minWidth:60}}>Gross</div>
+                <div style={{fontSize:9,color:'#dc2626',fontWeight:700,textAlign:'right',minWidth:60}}>Deduct</div>
+                <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textAlign:'right',minWidth:60}}>Actual</div>
               </div>
-              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr 72px 72px 72px',gap:2,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' (now)':''}</span><span style={{fontSize:11,textAlign:'right'}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
+              {bars.map(b=><div key={b.m} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f8fafc',alignItems:'center'}}><span style={{fontSize:11,fontWeight:b.m===thisMonth?700:500,color:b.m===thisMonth?'#16a34a':'#374151'}}>{b.label}{b.m===thisMonth?' (now)':''}</span><span style={{fontSize:11,textAlign:'right',minWidth:60}}>{fmt(b.gross)}</span><span style={{fontSize:11,textAlign:'right',minWidth:60,color:'#dc2626'}}>-{fmt(b.comms+b.exps)}</span><span style={{fontSize:12,textAlign:'right',minWidth:60,color:'#059669',fontWeight:700}}>{fmt(b.actual)}</span></div>)}
             </div>
           </div>)
         })()}
