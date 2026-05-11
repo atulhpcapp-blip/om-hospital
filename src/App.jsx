@@ -1513,7 +1513,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
       </Card>
       {/* IP Credit Outstanding - always visible */}
       {(()=>{
-        const admPats=db.ip_patients.filter(p=>!p.discharge_date)
+        const admPats=db.ip_patients.filter(p=>!p.discharge_date&&p.admission_date<=eDate)
         const patCreds=admPats.map(p=>({
           pat:p,
           creds:db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit'&&['ip','ip_r','ip_p'].includes(e.type)&&e.amount>0)
@@ -5762,7 +5762,7 @@ export default function App(){
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
   const canSeeDash=isAdmin||isManagement
-  const TABS=[...(canSeeDash?[{k:'dash',l:'Dashboard'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[...(canSeeDash?[{k:'dash',l:'Dashboard'}]:[]),...(canSeeReports?[{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
