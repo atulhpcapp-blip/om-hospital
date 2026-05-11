@@ -83,8 +83,9 @@ const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');retu
 const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
-const getComm=e=>(e.payment==='credit'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
+const getComm=e=>(e.payment==='credit'||e.payment==='written_off'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isCredit=e=>e.payment==='credit'
+const isExcluded=e=>e.payment==='credit'||e.payment==='written_off'
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=ECATS.filter(c=>c.key!=='ref_paid').reduce((a,c)=>a+(r[c.key]||0),0);return r}
 const totalRef=list=>list.reduce((a,e)=>a+getComm(e),0)
@@ -2763,7 +2764,7 @@ const RealIncomeReport=({db})=>{
     return true
   })
 
-  const allInc=incList.filter(e=>!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)  // collected only
+  const allInc=incList.filter(e=>!isExcluded(e)).reduce((a,e)=>a+(e.amount||0),0)  // collected only
   const allComm=incList.reduce((a,e)=>a+getComm(e),0)
   const allVCFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const allDeductions=allComm+allVCFees
@@ -2771,7 +2772,7 @@ const RealIncomeReport=({db})=>{
   const allExp=expList.reduce((a,e)=>a+(e.amount||0),0)
 
   const clinInc=incList.filter(e=>['op','op_r','ip','ip_r','ip_p'].includes(e.type))
-  const clinGross=clinInc.filter(e=>!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)
+  const clinGross=clinInc.filter(e=>!isExcluded(e)).reduce((a,e)=>a+(e.amount||0),0)
   const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
   const segClinExp=expList.filter(e=>e.category!=='lab_to_lab')
   const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
@@ -2783,7 +2784,7 @@ const RealIncomeReport=({db})=>{
   })
 
   const labInc=incList.filter(e=>['op_l','ip_l'].includes(e.type))
-  const labGross=labInc.filter(e=>!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)
+  const labGross=labInc.filter(e=>!isExcluded(e)).reduce((a,e)=>a+(e.amount||0),0)
   const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
   const labToLab=expList.filter(e=>e.category==='lab_to_lab').reduce((a,e)=>a+(e.amount||0),0)
   const labActual=labGross-labComm-labToLab
@@ -4402,17 +4403,17 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
   const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
   const opdEnts=dI.filter(e=>e.type==='opd')
-  const opdInc=opdEnts.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
+  const opdInc=opdEnts.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
   const vcConsFee=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const vcProfit=vcInc-vcConsFee  // hospital keeps gross minus consultant's share
   const oprEnts2=dI.filter(e=>e.type==='op_r')
-  const oprInc=oprEnts2.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
-  const oprComm=oprEnts2.filter(e=>!isCredit(e)).reduce((a,e)=>a+getComm(e),0)
+  const oprInc=oprEnts2.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)
+  const oprComm=oprEnts2.filter(e=>!isExcluded(e)).reduce((a,e)=>a+getComm(e),0)
   const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type))
-  const ipInc=ipEnts.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
-  const ipComm=ipEnts.filter(e=>!isCredit(e)).reduce((a,e)=>a+getComm(e),0)
-  const labInc=opLabEnts.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)+ipLabEnts.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
+  const ipInc=ipEnts.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)
+  const ipComm=ipEnts.filter(e=>!isExcluded(e)).reduce((a,e)=>a+getComm(e),0)
+  const labInc=opLabEnts.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)+ipLabEnts.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
   const labRawEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
   const labComm=labRawEnts.reduce((a,e)=>a+getComm(e),0)
   const labToLab=dExpLab.reduce((a,e)=>a+e.amount,0)
@@ -6347,7 +6348,7 @@ const AnalyticsDash=({db})=>{
   // Period helpers
   const incBy=(prefix)=>inc.filter(e=>e.date?.startsWith(prefix))
   const expBy=(prefix)=>exp.filter(e=>e.date?.startsWith(prefix)&&e.category!=='ref_paid')
-  const sum=(arr)=>arr.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)  // collected only
+  const sum=(arr)=>arr.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)  // collected only, excl credit+writeoff
   const comm=(arr)=>arr.reduce((a,e)=>a+getComm(e),0)
   const credit=(arr)=>arr.reduce((a,e)=>a+(isCredit(e)?e.amount:0),0)
 
