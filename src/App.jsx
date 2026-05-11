@@ -2422,6 +2422,17 @@ const OPSlip=({opList,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPai
   }
   const isOpen=payDoc===doc.name+'_op'
   return(<>
+    {/* Balance + Record button at top */}
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:balance>0?'#fff7ed':'#f0fdf4',borderRadius:10,marginBottom:10,border:balance>0?'1px solid #fed7aa':'1px solid #bbf7d0'}}>
+      <div>
+        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Balance Due</div>
+        <div style={{fontSize:18,fontWeight:800,color:balance>0?'#dc2626':'#16a34a'}}>{fmt(balance>0?balance:0)}</div>
+      </div>
+      {balance>0
+        ?<button onClick={()=>setPayDoc(doc.name+'_op')} style={{padding:'10px 16px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>💸 Referral Paid</button>
+        :<span style={{fontSize:12,color:'#16a34a',fontWeight:700}}>✅ Fully Paid</span>}
+    </div>
+    {payDoc===doc.name+'_op'&&<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}
     {/* Header */}
     <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,padding:'6px 8px',background:'#1a1a2e',borderRadius:8,marginBottom:8}}>
       <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,textTransform:'uppercase'}}>Patient / Type</div>
@@ -2553,6 +2564,17 @@ const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,all
       </div>`)
   }
   return(<>
+    {/* Balance + Record button at top */}
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:balance>0?'#fff7ed':'#f0fdf4',borderRadius:10,marginBottom:10,border:balance>0?'1px solid #fed7aa':'1px solid #bbf7d0'}}>
+      <div>
+        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Balance Due</div>
+        <div style={{fontSize:18,fontWeight:800,color:balance>0?'#dc2626':'#16a34a'}}>{fmt(balance>0?balance:0)}</div>
+      </div>
+      {balance>0
+        ?<button onClick={()=>setPayDoc(doc.name+'_ip')} style={{padding:'10px 16px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>💸 Referral Paid</button>
+        :<span style={{fontSize:12,color:'#16a34a',fontWeight:700}}>✅ Fully Paid</span>}
+    </div>
+    {payDoc===doc.name+'_ip'&&<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}
     {slipData.map((s,i)=><div key={i} style={{marginBottom:10,background:s.p.discharge_date?'#f8fafc':'#f0fdf4',border:s.p.discharge_date?'1px solid #e2e8f0':'1.5px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
@@ -2664,7 +2686,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Referral earned</div><div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div></div>
         <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total paid out</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalPaid)}</div></div>
       </div>
-      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;const isOpen=payDoc===doc.name;return(
+      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name||e.description==='Commission to Dr. '+doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;return(
         <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.total_income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Referral earned</div><div style={{fontSize:18,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div></div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
