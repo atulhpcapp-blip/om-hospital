@@ -2385,7 +2385,7 @@ const FinancialSummary=({incList,expList})=>{
   </div>)
 }
 
-const OPSlip=({opList,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPaid,editPayId,setEditPayId,editPayForm,setEditPayForm})=>{
+const OPSlip=({opList,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPaid,editPayId,setEditPayId,editPayForm,setEditPayForm,gotoOP})=>{
   const grandAmt=opList.reduce((a,p)=>a+p.amount,0)
   const grandComm=opList.reduce((a,p)=>a+p.comm,0)
   const exportSlip=()=>{
@@ -2442,7 +2442,7 @@ const OPSlip=({opList,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPai
     {opList.map((p,i)=>{
       const typeGroups=(p.rawEnts||[]).reduce((acc,e)=>{const t=e.type;if(!acc[t])acc[t]={amt:0,comm:0};acc[t].amt+=e.amount;acc[t].comm+=getComm(e);return acc},{})
       return(<div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f0f0f0'}}>
-        <div style={{fontSize:12,fontWeight:700,color:'#1a1a2e',marginBottom:5}}>{i+1}. {p.name}</div>
+        <div style={{fontSize:12,fontWeight:700,color:'#1d4ed8',marginBottom:5,cursor:'pointer',textDecoration:'underline'}} onClick={()=>gotoOP&&gotoOP(p.name,'rep')}>{i+1}. {p.name} →</div>
         {Object.entries(typeGroups).map(([tk,v])=>{
           const it=ITYPES.find(x=>x.key===tk)
           const rate=v.amt>0?Math.round(v.comm/v.amt*100):0
@@ -2501,7 +2501,7 @@ const OPSlip=({opList,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPai
 }
 
 
-const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPaid,editPayId,setEditPayId,editPayForm,setEditPayForm})=>{
+const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPaid,editPayId,setEditPayId,editPayForm,setEditPayForm,gotoIP})=>{
   const slipData=ipPats.map(p=>{
     const ents=db.income.filter(e=>e.patient_id===p.id&&!isCredit(e)&&e.payment!=='written_off')
     const ipCharges=ents.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
@@ -2578,7 +2578,7 @@ const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,all
     {slipData.map((s,i)=><div key={i} style={{marginBottom:10,background:s.p.discharge_date?'#f8fafc':'#f0fdf4',border:s.p.discharge_date?'1px solid #e2e8f0':'1.5px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div>
-          <div style={{fontSize:14,fontWeight:700}}>{i+1}. {s.p.name} {s.p.discharge_date?'✅':'🟢'}</div>
+          <div style={{fontSize:14,fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline'}} onClick={()=>gotoIP&&gotoIP(s.p.id,'rep')}>{i+1}. {s.p.name} {s.p.discharge_date?'✅':'🟢'} →</div>
           <div style={{fontSize:11,color:'#64748b',marginTop:2}}>{fmtD(s.p.admission_date)}{s.p.discharge_date?' → '+fmtD(s.p.discharge_date):<span style={{color:'#16a34a',fontWeight:700}}> Active</span>}</div>
           {s.p.diagnosis&&<div style={{fontSize:11,color:'#7c3aed',marginTop:1}}>Dx: {s.p.diagnosis}</div>}
         </div>
@@ -2649,7 +2649,7 @@ const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,all
   </>)
 }
 
-const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
+const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,gotoIP})=>{
   const [per,setPer]=useState('month')
   const [payDoc,setPayDoc]=useState(null)
   const [subTab,setSubTab]=useState('commission')
@@ -2732,12 +2732,12 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
               {activeTab==='op'&&<div style={{marginBottom:8}}>
                 {opList.length===0
                   ?<div style={{background:'#f8fafc',borderRadius:8,padding:'14px',textAlign:'center',color:'#94a3b8',fontSize:12}}>No pharmacy / lab referrals this period</div>
-                  :<OPSlip opList={opList} doc={doc} per={per} rm={rm} ry={ry} paid={paid} balance={balance} actions={actions} payDoc={payDoc} setPayDoc={setPayDoc} allPaid={allPaid} editPayId={editPayId} setEditPayId={setEditPayId} editPayForm={editPayForm} setEditPayForm={setEditPayForm}/>}
+                  :<OPSlip opList={opList} doc={doc} per={per} rm={rm} ry={ry} paid={paid} balance={balance} actions={actions} payDoc={payDoc} setPayDoc={setPayDoc} allPaid={allPaid} editPayId={editPayId} setEditPayId={setEditPayId} editPayForm={editPayForm} setEditPayForm={setEditPayForm} gotoOP={gotoOP}/>}
               </div>}
                             {activeTab==='ip'&&<div style={{marginBottom:8}}>
                 {ipPats.length===0
                   ?<div style={{background:'#f8fafc',borderRadius:8,padding:'14px',textAlign:'center',color:'#94a3b8',fontSize:12}}>No IP patients referred</div>
-                  :<IPSlip ipPats={ipPats} db={db} doc={doc} per={per} rm={rm} ry={ry} paid={paid} balance={balance} actions={actions} payDoc={payDoc} setPayDoc={setPayDoc} allPaid={allPaid} editPayId={editPayId} setEditPayId={setEditPayId} editPayForm={editPayForm} setEditPayForm={setEditPayForm}/>}
+                  :<IPSlip ipPats={ipPats} db={db} doc={doc} per={per} rm={rm} ry={ry} paid={paid} balance={balance} actions={actions} payDoc={payDoc} setPayDoc={setPayDoc} allPaid={allPaid} editPayId={editPayId} setEditPayId={setEditPayId} editPayForm={editPayForm} setEditPayForm={setEditPayForm} gotoIP={gotoIP}/>}
               </div>}
             </>)
           })()}
@@ -5818,7 +5818,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
         </>)})()}
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><FinancialSummary incList={yI} expList={yE}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><FinancialSummary incList={incList} expList={expList}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
-      {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>}
+      {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoOP={gotoOP} gotoIP={gotoIP}/>}
       {rv==='patlist'&&(timelinePid?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>:<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>)}
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>{setTimelineSelPid('');setTimelineSearch('')}}/>:
           <TimelinePatientList db={db} onSelect={pid=>setTimelineSelPid(pid)} search={timelineSearch} setSearch={setTimelineSearch}/>
