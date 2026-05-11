@@ -2385,7 +2385,103 @@ const FinancialSummary=({incList,expList})=>{
   </div>)
 }
 
-const IPSlip=({ipPats,db,doc,per,rm,ry})=>{
+const OPSlip=({opList,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPaid,editPayId,setEditPayId,editPayForm,setEditPayForm,updateExpense,delExpense})=>{
+  const grandAmt=opList.reduce((a,p)=>a+p.amount,0)
+  const grandComm=opList.reduce((a,p)=>a+p.comm,0)
+  const hospName=doc.name
+  const period=per==='month'?rm:ry
+  const exportSlip=()=>{
+    const rows=opList.map((p,i)=>`
+      <tr style="border-bottom:1px solid #eee;${i%2===0?'':'background:#f8fafc'}">
+        <td style="padding:10px 8px;font-weight:700">${i+1}. ${p.name}</td>
+        <td style="padding:10px 8px;font-size:11px;color:#555">${[...new Set(p.types)].map(t=>ITYPES.find(x=>x.key===t)?.full||t).join(', ')}</td>
+        <td style="padding:10px 8px;text-align:right">${fmt(p.amount)}</td>
+        <td style="padding:10px 8px;text-align:right;font-weight:700;color:#dc2626">${fmt(p.comm)}</td>
+      </tr>`).join('')
+    exportPDF('OP Commission — Dr. '+doc.name,`
+      <div style="border-bottom:3px solid #1a1a2e;padding-bottom:16px;margin-bottom:20px">
+        <div style="font-size:24px;font-weight:900;color:#1a1a2e">OP Commission Statement</div>
+        <div style="font-size:14px;color:#555;margin-top:6px">Dr. ${doc.name} &nbsp;|&nbsp; Period: ${period}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#1a1a2e;color:#c9a84c">
+            <th style="padding:10px 8px;text-align:left">Patient</th>
+            <th style="padding:10px 8px;text-align:left">Type</th>
+            <th style="padding:10px 8px;text-align:right">Amount</th>
+            <th style="padding:10px 8px;text-align:right">Commission</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr style="background:#1a1a2e;color:#c9a84c;font-size:16px;font-weight:900">
+            <td colspan="3" style="padding:14px 8px">TOTAL OP COMMISSION</td>
+            <td style="padding:14px 8px;text-align:right">${fmt(grandComm)}</td>
+          </tr>
+        </tfoot>
+      </table>`)
+  }
+  const isOpen=payDoc===doc.name+'_op'
+  return(<>
+    {opList.map((p,i)=><div key={i} style={{background:'#f8fafc',border:'1px solid #e0f2fe',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700}}>{i+1}. {p.name}</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:4}}>
+            {[...new Set(p.types)].map(t=><span key={t} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:600}}>{ITYPES.find(x=>x.key===t)?.full}</span>)}
+          </div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontSize:12,color:'#555'}}>Billed: {fmt(p.amount)}</div>
+          <div style={{fontSize:16,fontWeight:800,color:'#dc2626'}}>Comm: {fmt(p.comm)}</div>
+        </div>
+      </div>
+    </div>)}
+    <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+      <div>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase'}}>Total OP Commission</div>
+        <div style={{fontSize:22,fontWeight:900,color:'#c9a84c'}}>{fmt(grandComm)}</div>
+        <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>on {fmt(grandAmt)} billed</div>
+      </div>
+      <button onClick={exportSlip} style={{padding:'10px 14px',background:'#c9a84c',color:'#1a1a2e',border:'none',borderRadius:10,fontSize:12,fontWeight:800,cursor:'pointer'}}>📄 Export</button>
+    </div>
+    {/* Payments history */}
+    {paid>0&&<div style={{marginBottom:8}}>
+      <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Payments made</div>
+      {allPaid.filter(e=>e.description===doc.name).map(e=>{
+        const isEd=editPayId===e.id
+        return(<div key={e.id} style={{marginBottom:6,padding:'8px 10px',background:'#f9fafb',borderRadius:10,border:'1px solid #f0f0f0'}}>
+          {!isEd?<div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div><div style={{fontSize:13,fontWeight:500}}>{fmtD(e.date)}</div><div style={{fontSize:11,color:'#94a3b8'}}>{e.payment}</div></div>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <span style={{color:'#16a34a',fontWeight:700}}>{fmt(e.amount)}</span>
+              <button onClick={()=>{setEditPayId(e.id);setEditPayForm({amount:String(e.amount),date:e.date,payment:e.payment||'cash'})}} style={{padding:'3px 9px',background:'none',border:'1px solid #e5e7eb',borderRadius:7,fontSize:11,color:'#6366f1',cursor:'pointer'}}>Edit</button>
+              <DBtn onClick={()=>{if(window.confirm('Delete?'))delExpense(e.id)}}>Del</DBtn>
+            </div>
+          </div>:<div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+              <div><div style={{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:4}}>Amount</div><input style={{...S.inp}} type="number" value={editPayForm.amount} onChange={e2=>setEditPayForm(f=>({...f,amount:e2.target.value}))}/></div>
+              <div><div style={{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:4}}>Date</div><input style={{...S.inp}} type="date" value={editPayForm.date} onChange={e2=>setEditPayForm(f=>({...f,date:e2.target.value}))}/></div>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={async()=>{const amt=parseFloat(editPayForm.amount);if(!amt)return;await updateExpense(e.id,{amount:amt,date:editPayForm.date,payment:editPayForm.payment});setEditPayId(null)}} style={{flex:1,padding:'9px',background:'#16a34a',color:'#fff',border:'none',borderRadius:9,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
+              <button onClick={()=>setEditPayId(null)} style={{flex:1,padding:'9px',background:'none',border:'1px solid #e5e7eb',borderRadius:9,fontSize:13,color:'#888',cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>}
+        </div>)
+      })}
+    </div>}
+    {balance>0&&(!isOpen
+      ?<button onClick={()=>setPayDoc(doc.name+'_op')} style={{width:'100%',padding:'12px',background:'#111',color:'#c9a84c',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>💸 Record Commission Payment — Due: {fmt(balance)}</button>
+      :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)}
+    {balance<=0&&<div style={{padding:'8px 12px',background:'#f0fdf4',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <span style={{fontSize:12,color:'#16a34a',fontWeight:700}}>✅ Fully paid</span>
+      <button onClick={()=>setPayDoc(doc.name+'_op')} style={{fontSize:11,color:'#6366f1',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>+ Add payment</button>
+    </div>}
+  </>)
+}
+
+const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPaid,editPayId,setEditPayId,editPayForm,setEditPayForm})=>{
   const slipData=ipPats.map(p=>{
     const ents=db.income.filter(e=>e.patient_id===p.id&&!isCredit(e)&&e.payment!=='written_off')
     const ipCharges=ents.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
@@ -2479,7 +2575,7 @@ const IPSlip=({ipPats,db,doc,per,rm,ry})=>{
       </div>
       {s.credit>0&&<div style={{fontSize:11,color:'#f59e0b',marginTop:6,fontWeight:600}}>⚠️ Credit outstanding: {fmt(s.credit)} — commission calculated on collected amounts only</div>}
     </div>)}
-    <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
       <div>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase'}}>Total Commission Due</div>
         <div style={{fontSize:24,fontWeight:900,color:'#c9a84c'}}>{fmt(grandComm)}</div>
@@ -2487,6 +2583,38 @@ const IPSlip=({ipPats,db,doc,per,rm,ry})=>{
       </div>
       <button onClick={exportSlip} style={{padding:'12px 18px',background:'#c9a84c',color:'#1a1a2e',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Export Slip</button>
     </div>
+    {paid>0&&<div style={{marginBottom:8}}>
+      <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Payments made</div>
+      {allPaid.filter(e=>e.description===doc.name).map(e=>{
+        const isEd=editPayId===e.id
+        return(<div key={e.id} style={{marginBottom:6,padding:'8px 10px',background:'#f9fafb',borderRadius:10,border:'1px solid #f0f0f0'}}>
+          {!isEd?<div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div><div style={{fontSize:13,fontWeight:500}}>{fmtD(e.date)}</div><div style={{fontSize:11,color:'#94a3b8'}}>{e.payment}</div></div>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <span style={{color:'#16a34a',fontWeight:700}}>{fmt(e.amount)}</span>
+              <button onClick={()=>{setEditPayId(e.id);setEditPayForm({amount:String(e.amount),date:e.date,payment:e.payment||'cash'})}} style={{padding:'3px 9px',background:'none',border:'1px solid #e5e7eb',borderRadius:7,fontSize:11,color:'#6366f1',cursor:'pointer'}}>Edit</button>
+              <DBtn onClick={()=>{if(window.confirm('Delete?'))actions.delExpense(e.id)}}>Del</DBtn>
+            </div>
+          </div>:<div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+              <div><div style={{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:4}}>Amount</div><input style={{...S.inp}} type="number" value={editPayForm.amount} onChange={e2=>setEditPayForm(f=>({...f,amount:e2.target.value}))}/></div>
+              <div><div style={{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:4}}>Date</div><input style={{...S.inp}} type="date" value={editPayForm.date} onChange={e2=>setEditPayForm(f=>({...f,date:e2.target.value}))}/></div>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={async()=>{const amt=parseFloat(editPayForm.amount);if(!amt)return;await actions.updateExpense(e.id,{amount:amt,date:editPayForm.date,payment:editPayForm.payment});setEditPayId(null)}} style={{flex:1,padding:'9px',background:'#16a34a',color:'#fff',border:'none',borderRadius:9,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
+              <button onClick={()=>setEditPayId(null)} style={{flex:1,padding:'9px',background:'none',border:'1px solid #e5e7eb',borderRadius:9,fontSize:13,color:'#888',cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>}
+        </div>)
+      })}
+    </div>}
+    {balance>0&&(payDoc!==doc.name+'_ip'
+      ?<button onClick={()=>setPayDoc(doc.name+'_ip')} style={{width:'100%',padding:'12px',background:'#111',color:'#c9a84c',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>💸 Record Commission Payment — Due: {fmt(balance)}</button>
+      :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)}
+    {balance<=0&&<div style={{padding:'8px 12px',background:'#f0fdf4',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <span style={{fontSize:12,color:'#16a34a',fontWeight:700}}>✅ Fully paid</span>
+      <button onClick={()=>setPayDoc(doc.name+'_ip')} style={{fontSize:11,color:'#6366f1',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>+ Add payment</button>
+    </div>}
   </>)
 }
 
@@ -2572,83 +2700,14 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
               {activeTab==='ip'&&<div style={{marginBottom:8}}>
                 {ipPats.length===0
                   ?<div style={{background:'#f8fafc',borderRadius:8,padding:'14px',textAlign:'center',color:'#94a3b8',fontSize:12}}>No IP patients referred</div>
-                  :<IPSlip ipPats={ipPats} db={db} doc={doc} per={per} rm={rm} ry={ry}/>}
+                  :<IPSlip ipPats={ipPats} db={db} doc={doc} per={per} rm={rm} ry={ry} paid={paid} balance={balance} actions={actions} payDoc={payDoc} setPayDoc={setPayDoc} allPaid={allPaid} editPayId={editPayId} setEditPayId={setEditPayId} editPayForm={editPayForm} setEditPayForm={setEditPayForm}/>}
               </div>}
             </>)
           })()}
-          {/* Type breakdown */}
-          {Object.entries(doc.by_type).map(([tk,v])=>(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(v.income)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(v.commission)}</span>}/>))}
-          {/* OP patients */}
-          {(()=>{
-            const opPats=fi.filter(e=>e.ref_doctor===doc.name&&['op','opd','op_r','op_l'].includes(e.type))
-            if(!opPats.length)return null
-            const byName={}
-            opPats.forEach(e=>{if(!byName[e.patient_name])byName[e.patient_name]={name:e.patient_name,amount:0,comm:0,types:[]};byName[e.patient_name].amount+=e.amount;byName[e.patient_name].comm+=getComm(e);byName[e.patient_name].types.push(e.type)})
-            return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
-              <div style={{fontSize:10,color:'#0369a1',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>OP Patients</div>
-              {Object.values(byName).map((p,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'3px 0',borderBottom:'1px solid #f9f9f9'}}>
-                <span>{i+1}. {p.name} <span style={{color:'#94a3b8'}}>{[...new Set(p.types)].map(t=>ITYPES.find(x=>x.key===t)?.label).join(', ')}</span></span>
-                <span style={{fontWeight:600}}>{fmt(p.amount)} {p.comm>0&&<span style={{color:'#dc2626'}}>· {fmt(p.comm)}</span>}</span>
-              </div>)}
-            </div>)
-          })()}
-          {/* IP patients */}
-          {(()=>{
-            const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name)
-            if(!ipPats.length)return null
-            return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
-              <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>IP Patients</div>
-              {ipPats.map((p,i)=>{
-                const ipEnts=fi.filter(e=>e.patient_id===p.id)
-                const ipC=ipEnts.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
-                const ipR=ipEnts.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
-                const ipL=ipEnts.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
-                const ipTotal=ipEnts.reduce((a,e)=>a+e.amount,0)
-                const ipComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
-                return(<div key={i} style={{padding:'6px 0',borderBottom:'1px solid #f9f9f9'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:12,fontWeight:600}}>
-                    <span>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'}</span>
-                    <span>{fmt(ipTotal)} <span style={{color:'#dc2626',fontSize:11}}>· {fmt(ipComm)}</span></span>
-                  </div>
-                  <div style={{fontSize:10,color:'#94a3b8',marginLeft:12}}>
-                    {ipC>0&&`Charges: ${fmt(ipC)} `}{ipR>0&&`Pharm: ${fmt(ipR)} `}{ipL>0&&`Lab: ${fmt(ipL)}`}
-                  </div>
-                </div>)
-              })}
-            </div>)
-          })()}
-          {paid>0&&(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
-            <div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payments made</div>
-            {allPaid.filter(e=>e.description===doc.name).map(e=>{
-              const isEditing=editPayId===e.id
-              return(<div key={e.id} style={{marginBottom:8,padding:'8px 10px',background:'#f9fafb',borderRadius:10,border:'1px solid #f0f0f0'}}>
-                {!isEditing
-                  ?<div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                    <div><div style={{fontSize:13,color:'#374151',fontWeight:500}}>{fmtD(e.date)}</div><div style={{fontSize:11,color:'#94a3b8',marginTop:1}}>{e.payment}</div></div>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(e.amount)}</span>
-                      <button onClick={()=>{setEditPayId(e.id);setEditPayForm({amount:String(e.amount),date:e.date,payment:e.payment||'cash'})}} style={{padding:'4px 10px',background:'none',border:'1px solid #e5e7eb',borderRadius:8,fontSize:11,color:'#6366f1',fontWeight:600,cursor:'pointer'}}>Edit</button>
-                      <DBtn onClick={async()=>{if(window.confirm('Delete this payment?')){await actions.delExpense(e.id)}}}>Del</DBtn>
-                    </div>
-                  </div>
-                  :<div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-                      <div><div style={{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:4}}>Amount</div><input style={{...S.inp,fontSize:14}} type="number" value={editPayForm.amount} onChange={e2=>setEditPayForm(f=>({...f,amount:e2.target.value}))}/></div>
-                      <div><div style={{fontSize:10,color:'#aaa',fontWeight:700,marginBottom:4}}>Date</div><input style={{...S.inp,fontSize:14}} type="date" value={editPayForm.date} onChange={e2=>setEditPayForm(f=>({...f,date:e2.target.value}))}/></div>
-                    </div>
-                    <select style={{...S.sel,marginBottom:8}} value={editPayForm.payment} onChange={e2=>setEditPayForm(f=>({...f,payment:e2.target.value}))}>
-                      <option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="bank">Bank transfer</option>
-                    </select>
-                    <div style={{display:'flex',gap:8}}>
-                      <button onClick={async()=>{const amt=parseFloat(editPayForm.amount);if(!amt||amt<=0){alert('Enter valid amount');return};await actions.updateExpense(e.id,{amount:amt,date:editPayForm.date,payment:editPayForm.payment});setEditPayId(null)}} style={{flex:1,padding:'9px',background:'#16a34a',color:'#fff',border:'none',borderRadius:9,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
-                      <button onClick={()=>setEditPayId(null)} style={{flex:1,padding:'9px',background:'none',border:'1px solid #e5e7eb',borderRadius:9,fontSize:13,color:'#888',cursor:'pointer'}}>Cancel</button>
-                    </div>
-                  </div>}
-              </div>)
-            })}
-          </div>)}
-          {balance>0&&(<div style={{marginTop:10}}>{!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}</div>)}
-          {balance<=0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8,padding:'8px 12px',background:'#f0fdf4',borderRadius:10}}><span style={{fontSize:12,color:'#16a34a',fontWeight:700}}>Fully paid</span><button onClick={()=>setPayDoc(doc.name)} style={{fontSize:11,color:'#6366f1',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 10px',fontWeight:600,cursor:'pointer'}}>+ Add payment</button></div>}
+
+
+
+
         </Card>
       )})}
     </>)}
