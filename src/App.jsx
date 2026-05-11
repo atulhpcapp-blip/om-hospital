@@ -2031,6 +2031,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   if(selPat){
+    try{
     const pat=byPat[selPat?.trim().toLowerCase()]||byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
     const ents=pat.entries
     const totalInc=ents.reduce((a,e)=>a+e.amount,0);const totalComm=ents.reduce((a,e)=>a+getComm(e),0);const totalCredit=credTotal(ents);const totalCash=cashTotal(ents)
@@ -2128,6 +2129,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
         })()}
     </div>
     )
+  }catch(err){return(<div style={{padding:16}}><div style={{color:'#dc2626',fontWeight:700,marginBottom:8}}>Error loading patient</div><div style={{fontSize:12,color:'#555',marginBottom:12}}>{err.message}</div><button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>← Back</button></div>)}
   }
   // All referral doctors and consultants who appear in OP income
   const opRefDocs=[...new Set(opIncome.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
