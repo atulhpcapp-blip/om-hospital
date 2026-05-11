@@ -2658,7 +2658,17 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
   const [docActiveTab,setDocActiveTab]=useState({})
   const [editPayForm,setEditPayForm]=useState({amount:'',date:'',payment:'cash'})
   const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):per==='year'?income.filter(e=>e.date?.startsWith(ry)):income
-  const docs=buildRef(fi)
+  // Also include doctors who have IP patients in this period (even if no OP income in fi)
+  const ipRefDocs=db.ip_patients.filter(p=>p.ref_doctor&&p.ref_doctor.trim()&&(
+    per==='month'?p.admission_date?.startsWith(rm):
+    per==='year'?p.admission_date?.startsWith(ry):true))
+    .map(p=>p.ref_doctor.trim())
+  const opRefDocs=fi.filter(e=>e.ref_doctor&&e.ref_doctor.trim()).map(e=>e.ref_doctor.trim())
+  const allRefDocNames=[...new Set([...opRefDocs,...ipRefDocs])].sort()
+  const baseDocs=buildRef(fi)
+  // Add IP-only doctors not in baseDocs
+  const ipOnlyDocs=allRefDocNames.filter(n=>!baseDocs.find(d=>d.name===n)).map(n=>({name:n,total_income:0,total_commission:0,by_type:{}}))
+  const docs=[...baseDocs,...ipOnlyDocs].sort((a,b)=>b.total_commission-a.total_commission)
   const exportRefPDF=()=>{
     const rows=docs.map((d,i)=>`<tr style="background:${i%2===0?'#fff':'#f8fafc'}"><td>${i+1}</td><td>Dr. ${d.name}</td><td style="text-align:right">${fmt(d.total_income)}</td><td style="text-align:right">${fmt(d.total_commission)}</td><td style="text-align:right">${fmt(d.total_income-d.total_commission)}</td></tr>`).join('')
     exportPDF('Referrals Report',`<table><thead><tr><th>#</th><th>Doctor</th><th>Billed</th><th>Commission</th><th>Hospital Net</th></tr></thead><tbody>${rows}<tr class="tot"><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_income,0))}</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_commission,0))}</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_income-d.total_commission,0))}</td></tr></tbody></table>`)
@@ -2711,7 +2721,9 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
             const opEnts=fi.filter(e=>e.ref_doctor===doc.name&&['op_r','op_l','opd'].includes(e.type))
             const opByPat={};opEnts.forEach(e=>{const k=e.patient_name||'—';if(!opByPat[k])opByPat[k]={name:k,amount:0,comm:0,types:[],rawEnts:[]};opByPat[k].amount+=e.amount;opByPat[k].comm+=getComm(e);opByPat[k].types.push(e.type);opByPat[k].rawEnts.push(e)})
             const opList=Object.values(opByPat)
-            const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name)
+            const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name&&(
+              per==='month'?p.admission_date?.startsWith(rm):
+              per==='year'?p.admission_date?.startsWith(ry):true))
             return(<>
               <div style={{display:'flex',gap:6,marginBottom:10}}>
                 <button onClick={()=>setDocActiveTab(t=>({...t,[doc.name]:'op'}))} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:activeTab==='op'?'#0369a1':'#f0f9ff',color:activeTab==='op'?'#fff':'#0369a1',fontSize:12,fontWeight:700,cursor:'pointer'}}>📋 OP ({opList.length})</button>
