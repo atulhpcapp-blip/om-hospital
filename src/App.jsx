@@ -2423,20 +2423,31 @@ const OPSlip=({opList,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,allPai
   }
   const isOpen=payDoc===doc.name+'_op'
   return(<>
-    {opList.map((p,i)=><div key={i} style={{background:'#f8fafc',border:'1px solid #e0f2fe',borderRadius:10,padding:'10px 12px',marginBottom:8}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
-        <div>
-          <div style={{fontSize:13,fontWeight:700}}>{i+1}. {p.name}</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:4}}>
-            {[...new Set(p.types)].map(t=><span key={t} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:600}}>{ITYPES.find(x=>x.key===t)?.full}</span>)}
-          </div>
-        </div>
-        <div style={{textAlign:'right'}}>
-          <div style={{fontSize:12,color:'#555'}}>Billed: {fmt(p.amount)}</div>
-          <div style={{fontSize:16,fontWeight:800,color:'#dc2626'}}>Comm: {fmt(p.comm)}</div>
-        </div>
-      </div>
-    </div>)}
+    {/* Header row */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 80px 70px 70px',gap:4,padding:'6px 8px',background:'#1a1a2e',borderRadius:8,marginBottom:6}}>
+      <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,textTransform:'uppercase'}}>Patient</div>
+      <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Billed</div>
+      <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Rate</div>
+      <div style={{fontSize:9,color:'#c9a84c',fontWeight:700,textTransform:'uppercase',textAlign:'right'}}>Comm</div>
+    </div>
+    {opList.map((p,i)=>{
+      // Group by type to show rate clearly
+      const typeGroups={}
+      p.rawEnts&&p.rawEnts.forEach(e=>{if(!typeGroups[e.type])typeGroups[e.type]={amt:0,comm:0};typeGroups[e.type].amt+=e.amount;typeGroups[e.type].comm+=getComm(e)})
+      return(<div key={i} style={{marginBottom:8,borderBottom:'1px solid #f0f0f0',paddingBottom:8}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#1a1a2e',marginBottom:4}}>{i+1}. {p.name}</div>
+        {Object.entries(typeGroups).map(([tk,v])=>{
+          const it=ITYPES.find(x=>x.key===tk)
+          const rate=v.amt>0?Math.round(v.comm/v.amt*100):0
+          return(<div key={tk} style={{display:'grid',gridTemplateColumns:'1fr 80px 70px 70px',gap:4,padding:'4px 8px',background:'#f8fafc',borderRadius:6,marginBottom:3}}>
+            <div style={{fontSize:11,color:'#555'}}>{it?.full||tk}</div>
+            <div style={{fontSize:11,textAlign:'right'}}>{fmt(v.amt)}</div>
+            <div style={{fontSize:11,textAlign:'right',color:'#6366f1',fontWeight:600}}>{rate}%</div>
+            <div style={{fontSize:11,textAlign:'right',color:'#dc2626',fontWeight:700}}>{v.comm>0?fmt(v.comm):'—'}</div>
+          </div>)
+        })}
+      </div>)
+    })}
     <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
       <div>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase'}}>Total OP Commission</div>
