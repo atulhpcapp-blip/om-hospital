@@ -2686,13 +2686,24 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Referral earned</div><div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div></div>
         <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total paid out</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalPaid)}</div></div>
       </div>
-      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name||e.description==='Commission to Dr. '+doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;return(
+      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name||e.description==='Commission to Dr. '+doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;const isOpen=payDoc===doc.name;return(
         <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.total_income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Referral earned</div><div style={{fontSize:18,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div></div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
             <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div>
             <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
             <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div>
+          </div>
+          {/* Referral Paid Button - always visible */}
+          <div style={{marginBottom:10}}>
+            {balance>0
+              ?(!isOpen
+                ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'12px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:14,fontWeight:800,cursor:'pointer'}}>💸 Referral Paid — Due: {fmt(balance)}</button>
+                :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)
+              :<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10}}>
+                <span style={{fontSize:13,color:'#16a34a',fontWeight:700}}>✅ Fully Paid</span>
+                <button onClick={()=>setPayDoc(doc.name)} style={{fontSize:11,color:'#6366f1',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>+ Add payment</button>
+              </div>}
           </div>
           {/* OP / IP sub-tabs */}
           {(()=>{
