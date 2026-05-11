@@ -2408,6 +2408,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
       {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
     </div>
     {subTab==='commission'&&<>
+    <button onClick={exportRefPDF} style={{width:'100%',padding:'10px',background:'#dc2626',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',marginBottom:12}}>📄 Export PDF</button>
     <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
       <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
       {[{k:'month',l:'This month'},{k:'year',l:'This year'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
@@ -2427,7 +2428,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
         const opPatList=Object.values(opByPat)
         // IP patients: all admitted patients referred by this doctor
         const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name)
-        const docTab=selDoc===doc.name+'_tab'?'ip':'op'
+        const docTab=selDoc===doc.name+'_ip'?'ip':'op'
         return(
         <Card key={doc.name} style={{border:balance>0?'1.5px solid #fed7aa':'1px solid #f0f0f0',marginBottom:14}}>
           {/* Header */}
@@ -2446,10 +2447,10 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
           </div>
           {/* OP / IP tabs */}
           <div style={{display:'flex',gap:6,marginBottom:10}}>
-            <button onClick={()=>setSelDoc(docTab==='op'?doc.name+'_tab':'')} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:docTab==='op'?'#0369a1':'#f0f9ff',color:docTab==='op'?'#fff':'#0369a1',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            <button onClick={()=>setSelDoc(doc.name+'_op')} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:docTab==='op'?'#0369a1':'#f0f9ff',color:docTab==='op'?'#fff':'#0369a1',fontSize:12,fontWeight:700,cursor:'pointer'}}>
               📋 OP Referrals {opPatList.length>0&&`(${opPatList.length})`}
             </button>
-            <button onClick={()=>setSelDoc(docTab==='ip'?'':doc.name+'_tab')} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:docTab==='ip'?'#16a34a':'#f0fdf4',color:docTab==='ip'?'#fff':'#16a34a',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            <button onClick={()=>setSelDoc(doc.name+'_ip')} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:docTab==='ip'?'#16a34a':'#f0fdf4',color:docTab==='ip'?'#fff':'#16a34a',fontSize:12,fontWeight:700,cursor:'pointer'}}>
               🏥 IP Referrals {ipPats.length>0&&`(${ipPats.length})`}
             </button>
           </div>
@@ -5563,7 +5564,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'realincome',l:'P&L Account'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'speciality',l:'Speciality'},{k:'patdata',l:'Patient Data'}]
+  const RVTABS=[{k:'referrals',l:'Referrals'},{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'custom',l:'Custom'},{k:'realincome',l:'P&L Account'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'speciality',l:'Speciality'},{k:'patdata',l:'Patient Data'}]
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
     return(<div style={{marginBottom:12}}>
