@@ -2695,1313 +2695,212 @@ const HistoryTab=({allPaid,docs})=>{
 
 const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,gotoIP})=>{
   const [per,setPer]=useState('month')
+  const [refTab,setRefTab]=useState('pending')
   const [payDoc,setPayDoc]=useState(null)
-  const [subTab,setSubTab]=useState('commission')
-  const [selDoc,setSelDoc]=useState('')
   const [editPayId,setEditPayId]=useState(null)
-  const [docActiveTab,setDocActiveTab]=useState({})
-  const [refSubTab,setRefSubTab]=useState('pending')
   const [editPayForm,setEditPayForm]=useState({amount:'',date:'',payment:'cash'})
-  const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):per==='year'?income.filter(e=>e.date?.startsWith(ry)):income
-  // Also include doctors who have IP patients in this period (even if no OP income in fi)
-  const ipRefDocs=db.ip_patients.filter(p=>p.ref_doctor&&p.ref_doctor.trim()&&(
+  const [docActiveTab,setDocActiveTab]=useState({})
+  // History filters
+  const [hFilter,setHFilter]=useState('all')
+  const [hDoc,setHDoc]=useState('')
+  const [hFrom,setHFrom]=useState(todayStr().slice(0,8)+'01')
+  const [hTo,setHTo]=useState(todayStr())
+
+  const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):
+            per==='year'?income.filter(e=>e.date?.startsWith(ry)):income
+
+  const ipPeriodPats=db.ip_patients.filter(p=>p.ref_doctor&&p.ref_doctor.trim()&&(
     per==='month'?p.admission_date?.startsWith(rm):
     per==='year'?p.admission_date?.startsWith(ry):true))
-    .map(p=>p.ref_doctor.trim())
-  const opRefDocs=fi.filter(e=>e.ref_doctor&&e.ref_doctor.trim()).map(e=>e.ref_doctor.trim())
-  const allRefDocNames=[...new Set([...opRefDocs,...ipRefDocs])].sort()
-  const baseDocs=buildRef(fi)
-  // Add IP-only doctors not in baseDocs
-  const ipOnlyDocs=allRefDocNames.filter(n=>!baseDocs.find(d=>d.name===n)).map(n=>({name:n,total_income:0,total_commission:0,by_type:{}}))
-  const docs=[...baseDocs,...ipOnlyDocs].sort((a,b)=>b.total_commission-a.total_commission)
-  const exportRefPDF=()=>{
-    const rows=docs.map((d,i)=>`<tr style="background:${i%2===0?'#fff':'#f8fafc'}"><td>${i+1}</td><td>Dr. ${d.name}</td><td style="text-align:right">${fmt(d.total_income)}</td><td style="text-align:right">${fmt(d.total_commission)}</td><td style="text-align:right">${fmt(d.total_income-d.total_commission)}</td></tr>`).join('')
-    exportPDF('Referrals Report',`<table><thead><tr><th>#</th><th>Doctor</th><th>Billed</th><th>Commission</th><th>Hospital Net</th></tr></thead><tbody>${rows}<tr class="tot"><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_income,0))}</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_commission,0))}</td><td style="text-align:right">${fmt(docs.reduce((a,d)=>a+d.total_income-d.total_commission,0))}</td></tr></tbody></table>`)
-  }
-  const tc=docs.reduce((a,r)=>a+r.total_commission,0)
-  const totalPaid=allPaid.reduce((a,e)=>a+e.amount,0)
-  // All-time data for income & timeline tabs
-  const allDocs=buildRef(income)
-  const allRefDocs=[...new Set(income.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
-  return(<>
-    <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
-      {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
-    </div>
-    {subTab==='commission'&&<div style={{display:'flex',gap:6,marginBottom:12}}>
-      <button onClick={()=>setRefSubTab('pending')} style={{flex:1,padding:'10px',borderRadius:10,border:'none',background:refSubTab!=='history'?'#1a1a2e':'#f0f0f0',color:refSubTab!=='history'?'#c9a84c':'#555',fontSize:13,fontWeight:700,cursor:'pointer'}}>⏳ Pending</button>
-      <button onClick={()=>setRefSubTab('history')} style={{flex:1,padding:'10px',borderRadius:10,border:'none',background:refSubTab==='history'?'#16a34a':'#f0f0f0',color:refSubTab==='history'?'#fff':'#555',fontSize:13,fontWeight:700,cursor:'pointer'}}>✅ History</button>
-    </div>}
-    {subTab==='commission'&&refSubTab==='history'&&<HistoryTab allPaid={allPaid} docs={docs}/>}
-    {subTab==='commission'&&refSubTab!=='history'&&<>
-    <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
-      <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
-      {[{k:'month',l:'This month'},{k:'year',l:'This year'},{k:'all',l:'All time'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
-    </div>
-    {per==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/>}
-    {per==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-    {per==='all'&&<div style={{padding:'6px 12px',background:'#f0fdf4',borderRadius:8,marginBottom:12,fontSize:12,color:'#16a34a',fontWeight:600}}>Showing all referrals from the beginning</div>}
-    {!docs.length&&<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No referral data</div>}
-    {docs.length>0&&(<>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-        <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Referral earned</div><div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div></div>
-        <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total paid out</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalPaid)}</div></div>
-      </div>
-      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name||e.description==='Commission to Dr. '+doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;const isOpen=payDoc===doc.name;return(
-        <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.total_income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Referral earned</div><div style={{fontSize:18,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div></div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
-            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div>
-          </div>
-          {/* Referral Paid Button - always visible */}
-          <div style={{marginBottom:10}}>
-            {balance>0&&<>
-              {!isOpen
-                ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'12px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:14,fontWeight:800,cursor:'pointer',marginBottom:6}}>💸 Referral Paid — Due: {fmt(balance)}</button>
-                :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}
-              <button onClick={()=>{if(window.confirm('Write off Rs '+fmt(balance)+' referral due for Dr. '+doc.name+'?\nThis forgives the amount without payment.'))actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:balance,description:doc.name,payment:'written_off',is_monthly:false})}} style={{width:'100%',padding:'8px',background:'#6b7280',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off — {fmt(balance)}</button>
-            </>}
-          </div>
-          {/* OP / IP sub-tabs */}
-          {(()=>{
-            const activeTab=docActiveTab[doc.name]||'op'
-            const opEnts=fi.filter(e=>e.ref_doctor===doc.name&&['op_r','op_l','opd'].includes(e.type))
-            const opByPat={};opEnts.forEach(e=>{const k=e.patient_name||'—';if(!opByPat[k])opByPat[k]={name:k,amount:0,comm:0,types:[],rawEnts:[]};opByPat[k].amount+=e.amount;opByPat[k].comm+=getComm(e);opByPat[k].types.push(e.type);opByPat[k].rawEnts.push(e)})
-            const opList=Object.values(opByPat)
-            const ipPats=db.ip_patients.filter(p=>p.ref_doctor===doc.name&&(
-              per==='month'?p.admission_date?.startsWith(rm):
-              per==='year'?p.admission_date?.startsWith(ry):true))
-            return(<>
-              <div style={{display:'flex',gap:6,marginBottom:10}}>
-                <button onClick={()=>setDocActiveTab(t=>({...t,[doc.name]:'op'}))} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:activeTab==='op'?'#0369a1':'#f0f9ff',color:activeTab==='op'?'#fff':'#0369a1',fontSize:12,fontWeight:700,cursor:'pointer'}}>📋 OP ({opList.length})</button>
-                <button onClick={()=>setDocActiveTab(t=>({...t,[doc.name]:'ip'}))} style={{flex:1,padding:'7px',borderRadius:10,border:'none',background:activeTab==='ip'?'#16a34a':'#f0fdf4',color:activeTab==='ip'?'#fff':'#16a34a',fontSize:12,fontWeight:700,cursor:'pointer'}}>🏥 IP ({ipPats.length})</button>
-              </div>
-              {activeTab==='op'&&<div style={{marginBottom:8}}>
-                {opList.length===0
-                  ?<div style={{background:'#f8fafc',borderRadius:8,padding:'14px',textAlign:'center',color:'#94a3b8',fontSize:12}}>No pharmacy / lab referrals this period</div>
-                  :<OPSlip opList={opList} doc={doc} per={per} rm={rm} ry={ry} paid={paid} balance={balance} actions={actions} payDoc={payDoc} setPayDoc={setPayDoc} allPaid={allPaid} editPayId={editPayId} setEditPayId={setEditPayId} editPayForm={editPayForm} setEditPayForm={setEditPayForm} gotoOP={gotoOP}/>}
-              </div>}
-                            {activeTab==='ip'&&<div style={{marginBottom:8}}>
-                {ipPats.length===0
-                  ?<div style={{background:'#f8fafc',borderRadius:8,padding:'14px',textAlign:'center',color:'#94a3b8',fontSize:12}}>No IP patients referred</div>
-                  :<IPSlip ipPats={ipPats} db={db} doc={doc} per={per} rm={rm} ry={ry} paid={paid} balance={balance} actions={actions} payDoc={payDoc} setPayDoc={setPayDoc} allPaid={allPaid} editPayId={editPayId} setEditPayId={setEditPayId} editPayForm={editPayForm} setEditPayForm={setEditPayForm} gotoIP={gotoIP}/>}
-              </div>}
-            </>)
-          })()}
 
+  // Build all referral doctor names
+  const allDocNames=[...new Set([
+    ...fi.filter(e=>e.ref_doctor&&e.ref_doctor.trim()).map(e=>e.ref_doctor.trim()),
+    ...ipPeriodPats.map(p=>p.ref_doctor.trim())
+  ])].sort()
 
-
-
-        </Card>
-      )})}
-    </>)}
-    </>}
-
-    {subTab==='income'&&(<>
-      <div style={{fontSize:12,color:'#aaa',marginBottom:14}}>All-time income brought by each referral doctor</div>
-      {!allDocs.length&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No referral data yet</div>}
-      {allDocs.map(doc=>{
-        const paidAll=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0)
-        const realInc=doc.total_income-doc.total_commission
-        return(<Card key={doc.name} style={{marginBottom:12}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-            <div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{Object.keys(doc.by_type).length} category{Object.keys(doc.by_type).length!==1?'s':''}</div></div>
-            <div style={{textAlign:'right'}}><div style={{fontSize:20,fontWeight:800,color:'#16a34a'}}>{fmt(doc.total_income)}</div><div style={{fontSize:11,color:'#aaa'}}>total income</div></div>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:10}}>
-            {[{l:'Total income',v:fmt(doc.total_income),c:'#16a34a'},{l:'Referral paid',v:fmt(doc.total_commission),c:'#c2410c'},{l:'Real income',v:fmt(realInc),c:'#1d4ed8'}].map((m,i)=>(
-              <div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'8px',textAlign:'center'}}>
-                <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div>
-                <div style={{fontSize:14,fontWeight:800,color:m.c}}>{m.v}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
-            {Object.entries(doc.by_type).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(
-              <div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid #f9f9f9'}}>
-                <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span>
-                <div style={{textAlign:'right'}}>
-                  <span style={{fontWeight:600,fontSize:13}}>{fmt(v.income)}</span>
-                  <span style={{fontSize:11,color:'#c2410c',marginLeft:8}}>-{fmt(v.commission)} comm</span>
-                </div>
-              </div>
-            )})}
-          </div>
-        </Card>)
-      })}
-    </>)}
-
-    {subTab==='timeline'&&(<>
-      <FSel label="Select referral doctor" value={selDoc} onChange={e=>setSelDoc(e.target.value)}>
-        <option value="">-- Select a doctor --</option>
-        {allRefDocs.map(d=><option key={d} value={d}>Dr. {d}</option>)}
-      </FSel>
-      {!selDoc&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{allRefDocs.length?'Select a doctor above to see their patient timeline':'No referral data yet'}</div>}
-      {selDoc&&(()=>{
-        const docIncome=income.filter(e=>e.ref_doctor===selDoc).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-        const docIPPats=db.ip_patients.filter(p=>p.ref_doctor===selDoc).slice().sort((a,b)=>(a.admission_date||'').localeCompare(b.admission_date||''))
-        const totalInc=docIncome.reduce((a,e)=>a+e.amount,0)
-        const totalComm=docIncome.reduce((a,e)=>a+getComm(e),0)
-        const paidAll=allPaid.filter(e=>e.description===selDoc).reduce((a,e)=>a+e.amount,0)
-        const allEvents=[]
-        docIPPats.forEach(p=>{
-          allEvents.push({date:p.admission_date,label:'Admitted: '+p.name,sub:(p.patient_type||'Regular')+(p.is_package?' - Package':'')+' IP patient'+(p.discharge_date?' - Discharged '+fmtD(p.discharge_date):''),color:'#1d4ed8',type:'admit'})
-        })
-        docIncome.forEach(e=>{
-          const cr=isCredit(e);const comm=getComm(e);const it=ITYPES.find(t=>t.key===e.type)
-          allEvents.push({date:e.date,label:(e.patient_name||'Patient')+' - '+fmt(e.amount),sub:(it?.full||e.type)+(cr?' (credit)':' '+e.payment)+(comm>0?' - Ref: '+fmt(comm):''),color:cr?'#c2410c':'#16a34a',type:'income',amount:e.amount,comm})
-        })
-        allEvents.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-        return(<>
-          <div style={{background:'linear-gradient(135deg,#d97706 0%,#b45309 100%)',borderRadius:14,padding:'14px 16px',marginBottom:14,color:'#fff'}}>
-            <div style={{fontSize:12,color:'#fde68a',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Dr. {selDoc}</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:6}}>
-              {[{l:'Total income',v:fmt(totalInc)},{l:'Commission',v:fmt(totalComm)},{l:'Patients',v:docIPPats.length+' IP'}].map((m,i)=>(
-                <div key={i} style={{textAlign:'center'}}><div style={{fontSize:9,color:'#fde68a',fontWeight:700,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:16,fontWeight:800}}>{m.v}</div></div>
-              ))}
-            </div>
-          </div>
-          {!allEvents.length&&<div style={{textAlign:'center',padding:'24px',color:'#ccc',fontSize:13}}>No records found</div>}
-          <div style={{position:'relative',paddingLeft:32}}>
-            <div style={{position:'absolute',left:11,top:8,bottom:8,width:2,background:'#e5e7eb'}}/>
-            {allEvents.map((ev,i)=>(
-              <div key={i} style={{position:'relative',marginBottom:14}}>
-                <div style={{position:'absolute',left:-21,top:2,width:18,height:18,borderRadius:'50%',background:ev.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'#fff',fontWeight:700}}>{ev.type==='admit'?'IP':'Rs'}</div>
-                <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:10,padding:'10px 12px',borderLeft:'3px solid '+ev.color}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                    <div><div style={{fontSize:13,fontWeight:600}}>{ev.label}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{ev.sub}</div></div>
-                    <div style={{fontSize:11,color:'#aaa',flexShrink:0,marginLeft:8}}>{fmtD(ev.date)}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>)
-      })()}
-    </>)}
-  </>)
-}
-
-/*  EXPENSES REPORT  */
-const ExpensesReport=({db})=>{
-  const [per,setPer]=useState('month')
-  const [rm2,setRm2]=useState(todayStr().slice(0,7))
-  const [ry2,setRy2]=useState(todayStr().slice(0,4))
-  const [from,setFrom]=useState(todayStr().slice(0,7)+'-01')
-  const [to,setTo]=useState(todayStr())
-  const yrs=[...new Set(db.expenses.map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
-  if(!yrs.includes(ry2))yrs.unshift(ry2)
-  const expList=(per==='month'?db.expenses.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.expenses.filter(e=>e.date?.startsWith(ry2)):db.expenses.filter(e=>e.date>=from&&e.date<=to)).filter(e=>e.category!=='ref_paid')
-  const total=expList.reduce((a,e)=>a+e.amount,0)
-  const byCat={};expList.forEach(e=>{if(!byCat[e.category])byCat[e.category]=0;byCat[e.category]+=e.amount})
-  const sorted=Object.entries(byCat).sort((a,b)=>b[1]-a[1])
-  return(<>
-    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
-      {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
-    </div>
-    {per==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm2} onChange={e=>setRm2(e.target.value)}/>}
-    {per==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry2} onChange={e=>setRy2(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-    {per==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={from} onChange={e=>setFrom(e.target.value)}/><FInp label="To" type="date" value={to} onChange={e=>setTo(e.target.value)}/></div>}
-    <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:14,padding:'16px',marginBottom:14}}><div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total expenses</div><div style={{fontSize:32,fontWeight:800,color:'#dc2626'}}>{fmt(total)}</div><div style={{fontSize:11,color:'#aaa',marginTop:4}}>{expList.length} entries</div></div>
-    <SecL>By category</SecL>
-    <Card>
-      {sorted.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#ccc',fontSize:13}}>No expenses</div>}
-      {sorted.map(([cat,amt])=>{const c=ECATS.find(x=>x.key===cat);const pct=total>0?Math.round(amt/total*100):0;return(<div key={cat} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}><span style={{fontSize:13,fontWeight:500}}>{c?.label||cat}</span><span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(amt)}</span></div><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:6,background:'#f0f0f0',borderRadius:3}}><div style={{width:pct+'%',height:6,background:'#ef4444',borderRadius:3,opacity:0.7}}/></div><span style={{fontSize:10,color:'#aaa',minWidth:28}}>{pct}%</span></div></div>)})}
-      {total>0&&<div style={{display:'flex',justifyContent:'space-between',paddingTop:10,marginTop:4,borderTop:'2px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total</span><span style={{color:'#ef4444'}}>{fmt(total)}</span></div>}
-    </Card>
-    <HBarChart title="Expenses by category" data={sorted.slice(0,8).map(([cat,amt])=>{const c=ECATS.find(x=>x.key===cat);return{label:(c?.label||cat).split(' ').slice(0,2).join(' '),value:amt,color:'#ef4444',fmt:fmt(amt)}})}/>
-  </>)
-}
-
-/*  PATIENT LIST REPORT  */
-const PatientListReport=({db,gotoTimeline})=>{
-  const [per,setPer]=useState('month')
-  const [rm2,setRm2]=useState(todayStr().slice(0,7))
-  const [ry2,setRy2]=useState(todayStr().slice(0,4))
-  const [from,setFrom]=useState(todayStr().slice(0,7)+'-01')
-  const [to,setTo]=useState(todayStr())
-  const [showType,setShowType]=useState('all')
-  const [opView,setOpView]=useState('all')
-  const [opRefFilter,setOpRefFilter]=useState('')
-  const [opConFilter,setOpConFilter]=useState('')
-  const [ipView,setIpView]=useState('all')
-  const [ipSearch,setIpSearch]=useState('')
-  const [ipDxFilter,setIpDxFilter]=useState('')
-  const [ipRefFilter2,setIpRefFilter2]=useState('')
-  const yrs=[...new Set(db.ip_patients.map(e=>e.admission_date?.slice(0,4)))].filter(Boolean).sort().reverse()
-  if(!yrs.includes(ry2))yrs.unshift(ry2)
-  const ipPats=db.ip_patients.filter(p=>{const adm=p.admission_date||'';const dis=p.discharge_date||'9999-12-31';if(per==='month')return adm.startsWith(rm2)||(adm<=rm2+'-31'&&dis>=rm2+'-01');if(per==='year')return adm.startsWith(ry2)||(adm<=ry2+'-12-31'&&dis>=ry2+'-01-01');return adm<=to&&(dis>=from||!p.discharge_date)})
-  const periodInc=per==='month'?db.income.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.income.filter(e=>e.date?.startsWith(ry2)):db.income.filter(e=>e.date>=from&&e.date<=to)
-  const opEnts=periodInc.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&e.patient_name&&!db.ip_patients.some(p=>p.id===e.patient_id))
-  const opByPat={};opEnts.forEach(e=>{const k=(e.patient_name||'').trim().toLowerCase();if(!opByPat[k])opByPat[k]={name:e.patient_name,phone:e.patient_phone||'',reg_no:e.reg_no||'',total:0,cash:0,credit:0,comm:0,ref_doctor:'',entries:[],lastDate:''};opByPat[k].total+=e.amount;opByPat[k].cash+=isCredit(e)?0:e.amount;opByPat[k].credit+=isCredit(e)?e.amount:0;opByPat[k].comm+=getComm(e);if(e.ref_doctor&&!opByPat[k].ref_doctor)opByPat[k].ref_doctor=e.ref_doctor;opByPat[k].entries.push(e);if(e.date>opByPat[k].lastDate)opByPat[k].lastDate=e.date;if(e.consultant_name&&!opByPat[k].consultant_name)opByPat[k].consultant_name=e.consultant_name})
-  const opPats=Object.values(opByPat).sort((a,b)=>(b.lastDate||'').localeCompare(a.lastDate||''))
-  return(<>
-    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>{[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
-    {per==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm2} onChange={e=>setRm2(e.target.value)}/>}
-    {per==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry2} onChange={e=>setRy2(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-    {per==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={from} onChange={e=>setFrom(e.target.value)}/><FInp label="To" type="date" value={to} onChange={e=>setTo(e.target.value)}/></div>}
-    <div style={{display:'flex',gap:6,marginBottom:14}}>{[{k:'all',l:'All'},{k:'ip',l:'IP only'},{k:'op',l:'OP only'}].map(v=>(<button key={v.k} onClick={()=>setShowType(v.k)} style={{padding:'6px 12px',borderRadius:20,border:showType===v.k?'none':'1px solid #e5e7eb',background:showType===v.k?'#374151':'none',color:showType===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-      <div style={{background:'#f0fdf4',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>IP patients</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{ipPats.length}</div></div>
-      <div style={{background:'#dbeafe',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP patients</div><div style={{fontSize:22,fontWeight:700,color:'#1d4ed8'}}>{opPats.length}</div></div>
-    </div>
-    {(showType==='all'||showType==='ip')&&(<>
-      {showType==='ip'&&<>
-        <div style={{display:'flex',gap:6,marginBottom:10,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'ref',l:'By Ref Doctor'}].map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
-        {ipView!=='ref'&&<div style={{position:'relative',marginBottom:10}}><input style={{...S.inp,paddingLeft:36}} placeholder="Search name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/><span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>{ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}</div>}
-        {ipView!=='ref'&&<select value={ipDxFilter} onChange={e=>setIpDxFilter(e.target.value)} style={{...S.sel,marginBottom:8}}><option value="">Filter by diagnosis</option>{[...new Set(ipPats.map(p=>p.diagnosis).filter(Boolean))].sort().map(dx=><option key={dx} value={dx}>{dx}</option>)}</select>}
-        {ipView==='ref'&&<FSel label="Select referral doctor" value={ipRefFilter2} onChange={e=>setIpRefFilter2(e.target.value)}><option value="">- Select doctor -</option>{[...new Set(ipPats.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
-      </>}
-      {(()=>{
-        let pool=ipPats
-        if(showType==='ip'){
-          if(ipView==='active')pool=ipPats.filter(p=>!p.discharge_date)
-          if(ipView==='discharged')pool=ipPats.filter(p=>p.discharge_date)
-          if(ipView==='ref'&&ipRefFilter2)pool=ipPats.filter(p=>p.ref_doctor===ipRefFilter2)
-          if(ipSearch.trim()&&ipView!=='ref')pool=pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch))
-          if(ipDxFilter)pool=pool.filter(p=>(p.diagnosis||'').toLowerCase().includes(ipDxFilter.toLowerCase()))
-        }
-        if(!pool.length)return null
-        return(<><SecL>IP patients ({pool.length})</SecL>{pool.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);const cash=cashTotal(ents);const credit=credTotal(ents);const pkgPd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0)+(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<Card key={p.id} style={{marginBottom:10}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-        <div><button onClick={()=>gotoTimeline(p.id)} style={{fontSize:14,fontWeight:700,color:'#1d4ed8',background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>{p.name}</button>{p.phone&&<div style={{fontSize:11,color:'#aaa'}}>Ph: {p.phone}</div>}{p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {p.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' to '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>{p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}</div>
-        <div style={{textAlign:'right'}}>{p.patient_type&&p.patient_type!=='Regular'&&<div style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700,marginBottom:4}}>{p.patient_type}</div>}<div style={{fontSize:14,fontWeight:700}}>{fmt(total)}</div></div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
-        {[{l:'Cash',v:fmt(cash),c:'#16a34a'},{l:'Credit',v:fmt(credit),c:credit>0?'#c2410c':'#aaa'},{l:'Pkg',v:fmt(pkgPd),c:'#1d4ed8'},{l:'Comm',v:fmt(comm),c:'#d97706'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'6px 8px',textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:600,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:11,fontWeight:700,color:m.c,marginTop:2}}>{m.v}</div></div>))}
-      </div>
-    </Card>)})}</>)})()}
-    </>)}
-    {(showType==='all'||showType==='op')&&(<>
-      {showType==='op'&&<div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'ref',l:'By Ref Doctor'},{k:'con',l:'By Consultant'}].map(v=>(<button key={v.k} onClick={()=>setOpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:opView===v.k?'none':'1px solid #e5e7eb',background:opView===v.k?'#1d4ed8':'none',color:opView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>}
-      {showType==='op'&&opView==='ref'&&<FSel label="Filter by referral doctor" value={opRefFilter} onChange={e=>setOpRefFilter(e.target.value)}><option value="">- All referral doctors -</option>{[...new Set(opEnts.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
-      {showType==='op'&&opView==='con'&&<FSel label="Filter by consultant" value={opConFilter} onChange={e=>setOpConFilter(e.target.value)}><option value="">- All consultants -</option>{[...new Set(opEnts.filter(e=>e.consultant_name).map(e=>e.consultant_name))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
-      {(()=>{
-        let filtered=opPats
-        if(showType==='op'&&opView==='ref'&&opRefFilter)filtered=opPats.filter(p=>p.entries.some(e=>e.ref_doctor===opRefFilter))
-        if(showType==='op'&&opView==='con'&&opConFilter)filtered=opPats.filter(p=>p.entries.some(e=>e.consultant_name===opConFilter))
-        return filtered.length>0?(<><SecL>OP patients ({filtered.length})</SecL>{filtered.map(pt=>(<Card key={pt.name} style={{marginBottom:10}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-        <div>
-          <div style={{fontSize:14,fontWeight:700,color:'#111'}}>{pt.name}</div>
-          {pt.phone&&<div style={{fontSize:11,color:'#aaa'}}>Ph: {pt.phone}</div>}
-          {pt.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600,marginTop:2}}>Reg: {pt.reg_no}</div>}
-          {pt.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: Dr. {pt.ref_doctor}</div>}
-          <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{pt.entries.length} visit{pt.entries.length!==1?'s':''}</div>
-        </div>
-        <div style={{textAlign:'right'}}>
-          <div style={{fontSize:14,fontWeight:700,color:'#111'}}>{fmt(pt.total)}</div>
-          <div style={{fontSize:11,color:'#16a34a',fontWeight:600}}>Real: {fmt(pt.total-pt.comm)}</div>
-        </div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4,marginBottom:10}}>
-        {[{l:'Cash',v:fmt(pt.cash),c:'#16a34a'},{l:'Credit',v:fmt(pt.credit),c:pt.credit>0?'#c2410c':'#aaa'},{l:'Real income',v:fmt(pt.total-pt.comm),c:'#16a34a'},{l:'Commission',v:fmt(pt.comm),c:pt.comm>0?'#d97706':'#aaa'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'6px 8px',textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:600,textTransform:'uppercase'}}>{m.l}</div><div style={{fontSize:11,fontWeight:700,color:m.c,marginTop:2}}>{m.v}</div></div>))}
-      </div>
-      <div style={{borderTop:'1px solid #f0f0f0',paddingTop:8}}>
-        {(()=>{const byType={};pt.entries.forEach(e=>{if(!byType[e.type])byType[e.type]={inc:0,comm:0,credit:0,cash:0};byType[e.type].inc+=e.amount;byType[e.type].comm+=getComm(e);byType[e.type].credit+=isCredit(e)?e.amount:0;byType[e.type].cash+=isCredit(e)?0:e.amount});return Object.entries(byType).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(<div key={tk} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid #f9f9f9'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span><div style={{textAlign:'right'}}><span style={{fontWeight:600,fontSize:13,color:'#111'}}>{fmt(v.inc)}</span>{v.comm>0&&<span style={{fontSize:11,color:'#d97706',marginLeft:8}}>-{fmt(v.comm)} comm</span>}{v.credit>0&&<span style={{fontSize:11,color:'#c2410c',marginLeft:8}}>{fmt(v.credit)} credit</span>}</div></div>)})})()}
-      </div>
-    </Card>))}</>):null})()}
-    </>)}
-    {ipPats.length===0&&opPats.length===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No patients for this period</div>}
-  </>)
-}
-
-/*  PATIENT TIMELINE  */
-const PatientTimeline=({db,pid,onBack})=>{
-  const [tSearch,setTSearch]=useState('')
-  const p=db.ip_patients.find(x=>x.id===pid)
-  if(!p)return<button onClick={onBack} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
-  const ents=db.income.filter(e=>e.patient_id===p.id).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-  const pkgs=(p.payments||[]).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-  // Find linked OP records - same patient name (case-insensitive) or same reg_no
-  const opEnts=db.income.filter(e=>{
-    if(['ip','ip_r','ip_l','ip_p'].includes(e.type))return false
-    if(e.patient_id===p.id)return false // already in ents
-    const nameMatch=e.patient_name&&e.patient_name.toLowerCase()===p.name.toLowerCase()
-    const regMatch=p.reg_no&&e.reg_no&&e.reg_no===p.reg_no
-    return nameMatch||regMatch
-  }).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-  const hasOpRecords=opEnts.length>0
-  const events=[]
-  events.push({date:p.admission_date,label:'Admitted (IP)',sub:(p.diagnosis?'Dx: '+p.diagnosis:'')+(p.room?' - Room: '+p.room:''),color:'#1d4ed8',icon:'IP'})
-  ents.forEach(e=>{const cr=isCredit(e);events.push({date:e.date,label:(ITYPES.find(t=>t.key===e.type)?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':e.payment)+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#16a34a',icon:'IP'})})
-  pkgs.forEach(py=>{events.push({date:py.date,label:'Package payment - '+fmt(py.amount),sub:py.payment+(py.commission>0?' - Ref: '+fmt(py.commission):''),color:'#1d4ed8',icon:'Pkg'})})
-  if(p.discharge_date)events.push({date:p.discharge_date,label:'Discharged',sub:'',color:'#6b7280',icon:'D'})
-  opEnts.forEach(e=>{const cr=isCredit(e);const it=ITYPES.find(t=>t.key===e.type);events.push({date:e.date,label:(it?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':e.payment)+(e.ref_doctor?' - Ref: '+e.ref_doctor:'')+(e.op_type?' - '+e.op_type:'')+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#3b82f6',icon:'OP'})})
-  events.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-  const ipBilled=ents.reduce((a,e)=>a+e.amount,0)+pkgs.reduce((a,py)=>a+py.amount,0)
-  const opBilled=opEnts.reduce((a,e)=>a+e.amount,0)
-  const totalBilled=ipBilled+opBilled
-  const totalCash=cashTotal(ents)+cashTotal(opEnts)
-  const totalCredit=credTotal(ents)+credTotal(opEnts)
-  const totalComm=ents.reduce((a,e)=>a+getComm(e),0)+pkgs.reduce((a,py)=>a+(py.commission||0),0)+opEnts.reduce((a,e)=>a+getComm(e),0)
-  return(<>
-    <button onClick={onBack} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,display:'block'}}>Back to Patient List</button>
-    {hasOpRecords&&<div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,padding:'8px 12px',marginBottom:10,fontSize:12,color:'#1d4ed8'}}>Showing combined timeline: IP charges + {opEnts.length} linked OP visit{opEnts.length!==1?'s':''}</div>}
-    <Card>
-      <div style={{fontSize:17,fontWeight:700}}>{p.name}</div>
-      {p.phone&&<div style={{fontSize:12,color:'#aaa',marginTop:2}}>Ph: {p.phone}</div>}
-      {p.reg_no&&<div style={{fontSize:12,color:'#1d4ed8',fontWeight:700,marginTop:2}}>Reg: {p.reg_no}</div>}
-      <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{fmtD(p.admission_date)}{p.discharge_date?' to '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>
-      {p.ref_doctor&&<div style={{fontSize:12,color:'#d97706',fontWeight:700,marginTop:4}}>Ref: Dr. {p.ref_doctor}</div>}
-    </Card>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-      {[{l:'Total billed',v:fmt(totalBilled),c:'#111'},{l:'Cash collected',v:fmt(totalCash),c:'#16a34a'},{l:'Credit (due)',v:fmt(totalCredit),c:totalCredit>0?'#c2410c':'#aaa'},{l:'Commission',v:fmt(totalComm),c:'#d97706'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div><div style={{fontSize:17,fontWeight:700,color:m.c}}>{m.v}</div></div>))}
-    </div>
-    <SecL>Patient timeline</SecL>
-    <div style={{position:'relative',marginBottom:12}}>
-      <svg style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}} width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="#94a3b8" strokeWidth="2"/><path d="m21 21-4.35-4.35" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"/></svg>
-      <input style={{...S.inp,paddingLeft:36,paddingRight:tSearch?36:14}} placeholder="Search timeline..." value={tSearch} onChange={e=>setTSearch(e.target.value)} autoCorrect="off"/>
-      {tSearch&&<button onClick={()=>setTSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}>x</button>}
-    </div>
-    {tSearch&&<div style={{fontSize:11,color:'#94a3b8',marginBottom:8}}>{(tSearch.trim()?events.filter(ev=>(ev.label+ev.sub+fmtD(ev.date)).toLowerCase().includes(tSearch.toLowerCase())):events).length} results</div>}
-    <div style={{position:'relative',paddingLeft:36}}>
-      <div style={{position:'absolute',left:13,top:8,bottom:8,width:2,background:'#e5e7eb'}}/>
-      {(tSearch.trim()?events.filter(ev=>(ev.label+ev.sub+fmtD(ev.date)).toLowerCase().includes(tSearch.toLowerCase())):events).map((ev,i)=>(<div key={i} style={{position:'relative',marginBottom:16}}>
-        <div style={{position:'absolute',left:-28,top:2,width:26,height:20,borderRadius:10,background:ev.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'#fff',fontWeight:700,zIndex:1,padding:'0 3px'}}>{ev.icon}</div>
-        <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'10px 14px',borderLeft:'3px solid '+ev.color}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-            <div><div style={{fontSize:13,fontWeight:600,color:'#111'}}>{ev.label}</div>{ev.sub&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{ev.sub}</div>}</div>
-            <div style={{fontSize:11,color:'#aaa',flexShrink:0,marginLeft:8}}>{fmtD(ev.date)}</div>
-          </div>
-        </div>
-      </div>))}
-      {tSearch.trim()&&events.filter(ev=>(ev.label+ev.sub+fmtD(ev.date)).toLowerCase().includes(tSearch.toLowerCase())).length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>No results for "{tSearch}"</div>}
-    </div>
-  </>)
-}
-
-/*  REAL INCOME REPORT  */
-const RealIncomeReport=({db})=>{
-  const [rPer,setRPer]=useState('month')
-  const [rDay,setRDay]=useState(todayStr())
-  const [rMon,setRMon]=useState(todayStr().slice(0,7))
-  const [rYr,setRYr]=useState(todayStr().slice(0,4))
-  const [rFrom,setRFrom]=useState(todayStr().slice(0,7)+'-01')
-  const [rTo,setRTo]=useState(todayStr())
-  const allYears=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
-
-  const incList=(db.income||[]).filter(e=>{
-    if(rPer==='day')return e.date===rDay
-    if(rPer==='month')return e.date?.startsWith(rMon)
-    if(rPer==='year')return e.date?.startsWith(rYr)
-    if(rPer==='custom')return e.date>=rFrom&&e.date<=rTo
-    return true
-  })
-  const expList=(db.expenses||[]).filter(e=>{
-    if(e.category==='ref_paid')return false
-    if(rPer==='day')return e.date===rDay
-    if(rPer==='month')return e.date?.startsWith(rMon)
-    if(rPer==='year')return e.date?.startsWith(rYr)
-    if(rPer==='custom')return e.date>=rFrom&&e.date<=rTo
-    return true
-  })
-
-  const allInc=incList.filter(e=>!isExcluded(e)).reduce((a,e)=>a+(e.amount||0),0)  // collected only
-  const allComm=incList.reduce((a,e)=>a+getComm(e),0)
-  const allVCFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
-  const allDeductions=allComm+allVCFees
-  const allReal=allInc-allDeductions
-  const allExp=expList.reduce((a,e)=>a+(e.amount||0),0)
-
-  const clinInc=incList.filter(e=>['op','op_r','ip','ip_r','ip_p'].includes(e.type))
-  const clinGross=clinInc.filter(e=>!isExcluded(e)).reduce((a,e)=>a+(e.amount||0),0)
-  const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
-  const segClinExp=expList.filter(e=>e.category!=='lab_to_lab')
-  const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
-  const clinActual=clinGross-clinComm-clinExpTotal
-  const clinExpCats={}
-  segClinExp.forEach(e=>{
-    const k=e.category||'other'
-    clinExpCats[k]=(clinExpCats[k]||0)+(e.amount||0)
-  })
-
-  const labInc=incList.filter(e=>['op_l','ip_l'].includes(e.type))
-  const labGross=labInc.filter(e=>!isExcluded(e)).reduce((a,e)=>a+(e.amount||0),0)
-  const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
-  const labToLab=expList.filter(e=>e.category==='lab_to_lab').reduce((a,e)=>a+(e.amount||0),0)
-  const labActual=labGross-labComm-labToLab
-
-  const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
-  const hasData=incList.length>0||expList.length>0
-
-  const exportRealPDF=()=>{
-    const rows=(filteredItems||[]).map(item=>`<tr style="background:#fff"><td>${item.label}</td><td style="text-align:right">${fmt(item.gross||item.cash||0)}</td><td style="text-align:right;color:#dc2626">${fmt(item.refComm||0)}</td><td style="text-align:right;font-weight:700;color:#16a34a">${fmt(item.net||0)}</td></tr>`).join('')
-    exportPDF('Real Income Report',`<table><thead><tr><th>Income Source</th><th>Gross</th><th>Ref Commission</th><th>Net Income</th></tr></thead><tbody>${rows}</tbody></table>`)
-  }
-  const rExpList=(db.expenses||[]).filter(e=>e.category!=='ref_paid'&&(rPer==='day'?e.date===rDay:rPer==='month'?e.date?.startsWith(rMon):rPer==='year'?e.date?.startsWith(rYr):e.date>=rFrom&&e.date<=rTo))
-  return(<>
-    <FinancialSummary incList={incList} expList={rExpList}/>
-    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
-      <button onClick={exportRealPDF} style={{padding:'7px 14px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 Export PDF</button>
-      {TABS.map(t=>(<button key={t.k} onClick={()=>setRPer(t.k)} style={{padding:'6px 16px',borderRadius:20,border:rPer===t.k?'none':'1px solid #e5e7eb',background:rPer===t.k?'#16a34a':'none',color:rPer===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
-    </div>
-    {rPer==='day'&&<input style={{...S.inp,marginBottom:12}} type="date" value={rDay} onChange={e=>setRDay(e.target.value)}/>}
-    {rPer==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rMon} onChange={e=>setRMon(e.target.value)}/>}
-    {rPer==='year'&&<select style={{...S.sel,marginBottom:12}} value={rYr} onChange={e=>setRYr(e.target.value)}>{(allYears.length?allYears:[todayStr().slice(0,4)]).map(y=><option key={y} value={y}>{y}</option>)}</select>}
-    {rPer==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={rFrom} onChange={e=>setRFrom(e.target.value)}/><FInp label="To" type="date" value={rTo} onChange={e=>setRTo(e.target.value)}/></div>}
-    {!hasData
-      ?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No data for this period</div>
-      :<>
-        <Card>
-          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f0f0f0'}}>
-            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Category</div>
-            <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Collected</div>
-            <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Deductions</div>
-            <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
-          </div>
-          {ITYPES.map(t=>{const ents=incList.filter(e=>e.type===t.key);const ti=ents.reduce((a,e)=>a+(e.amount||0),0);const tc=ents.reduce((a,e)=>a+getComm(e),0);const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0;const td=tc+vcf;if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(ti)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(ti-td)}</span></div>)})}
-          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}><span style={{fontSize:14,fontWeight:800}}>Total</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:64}}>{allDeductions>0?'-'+fmt(allDeductions):'-'}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span></div>
-          {/* Payment mode breakdown */}
-          <div style={{marginTop:12,paddingTop:10,borderTop:'1px dashed #e5e7eb'}}>
-            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Payment mode breakdown</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
-              {[{k:'cash',l:'Cash',bg:'#f0fdf4',c:'#16a34a'},{k:'upi',l:'UPI / Scan',bg:'#eff6ff',c:'#2563eb'},{k:'card',l:'Card',bg:'#fdf4ff',c:'#7c3aed'},{k:'bank',l:'Bank',bg:'#fff7ed',c:'#d97706'},{k:'credit',l:'Credit (Due)',bg:'#fef2f2',c:'#dc2626'}].map(m=>{
-                const amt=incList.filter(e=>e.payment===m.k).reduce((a,e)=>a+(e.amount||0),0)
-                if(!amt)return null
-                return(<div key={m.k} style={{background:m.bg,borderRadius:10,padding:'8px 10px'}}>
-                  <div style={{fontSize:10,color:m.c,fontWeight:700,marginBottom:3}}>{m.l}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:m.c}}>{fmt(amt)}</div>
-                </div>)
-              })}
-            </div>
-          </div>
-        </Card>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
-          <div style={{background:'#f9f9f9',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Gross collected</div><div style={{fontSize:20,fontWeight:700}}>{fmt(allInc)}</div></div>
-          <div style={{background:'#fef2f2',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Deductions</div><div style={{fontSize:20,fontWeight:700,color:'#dc2626'}}>{fmt(allDeductions)}</div></div>
-          <div style={{background:'#f0fdf4',borderRadius:12,padding:'14px 16px',gridColumn:'1/-1'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Real income</div><div style={{fontSize:32,fontWeight:800,color:'#15803d'}}>{fmt(allReal)}</div></div>
-        </div>
-        <SecL>Actual income</SecL>
-        <div style={{borderRadius:18,overflow:'hidden',marginTop:4}}>
-          <div style={{background:'linear-gradient(135deg,#14532d,#16a34a)',padding:'20px 20px 16px'}}>
-            <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'.12em',color:'rgba(255,255,255,0.6)',marginBottom:4}}>Actual income = Real income - All expenses</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',marginBottom:14}}>After referral commissions and every expense category</div>
-            <div style={{fontSize:38,fontWeight:900,color:'#fff',letterSpacing:'-1.5px',lineHeight:1}}>{fmt(allReal-allExp)}</div>
-          </div>
-          <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderTop:'none',padding:'14px 18px',borderRadius:'0 0 18px 18px'}}>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(allInc)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Commissions + VC fees</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(allDeductions)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>All expenses</span><span style={{fontWeight:700,color:'#dc2626'}}>- {fmt(allExp)}</span></div>
-              <div style={{height:1,background:'#d1fae5'}}/>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:800}}><span style={{color:'#065f46'}}>= Actual income</span><span style={{color:'#059669'}}>{fmt(allReal-allExp)}</span></div>
-            </div>
-          </div>
-        </div>
-        <SecL>Segment breakdown</SecL>
-        {clinGross>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
-            <div><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Clinical and Pharmacy</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>OP + OP-Pharmacy + IP + IP-Pharmacy</div></div>
-            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:800,color:clinActual>=0?'#0891b2':'#dc2626'}}>{fmt(clinActual)}</div></div>
-          </div>
-          <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:6}}>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(clinGross)}</span></div>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(clinComm)}</span></div>
-            {Object.entries(clinExpCats).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}
-            <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:clinActual>=0?'#0891b2':'#dc2626'}}>{fmt(clinActual)}</span></div>
-          </div>
-        </div>}
-        {labGross>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
-            <div><div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>Laboratory</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>OP-Lab + IP-Lab</div></div>
-            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:800,color:labActual>=0?'#7c3aed':'#dc2626'}}>{fmt(labActual)}</div></div>
-          </div>
-          <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:6}}>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(labGross)}</span></div>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(labComm)}</span></div>
-            {labToLab>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Lab to lab</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(labToLab)}</span></div>}
-            <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:labActual>=0?'#7c3aed':'#dc2626'}}>{fmt(labActual)}</span></div>
-          </div>
-        </div>}
-        {!clinGross&&!labGross&&<div style={{textAlign:'center',padding:'12px 0',color:'#94a3b8',fontSize:13}}>No segment data for this period</div>}
-      </>}
-  </>)
-}
-/*  LOST DOCTORS REPORT  */
-const LostDoctorsReport=({db})=>{
-  const inc=db.income||[]
-  const today=todayStr()
-  const thisMonth=today.slice(0,7)
-  
-  // Get month strings for past 6 months
-  const getMonth=(monthsBack)=>{
-    const d=new Date()
-    d.setMonth(d.getMonth()-monthsBack)
-    return d.toISOString().slice(0,7)
-  }
-  
-  // Doctors who sent patients this month
-  const activeThisMonth=new Set(inc.filter(e=>e.date?.startsWith(thisMonth)&&e.ref_doctor?.trim()).map(e=>e.ref_doctor.trim()))
-  
-  // For each past month, find doctors who sent patients then but NOT this month
-  const periods=[1,2,3,4,5,6].map(n=>{
-    const mon=getMonth(n)
-    const [yr,mo]=mon.split('-')
-    const label=MOFULL[parseInt(mo)-1]+' '+yr
-    const docsThisMonth=new Set(inc.filter(e=>e.date?.startsWith(mon)&&e.ref_doctor?.trim()).map(e=>e.ref_doctor.trim()))
-    const lostDocs=[...docsThisMonth].filter(d=>!activeThisMonth.has(d))
-    // Get their patient count and income from that month
-    const details=lostDocs.map(doc=>{
-      const docInc=inc.filter(e=>e.date?.startsWith(mon)&&e.ref_doctor===doc)
-      const pts=new Set(docInc.map(e=>e.patient_name||e.patient_id)).size
-      const total=docInc.reduce((a,e)=>a+e.amount,0)
-      const lastSeen=inc.filter(e=>e.ref_doctor===doc).map(e=>e.date).sort().reverse()[0]||mon
-      return{doc,pts,total,lastSeen}
-    }).sort((a,b)=>b.total-a.total)
-    return{mon,label,n,lostDocs:details}
-  }).filter(p=>p.lostDocs.length>0)
-
-  return(<>
-    <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:14,padding:'14px 16px',marginBottom:16}}>
-      <div style={{fontSize:13,fontWeight:700,color:'#991b1b',marginBottom:4}}>Lost referral doctors</div>
-      <div style={{fontSize:12,color:'#b91c1c'}}>Doctors who sent patients in past months but have NOT sent anyone this month. Call them today.</div>
-    </div>
-    {periods.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No lost doctors found — all referrals are active!</div>}
-    {periods.map(p=>(<div key={p.mon} style={{marginBottom:20}}>
-      <SecL>{p.n} month{p.n>1?'s':''} ago — {p.label} ({p.lostDocs.length} doctor{p.lostDocs.length>1?'s':''})</SecL>
-      <Card>
-        {p.lostDocs.map((d,i)=>(<div key={d.doc} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Dr. {d.doc}</div>
-            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{d.pts} patient{d.pts>1?'s':''} that month — Income: {fmt(d.total)}</div>
-            <div style={{fontSize:11,color:'#d97706',marginTop:1}}>Last seen: {fmtD(d.lastSeen)}</div>
-          </div>
-          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700,whiteSpace:'nowrap'}}>{p.n}mo ago</span>
-        </div>))}
-      </Card>
-    </div>))}
-  </>)
-}
-
-/*  SUPPLIES REPORT  */
-const SuppliesReport=({db,actions})=>{
-  const [newItem,setNewItem]=useState('')
-  const [newQty,setNewQty]=useState('')
-  const [newUnit,setNewUnit]=useState('units')
-  const [adding,setAdding]=useState(false)
-  
-  // Use expenses with category 'supplies' as supply tracking
-  const supplies=db.expenses.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-  const thisMonth=todayStr().slice(0,7)
-  const monthSupplies=supplies.filter(e=>e.date?.startsWith(thisMonth))
-  const totalSpent=monthSupplies.reduce((a,e)=>a+e.amount,0)
-
-  return(<>
-    <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:14,padding:'14px 16px',marginBottom:16}}>
-      <div style={{fontSize:13,fontWeight:700,color:'#15803d'}}>Medical supplies this month</div>
-      <div style={{fontSize:22,fontWeight:800,color:'#16a34a',marginTop:4}}>{fmt(totalSpent)}</div>
-      <div style={{fontSize:11,color:'#86efac',marginTop:2}}>{monthSupplies.length} entries</div>
-    </div>
-    {adding?(<div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:14,padding:'16px',marginBottom:16}}>
-      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Add supply entry</div>
-      <FInp label="Item name" value={newItem} onChange={e=>setNewItem(e.target.value)} placeholder="e.g. Gloves, Syringes, Bandages"/>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-        <FInp label="Amount (Rs)" type="number" value={newQty} onChange={e=>setNewQty(e.target.value)} placeholder="500"/>
-        <FSel label="Unit" value={newUnit} onChange={e=>setNewUnit(e.target.value)}>
-          <option>units</option><option>boxes</option><option>packets</option><option>bottles</option><option>strips</option>
-        </FSel>
-      </div>
-      <div style={{display:'flex',gap:8,marginTop:8}}>
-        <PBtn onClick={async()=>{if(!newItem||!newQty){alert('Enter item and amount');return}await actions.addExpense({id:uid(),date:todayStr(),category:'supplies',amount:parseFloat(newQty),description:newItem+' ('+newUnit+')',payment:'cash',is_monthly:false});setNewItem('');setNewQty('');setAdding(false)}}>Save</PBtn>
-        <button onClick={()=>setAdding(false)} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,cursor:'pointer'}}>Cancel</button>
-      </div>
-    </div>):(<GBtn onClick={()=>setAdding(true)} style={{width:'100%',marginBottom:16}}>+ Add supply purchase</GBtn>)}
-    <SecL>All supply entries</SecL>
-    {supplies.length===0?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No supplies recorded yet</div>:
-    <Card>
-      {supplies.map((e,i)=>(<div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
-        <div>
-          <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Supply'}</div>
-          <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)}</div>
-        </div>
-        <div style={{fontSize:14,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</div>
-      </div>))}
-    </Card>}
-  </>)
-}
-
-/*  INCOME CHART REPORT  */
-const IncomeChartReport=({db})=>{
-  const [period,setPeriod]=useState('month')
-  const [mon,setMon]=useState(todayStr().slice(0,7))
-  const [yr,setYr]=useState(todayStr().slice(0,4))
-  const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
-  
-  const inc=db.income||[]
-  const exps=(db.expenses||[]).filter(e=>e.category!=='ref_paid')
-  
-  let chartData=[]
-  if(period==='month'){
-    const days=[...new Set(inc.filter(e=>e.date?.startsWith(mon)).map(e=>e.date))].sort()
-    chartData=days.map(d=>{
-      const dI=inc.filter(e=>e.date===d)
-      const dE=exps.filter(e=>e.date===d)
-      const gross=dI.reduce((a,e)=>a+e.amount,0)
-      const comm=dI.reduce((a,e)=>a+getComm(e),0)
-      const exp=dE.reduce((a,e)=>a+e.amount,0)
-      return{label:d.slice(8),gross,real:gross-comm,actual:gross-comm-exp}
+  // For each doctor, compute earnings and balance
+  const docData=allDocNames.map(name=>{
+    const ents=fi.filter(e=>e.ref_doctor===name&&e.payment!=='written_off')
+    const opEnts=ents.filter(e=>['op','opd','op_r','op_l'].includes(e.type))
+    const ipEnts=ents.filter(e=>['ip','ip_r','ip_l','ip_p'].includes(e.type))
+    const opByPat={};opEnts.filter(e=>['op_r','op_l','opd'].includes(e.type)).forEach(e=>{
+      const k=e.patient_name||'—'
+      if(!opByPat[k])opByPat[k]={name:k,amount:0,comm:0,rawEnts:[]}
+      opByPat[k].amount+=e.amount;opByPat[k].comm+=getCommAll(e);opByPat[k].rawEnts.push(e)
     })
-  } else {
-    const mons=[...new Set(inc.filter(e=>e.date?.startsWith(yr)).map(e=>e.date?.slice(0,7)))].sort()
-    chartData=mons.map(m=>{
-      const mI=inc.filter(e=>e.date?.startsWith(m))
-      const mE=exps.filter(e=>e.date?.startsWith(m))
-      const gross=mI.reduce((a,e)=>a+e.amount,0)
-      const comm=mI.reduce((a,e)=>a+getComm(e),0)
-      const exp=mE.reduce((a,e)=>a+e.amount,0)
-      const [,mo]=m.split('-')
-      return{label:MOS[parseInt(mo)-1],gross,real:gross-comm,actual:gross-comm-exp}
-    })
-  }
-  
-  const maxVal=Math.max(...chartData.map(d=>d.gross),1)
-  
-  return(<>
-    <div style={{display:'flex',gap:6,marginBottom:12}}>
-      {[{k:'month',l:'Monthly'},{k:'year',l:'Yearly'}].map(t=>(<button key={t.k} onClick={()=>setPeriod(t.k)} style={{padding:'6px 16px',borderRadius:20,border:period===t.k?'none':'1px solid #e5e7eb',background:period===t.k?'#16a34a':'none',color:period===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
-    </div>
-    {period==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={mon} onChange={e=>setMon(e.target.value)}/>}
-    {period==='year'&&<select style={{...S.sel,marginBottom:12}} value={yr} onChange={e=>setYr(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
-    
-    {/* Legend */}
-    <div style={{display:'flex',gap:16,marginBottom:16,flexWrap:'wrap'}}>
-      {[{c:'#16a34a',l:'Gross collected'},{c:'#2563eb',l:'Real income'},{c:'#7c3aed',l:'Actual income'}].map(m=>(<div key={m.l} style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><div style={{width:12,height:12,borderRadius:3,background:m.c}}/>{m.l}</div>))}
-    </div>
-    
-    {chartData.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc'}}>No data for this period</div>:
-    <div style={{overflowX:'auto'}}>
-      <div style={{minWidth:Math.max(chartData.length*60,300),paddingBottom:8}}>
-        {/* Chart bars */}
-        <div style={{display:'flex',alignItems:'flex-end',gap:4,height:200,marginBottom:8,borderBottom:'2px solid #f0f0f0',paddingTop:8}}>
-          {chartData.map((d,i)=>(
-            <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,height:'100%',justifyContent:'flex-end',minWidth:40}}>
-              <div style={{width:'100%',display:'flex',gap:2,alignItems:'flex-end',height:'100%',justifyContent:'flex-end'}}>
-                <div style={{flex:1,background:'#16a34a',borderRadius:'3px 3px 0 0',height:Math.round((d.gross/maxVal)*180)+'px',minHeight:d.gross>0?2:0}}/>
-                <div style={{flex:1,background:'#2563eb',borderRadius:'3px 3px 0 0',height:Math.round((d.real/maxVal)*180)+'px',minHeight:d.real>0?2:0}}/>
-                <div style={{flex:1,background:'#7c3aed',borderRadius:'3px 3px 0 0',height:Math.round((Math.max(d.actual,0)/maxVal)*180)+'px',minHeight:Math.max(d.actual,0)>0?2:0}}/>
-              </div>
-            </div>
-          ))}
-        </div>
-        {/* X-axis labels */}
-        <div style={{display:'flex',gap:4}}>
-          {chartData.map((d,i)=>(<div key={i} style={{flex:1,textAlign:'center',fontSize:10,color:'#94a3b8',minWidth:40}}>{d.label}</div>))}
-        </div>
-      </div>
-    </div>}
-    
-    {/* Summary table */}
-    {chartData.length>0&&<>
-      <SecL>Summary</SecL>
-      <Card>
-        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,paddingBottom:8,borderBottom:'1px solid #f0f0f0',marginBottom:4}}>
-          <div style={{fontSize:10,color:'#aaa',fontWeight:700}}></div>
-          <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textAlign:'right',minWidth:72}}>Gross</div>
-          <div style={{fontSize:10,color:'#2563eb',fontWeight:700,textAlign:'right',minWidth:72}}>Real</div>
-          <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textAlign:'right',minWidth:72}}>Actual</div>
-        </div>
-        {chartData.map((d,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
-          <span style={{fontSize:12,fontWeight:600}}>{d.label}</span>
-          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#16a34a'}}>{fmt(d.gross)}</span>
-          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#2563eb'}}>{fmt(d.real)}</span>
-          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:d.actual>=0?'#7c3aed':'#dc2626',fontWeight:d.actual<0?700:400}}>{fmt(d.actual)}</span>
-        </div>))}
-        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',borderTop:'2px solid #111',marginTop:4}}>
-          <span style={{fontSize:13,fontWeight:800}}>Total</span>
-          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#16a34a'}}>{fmt(chartData.reduce((a,d)=>a+d.gross,0))}</span>
-          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#2563eb'}}>{fmt(chartData.reduce((a,d)=>a+d.real,0))}</span>
-          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#7c3aed'}}>{fmt(chartData.reduce((a,d)=>a+d.actual,0))}</span>
-        </div>
-      </Card>
-    </>}
-  </>)
-}
-
-/*  INSURANCE UPDATE PANEL  */
-const InsuranceUpdatePanel=({p,db,actions,setDb})=>{
-  const [open,setOpen]=useState(false)
-  const [status,setStatus]=useState(p.insurance_status||'pending')
-  const [newApproved,setNewApproved]=useState('')
-  const [insPayAmt,setInsPayAmt]=useState('')
-  const [insPayDate,setInsPayDate]=useState(todayStr())
-  const [insPayNote,setInsPayNote]=useState('')
-  const [busy,setBusy]=useState(false)
-
-  if(!p.insurance_type)return null
-
-  const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
-  const totalApproved=p.insurance_expected||0
-  const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
-  const insPend=Math.max(totalApproved-insRec,0)
-  const copay=Math.max(totalBill-totalApproved,0)
-  const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
-  const copayPend=Math.max(copay-cashRec,0)
-
-  const save=async()=>{
-    setBusy(true)
-    const newExp=newApproved?parseFloat(newApproved):totalApproved
-    // Update insurance status and approved amount
-    const {error}=await supabase.from('ip_patients').update({
-      insurance_status:status,
-      insurance_expected:newExp
-    }).eq('id',p.id)
-    if(error){alert('Update failed: '+error.message);setBusy(false);return}
-
-    // Record insurance payment if amount entered
-    let newPayments=[...(p.payments||[])]
-    if(insPayAmt&&parseFloat(insPayAmt)>0){
-      newPayments=[...newPayments,{
-        id:uid(),
-        date:insPayDate,
-        amount:parseFloat(insPayAmt),
-        mode:'insurance',
-        note:insPayNote||'Insurance payment'
-      }]
-      await supabase.from('ip_patients').update({payments:newPayments}).eq('id',p.id)
-    }
-
-    setDb(d=>({...d,ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,
-      insurance_status:status,
-      insurance_expected:newExp,
-      payments:newPayments
-    }:pt)}))
-    setOpen(false)
-    setNewApproved('')
-    setInsPayAmt('')
-    setInsPayNote('')
-    setBusy(false)
-  }
-
-  return(<div style={{marginBottom:8}}>
-    {!open?(<button onClick={()=>setOpen(true)} style={{width:'100%',padding:'8px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:10,fontSize:12,fontWeight:700,color:'#1d4ed8',cursor:'pointer'}}>Update Insurance Status / Add Payment</button>)
-    :(<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:12,padding:'14px',marginBottom:8}}>
-        <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Update Insurance</div>
-
-        {/* Current summary */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:12,background:'#fff',borderRadius:8,padding:'8px'}}>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontSize:9,color:'#94a3b8',fontWeight:700}}>TOTAL BILL</div>
-            <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
-          </div>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontSize:9,color:'#2563eb',fontWeight:700}}>APPROVED</div>
-            <div style={{fontSize:14,fontWeight:800,color:'#2563eb'}}>{fmt(totalApproved)}</div>
-          </div>
-          <div style={{textAlign:'center'}}>
-            <div style={{fontSize:9,color:'#7c3aed',fontWeight:700}}>CO-PAY</div>
-            <div style={{fontSize:14,fontWeight:800,color:'#7c3aed'}}>{fmt(copay)}</div>
-          </div>
-        </div>
-
-        {/* Status update */}
-        <FSel label="Approval status" value={status} onChange={e=>setStatus(e.target.value)}>
-          <option value="pending">Pending approval</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </FSel>
-
-        {/* Update approved amount */}
-        <FInp label={'Update approved amount (current: '+fmt(totalApproved)+')'} type="number" value={newApproved} onChange={e=>setNewApproved(e.target.value)} placeholder={'Current: '+fmt(totalApproved)+' — enter new if changed'}/>
-        {newApproved&&parseFloat(newApproved)>0&&<div style={{background:'#eff6ff',borderRadius:8,padding:'8px',fontSize:12,color:'#1e40af',marginBottom:8}}>
-          New approved: {fmt(parseFloat(newApproved))} — New co-pay: {fmt(Math.max(totalBill-parseFloat(newApproved),0))}
-        </div>}
-
-        {/* Record insurance payment received */}
-        <div style={{borderTop:'1px solid #e5e7eb',paddingTop:10,marginTop:4}}>
-          <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:8}}>Record insurance payment received</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            <FInp label="Amount (Rs)" type="number" value={insPayAmt} onChange={e=>setInsPayAmt(e.target.value)} placeholder="Amount received"/>
-            <FInp label="Date" type="date" value={insPayDate} onChange={e=>setInsPayDate(e.target.value)}/>
-          </div>
-          <FInp label="Note (optional)" type="text" value={insPayNote} onChange={e=>setInsPayNote(e.target.value)} placeholder="e.g. First installment, Pre-auth 1"/>
-          {insPayAmt&&insPend>0&&<div style={{fontSize:11,color:'#d97706',marginBottom:8}}>
-            After this payment — insurance pending: {fmt(Math.max(insPend-parseFloat(insPayAmt||0),0))}
-          </div>}
-        </div>
-
-        <div style={{display:'flex',gap:8,marginTop:8}}>
-          <PBtn onClick={save} disabled={busy} style={{flex:2}}>{busy?'Saving...':'Save'}</PBtn>
-          <button onClick={()=>setOpen(false)} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,cursor:'pointer',color:'#aaa'}}>Cancel</button>
-        </div>
-      </div>)}
-  </div>)
-}
-
-/*  INSURANCE TAB COMPONENT  */
-const InsuranceTab=({p,db,setDb})=>{
-  const [status,setStatus]=useState(p.insurance_status||'pending')
-  const [newApproved,setNewApproved]=useState(String(p.insurance_expected||0))
-  const [insPayAmt,setInsPayAmt]=useState('')
-  const [insPayDate,setInsPayDate]=useState(todayStr())
-  const [insPayNote,setInsPayNote]=useState('')
-  const [busy,setBusy]=useState(false)
-  const [saved,setSaved]=useState(false)
-
-  const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
-  const approved=parseFloat(newApproved)||0
-  const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
-  const insRec=insPayments.reduce((a,py)=>a+(py.amount||0),0)
-  const insPend=Math.max(approved-insRec,0)
-  const copay=Math.max(totalBill-approved,0)
-  const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
-  const copayPend=Math.max(copay-cashRec,0)
-
-  const saveStatus=async()=>{
-    setBusy(true)
-    const {error}=await supabase.from('ip_patients').update({
-      insurance_status:status,
-      insurance_expected:approved
-    }).eq('id',p.id)
-    if(error){alert('Update failed: '+error.message);setBusy(false);return}
-    setDb(d=>({...d,ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,insurance_status:status,insurance_expected:approved}:pt)}))
-    setSaved(true);setTimeout(()=>setSaved(false),2000)
-    setBusy(false)
-  }
-
-  const addPayment=async()=>{
-    if(!insPayAmt||parseFloat(insPayAmt)<=0){alert('Enter amount');return}
-    setBusy(true)
-    const amt=parseFloat(insPayAmt)
-    const newPmt={id:uid(),date:insPayDate,amount:amt,mode:'insurance',note:insPayNote||'Insurance payment received'}
-    const newPayments=[...(p.payments||[]),newPmt]
-    const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',p.id)
-    if(error){alert('Failed: '+error.message);setBusy(false);return}
-    setDb(d=>({...d,
-      ip_patients:d.ip_patients.map(pt=>pt.id===p.id?{...pt,payments:newPayments}:pt)
-    }))
-    setInsPayAmt('');setInsPayNote('');setBusy(false)
-  }
-
-  return(<>
-    {/* Status summary */}
-    <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-        <div>
-          <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.insurance_type}</div>
-          {p.insurance_policy_no&&<div style={{fontSize:11,color:'#94a3b8'}}>Policy: {p.insurance_policy_no}</div>}
-        </div>
-        <span style={{fontSize:12,padding:'4px 12px',borderRadius:20,fontWeight:700,
-          background:status==='approved'?'#f0fdf4':status==='rejected'?'#fef2f2':'#fffbeb',
-          color:status==='approved'?'#16a34a':status==='rejected'?'#dc2626':'#d97706'
-        }}>{status==='approved'?'Approved':status==='rejected'?'Rejected':'Pending'}</span>
-      </div>
-      {/* Bill breakdown */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
-        <div style={{textAlign:'center',background:'#f8fafc',borderRadius:8,padding:'8px'}}>
-          <div style={{fontSize:9,color:'#94a3b8',fontWeight:700,marginBottom:3}}>TOTAL BILL</div>
-          <div style={{fontSize:16,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
-        </div>
-        <div style={{textAlign:'center',background:'#eff6ff',borderRadius:8,padding:'8px'}}>
-          <div style={{fontSize:9,color:'#2563eb',fontWeight:700,marginBottom:3}}>INS APPROVED</div>
-          <div style={{fontSize:16,fontWeight:800,color:'#2563eb'}}>{fmt(approved)}</div>
-        </div>
-        <div style={{textAlign:'center',background:'#fdf4ff',borderRadius:8,padding:'8px'}}>
-          <div style={{fontSize:9,color:'#7c3aed',fontWeight:700,marginBottom:3}}>PATIENT CO-PAY</div>
-          <div style={{fontSize:16,fontWeight:800,color:'#7c3aed'}}>{fmt(copay)}</div>
-        </div>
-      </div>
-      <div style={{display:'flex',flexDirection:'column',gap:4,fontSize:12}}>
-        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#94a3b8'}}>Insurance received so far</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(insRec)}</span></div>
-        {insPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#d97706',fontWeight:600}}>Insurance still pending</span><span style={{fontWeight:700,color:'#d97706'}}>{fmt(insPend)}</span></div>}
-        {copayPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#dc2626',fontWeight:600}}>Co-pay pending from patient</span><span style={{fontWeight:700,color:'#dc2626'}}>{fmt(copayPend)}</span></div>}
-        {insPend===0&&copayPend===0&&totalBill>0&&<div style={{textAlign:'center',color:'#16a34a',fontWeight:700}}>✅ Fully settled</div>}
-      </div>
-    </div>
-
-    {/* Update approval */}
-    <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-      <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Update approval</div>
-      <FSel label="Status" value={status} onChange={e=>setStatus(e.target.value)}>
-        <option value="pending">Pending</option>
-        <option value="approved">Approved</option>
-        <option value="rejected">Rejected</option>
-      </FSel>
-      <FInp label="Total approved amount (Rs)" type="number" value={newApproved} onChange={e=>setNewApproved(e.target.value)} placeholder="e.g. 25000"/>
-      {parseFloat(newApproved)>0&&<div style={{background:'#eff6ff',borderRadius:8,padding:'8px',fontSize:12,color:'#1e40af',marginBottom:8}}>
-        If approved {fmt(parseFloat(newApproved))} — patient co-pay: {fmt(Math.max(totalBill-parseFloat(newApproved),0))}
-      </div>}
-      <GBtn onClick={saveStatus} disabled={busy}>{busy?'Saving...':saved?'Saved ✓':'Save status & amount'}</GBtn>
-    </div>
-
-    {/* Insurance payments received */}
-    <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-      <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Record insurance payment received</div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-        <FInp label="Amount (Rs)" type="number" value={insPayAmt} onChange={e=>setInsPayAmt(e.target.value)} placeholder="Amount received"/>
-        <FInp label="Date" type="date" value={insPayDate} onChange={e=>setInsPayDate(e.target.value)}/>
-      </div>
-      <FInp label="Note" type="text" value={insPayNote} onChange={e=>setInsPayNote(e.target.value)} placeholder="e.g. Pre-auth 1, Final settlement"/>
-      <GBtn onClick={addPayment} disabled={busy}>{busy?'Saving...':'Record insurance payment'}</GBtn>
-    </div>
-
-    {/* Payment history */}
-    {insPayments.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px'}}>
-      <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Insurance payments history</div>
-      {insPayments.map((py,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
-        <div><div style={{fontSize:13,fontWeight:600}}>{py.note||'Insurance payment'}</div>
-          <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(py.date)}</div>
-        </div>
-        <div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(py.amount)}</div>
-      </div>))}
-      <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #e5e7eb'}}>
-        <span style={{fontSize:13,fontWeight:700}}>Total received</span>
-        <span style={{fontSize:14,fontWeight:800,color:'#16a34a'}}>{fmt(insRec)}</span>
-      </div>
-    </div>}
-  </>)
-}
-
-/*  INSURANCE REPORT  */
-const InsuranceReport=({db,actions})=>{
-  const [filter,setFilter]=useState('all')
-  
-  // Get all IP patients with insurance
-  const insPatients=db.ip_patients.filter(p=>p.insurance_type&&p.insurance_type.trim())
-  
-  // Calculate totals per patient
-  const insData=insPatients.map(p=>{
-    const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
-    const cashPayments=(p.payments||[]).filter(py=>py.mode!=='insurance')
-    const insReceived=insPayments.reduce((a,py)=>a+(py.amount||0),0)
-    const cashReceived=cashPayments.reduce((a,py)=>a+(py.amount||0),0)
-    const totalIncome=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
-    const totalPaid=insReceived+cashReceived
-    const expectedFromIns=p.insurance_expected||0
-    const insPending=Math.max(expectedFromIns-insReceived,0)
-    const patientCopay=Math.max(totalIncome-expectedFromIns,0)
-    const copayPending=Math.max(patientCopay-cashReceived,0)
-    const status=p.insurance_status||'pending'
-    return{p,insReceived,cashReceived,totalIncome,totalPaid,expectedFromIns,insPending,patientCopay,copayPending,status,insPayments}
+    const ipPats=ipPeriodPats.filter(p=>p.ref_doctor===name)
+    const totalComm=ents.reduce((a,e)=>a+getCommAll(e),0)
+    const paid=allPaid.filter(e=>e.category==='ref_paid'&&(e.description===name||e.description==='Commission to Dr. '+name)).reduce((a,e)=>a+e.amount,0)
+    const balance=totalComm-paid
+    return{name,ents,opList:Object.values(opByPat),ipPats,totalComm,paid,balance}
   })
-  
-  const filtered=filter==='all'?insData:insData.filter(d=>d.status===filter)
-  
-  // Summary stats
-  const totalExpected=insData.reduce((a,d)=>a+d.expectedFromIns,0)
-  const totalInsReceived=insData.reduce((a,d)=>a+d.insReceived,0)
-  const totalInsPending=insData.reduce((a,d)=>a+d.insPending,0)
-  const totalCopayPending=insData.reduce((a,d)=>a+d.copayPending,0)
-  const pendingApprovals=insData.filter(d=>d.status==='pending').length
-  const rejected=insData.filter(d=>d.status==='rejected').length
 
-  return(<>
-    {/* Summary cards */}
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
-      {[
-        {l:'Total expected from insurance',v:fmt(totalExpected),c:'#2563eb',bg:'#eff6ff'},
-        {l:'Received from insurance',v:fmt(totalInsReceived),c:'#16a34a',bg:'#f0fdf4'},
-        {l:'Pending from insurance',v:fmt(totalInsPending),c:'#d97706',bg:'#fffbeb'},
-        {l:'Co-pay pending from patients',v:fmt(totalCopayPending),c:'#dc2626',bg:'#fef2f2'},
-      ].map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'12px'}}>
-        <div style={{fontSize:10,color:m.c,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
-        <div style={{fontSize:20,fontWeight:800,color:m.c}}>{m.v}</div>
-      </div>))}
-    </div>
-    
-    {/* Alert row */}
-    {(pendingApprovals>0||rejected>0)&&<div style={{display:'flex',gap:8,marginBottom:16}}>
-      {pendingApprovals>0&&<div style={{flex:1,background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'8px 12px',fontSize:12}}>
-        <span style={{fontWeight:700,color:'#d97706'}}>⏳ {pendingApprovals} pending approval{pendingApprovals>1?'s':''}</span>
-        <div style={{color:'#92400e',marginTop:2}}>Follow up with TPA/insurer</div>
-      </div>}
-      {rejected>0&&<div style={{flex:1,background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'8px 12px',fontSize:12}}>
-        <span style={{fontWeight:700,color:'#dc2626'}}>❌ {rejected} rejected claim{rejected>1?'s':''}</span>
-        <div style={{color:'#991b1b',marginTop:2}}>Review and resubmit</div>
-      </div>}
-    </div>}
-    
-    {/* Filter */}
-    <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
-      {[{k:'all',l:'All'},{k:'pending',l:'Pending'},{k:'approved',l:'Approved'},{k:'rejected',l:'Rejected'}].map(f=>(
-        <button key={f.k} onClick={()=>setFilter(f.k)} style={{padding:'5px 14px',borderRadius:20,border:'none',
-          background:filter===f.k?'#16a34a':'#f1f5f9',color:filter===f.k?'#fff':'#64748b',fontSize:12,fontWeight:600,cursor:'pointer'}}>{f.l}</button>
+  const pendingDocs=docData.filter(d=>d.balance>0.01)
+  const totalPending=pendingDocs.reduce((a,d)=>a+d.balance,0)
+
+  // History payments
+  const histPays=allPaid.filter(e=>e.category==='ref_paid').filter(e=>{
+    if(hDoc&&e.description!==hDoc&&e.description!=='Commission to Dr. '+hDoc)return false
+    if(hFilter==='month')return e.date?.startsWith(rm)
+    if(hFilter==='year')return e.date?.startsWith(ry)
+    if(hFilter==='custom')return e.date>=hFrom&&e.date<=hTo
+    return true
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+
+  return(<div>
+    {/* Period selector */}
+    <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+      {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'all',l:'All Time'}].map(v=>(
+        <button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:'none',background:per===v.k?'#1a1a2e':'#f0f0f0',color:per===v.k?'#c9a84c':'#555',fontSize:12,fontWeight:700,cursor:'pointer'}}>{v.l}</button>
       ))}
+      {per==='month'&&<input type="month" value={rm} onChange={e=>setRm(e.target.value)} style={{...S.inp,flex:1,fontSize:12,padding:'6px 10px'}}/>}
+      {per==='year'&&<select value={ry} onChange={e=>setRy(e.target.value)} style={{...S.sel,flex:1}}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
     </div>
-    
-    {/* Patient list */}
-    {filtered.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No insurance patients found</div>}
-    {filtered.map(({p,insReceived,totalIncome,expectedFromIns,insPending,patientCopay,copayPending,status})=>(
-      <div key={p.id} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.name}</div>
-            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{p.insurance_type}{p.insurance_policy_no?' — '+p.insurance_policy_no:''}</div>
-            <div style={{fontSize:11,color:'#94a3b8'}}>Admitted: {fmtD(p.admission_date)}{p.discharge_date?' | Discharged: '+fmtD(p.discharge_date):' | Active'}</div>
+
+    {/* Main tabs: Pending / History */}
+    <div style={{display:'flex',gap:6,marginBottom:14}}>
+      <button onClick={()=>setRefTab('pending')} style={{flex:1,padding:'11px',borderRadius:12,border:'none',background:refTab==='pending'?'#1a1a2e':'#f0f0f0',color:refTab==='pending'?'#c9a84c':'#555',fontSize:14,fontWeight:800,cursor:'pointer'}}>
+        ⏳ Pending {pendingDocs.length>0&&<span style={{background:'#dc2626',color:'#fff',borderRadius:20,padding:'1px 7px',fontSize:11,marginLeft:4}}>{pendingDocs.length}</span>}
+      </button>
+      <button onClick={()=>setRefTab('history')} style={{flex:1,padding:'11px',borderRadius:12,border:'none',background:refTab==='history'?'#16a34a':'#f0f0f0',color:refTab==='history'?'#fff':'#555',fontSize:14,fontWeight:800,cursor:'pointer'}}>
+        ✅ History
+      </button>
+    </div>
+
+    {/* PENDING TAB */}
+    {refTab==='pending'&&<>
+      {pendingDocs.length===0
+        ?<div style={{textAlign:'center',padding:'32px',color:'#16a34a',fontSize:15,fontWeight:700}}>🎉 All referrals settled!</div>
+        :<>
+          <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px',marginBottom:14,display:'flex',justifyContent:'space-between'}}>
+            <div><div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase'}}>Total Pending</div><div style={{fontSize:22,fontWeight:900,color:'#dc2626'}}>{fmt(totalPending)}</div></div>
+            <div><div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase'}}>Doctors</div><div style={{fontSize:22,fontWeight:900,color:'#dc2626'}}>{pendingDocs.length}</div></div>
           </div>
-          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:700,flexShrink:0,
-            background:status==='approved'?'#f0fdf4':status==='rejected'?'#fef2f2':'#fffbeb',
-            color:status==='approved'?'#16a34a':status==='rejected'?'#dc2626':'#d97706'
-          }}>{status==='approved'?'Approved':status==='rejected'?'Rejected':'Pending'}</span>
-        </div>
-        
-        {/* Bill breakdown */}
-        <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',fontSize:12}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
-            <div><div style={{color:'#94a3b8',marginBottom:2}}>Total bill</div><div style={{fontWeight:700,color:'#0f172a',fontSize:14}}>{fmt(totalIncome)}</div></div>
-            <div><div style={{color:'#94a3b8',marginBottom:2}}>Insurance pays</div><div style={{fontWeight:700,color:'#2563eb',fontSize:14}}>{fmt(expectedFromIns)}</div></div>
-            <div><div style={{color:'#94a3b8',marginBottom:2}}>Patient co-pay</div><div style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{fmt(patientCopay)}</div></div>
-          </div>
-          <div style={{borderTop:'1px solid #e2e8f0',paddingTop:8,display:'flex',flexDirection:'column',gap:4}}>
-            <div style={{display:'flex',justifyContent:'space-between'}}>
-              <span style={{color:'#94a3b8'}}>Insurance received</span>
-              <span style={{fontWeight:600,color:'#16a34a'}}>{fmt(insReceived)}</span>
-            </div>
-            {insPending>0&&<div style={{display:'flex',justifyContent:'space-between'}}>
-              <span style={{color:'#d97706',fontWeight:600}}>Insurance pending</span>
-              <span style={{fontWeight:700,color:'#d97706'}}>{fmt(insPending)}</span>
-            </div>}
-            {copayPending>0&&<div style={{display:'flex',justifyContent:'space-between'}}>
-              <span style={{color:'#dc2626',fontWeight:600}}>Co-pay pending from patient</span>
-              <span style={{fontWeight:700,color:'#dc2626'}}>{fmt(copayPending)}</span>
-            </div>}
-            {insPending===0&&copayPending===0&&<div style={{textAlign:'center',color:'#16a34a',fontWeight:700,fontSize:13}}>✓ Fully settled</div>}
-          </div>
-        </div>
+          {pendingDocs.map(d=>{
+            const isOpen=payDoc===d.name
+            const activeTab=docActiveTab[d.name]||'op'
+            return(<div key={d.name} style={{background:'#fff',border:'1.5px solid #fecaca',borderRadius:14,padding:'14px',marginBottom:14}}>
+              {/* Header */}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                <div style={{fontSize:16,fontWeight:800,color:'#1a1a2e'}}>Dr. {d.name}</div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:10,color:'#dc2626',fontWeight:700,textTransform:'uppercase'}}>Balance Due</div>
+                  <div style={{fontSize:22,fontWeight:900,color:'#dc2626'}}>{fmt(d.balance)}</div>
+                </div>
+              </div>
+              {/* Earned/Paid strip */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:12}}>
+                <div style={{background:'#fef9f0',borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
+                  <div style={{fontSize:9,color:'#92400e',fontWeight:700,textTransform:'uppercase'}}>Total Earned</div>
+                  <div style={{fontSize:16,fontWeight:800,color:'#c2410c'}}>{fmt(d.totalComm)}</div>
+                </div>
+                <div style={{background:'#f0fdf4',borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
+                  <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase'}}>Already Paid</div>
+                  <div style={{fontSize:16,fontWeight:800,color:'#16a34a'}}>{fmt(d.paid)}</div>
+                </div>
+              </div>
+              {/* Action buttons */}
+              {!isOpen
+                ?<div style={{display:'flex',gap:8,marginBottom:12}}>
+                  <button onClick={()=>setPayDoc(d.name)} style={{flex:2,padding:'12px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:14,fontWeight:800,cursor:'pointer'}}>💸 Record Payment</button>
+                  <button onClick={()=>{if(window.confirm('Write off Rs '+fmt(d.balance)+' for Dr. '+d.name+'?'))actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:d.balance,description:d.name,payment:'written_off',is_monthly:false})}} style={{flex:1,padding:'12px',background:'#6b7280',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>✂️ Write Off</button>
+                </div>
+                :<CommPayForm docName={d.name} balance={d.balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:d.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}
+              {/* OP/IP detail tabs */}
+              <div style={{display:'flex',gap:6,marginBottom:8}}>
+                <button onClick={()=>setDocActiveTab(t=>({...t,[d.name]:'op'}))} style={{flex:1,padding:'7px',borderRadius:8,border:'none',background:activeTab==='op'?'#0369a1':'#f0f9ff',color:activeTab==='op'?'#fff':'#0369a1',fontSize:12,fontWeight:700,cursor:'pointer'}}>📋 OP ({d.opList.length})</button>
+                <button onClick={()=>setDocActiveTab(t=>({...t,[d.name]:'ip'}))} style={{flex:1,padding:'7px',borderRadius:8,border:'none',background:activeTab==='ip'?'#16a34a':'#f0fdf4',color:activeTab==='ip'?'#fff':'#16a34a',fontSize:12,fontWeight:700,cursor:'pointer'}}>🏥 IP ({d.ipPats.length})</button>
+              </div>
+              {activeTab==='op'&&<div>
+                {d.opList.length===0?<div style={{fontSize:12,color:'#aaa',textAlign:'center',padding:'8px'}}>No pharmacy/lab OP referrals</div>:
+                d.opList.map((p,i)=>{
+                  const tg=p.rawEnts.reduce((acc,e)=>{const t=e.type;if(!acc[t])acc[t]={amt:0,comm:0};acc[t].amt+=e.amount;acc[t].comm+=getCommAll(e);return acc},{})
+                  return(<div key={i} style={{marginBottom:8,paddingBottom:8,borderBottom:'1px solid #f5f5f5'}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'#1d4ed8',cursor:'pointer',marginBottom:4}} onClick={()=>gotoOP&&gotoOP(p.name,'rep')}>{i+1}. {p.name} →</div>
+                    {Object.entries(tg).map(([tk,v])=>{const rate=v.amt>0?Math.round(v.comm/v.amt*100):0;const it=ITYPES.find(x=>x.key===tk);return(<div key={tk} style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'2px 0'}}>
+                      <span style={{color:'#555'}}>{it?.full}</span>
+                      <span>{fmt(v.amt)} × {rate}% = <b style={{color:'#dc2626'}}>{fmt(v.comm)}</b></span>
+                    </div>)})}
+                  </div>)
+                })}
+              </div>}
+              {activeTab==='ip'&&<div>
+                {d.ipPats.length===0?<div style={{fontSize:12,color:'#aaa',textAlign:'center',padding:'8px'}}>No IP patients</div>:
+                d.ipPats.map((p,i)=>{
+                  const ents=income.filter(e=>e.patient_id===p.id&&e.payment!=='written_off')
+                  const ipC=ents.filter(e=>e.type==='ip').reduce((a,e)=>a+e.amount,0)
+                  const ipR=ents.filter(e=>e.type==='ip_r').reduce((a,e)=>a+e.amount,0)
+                  const ipL=ents.filter(e=>e.type==='ip_l').reduce((a,e)=>a+e.amount,0)
+                  const ipCComm=ents.filter(e=>e.type==='ip').reduce((a,e)=>a+getCommAll(e),0)
+                  const ipRComm=ents.filter(e=>e.type==='ip_r').reduce((a,e)=>a+getCommAll(e),0)
+                  const ipLComm=ents.filter(e=>e.type==='ip_l').reduce((a,e)=>a+getCommAll(e),0)
+                  return(<div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #f5f5f5'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'#1d4ed8',cursor:'pointer'}} onClick={()=>gotoIP&&gotoIP(p.id,'rep')}>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'} →</div>
+                      <div style={{fontSize:12,color:'#dc2626',fontWeight:700}}>{fmt(ipCComm+ipRComm+ipLComm)} comm</div>
+                    </div>
+                    <div style={{fontSize:10,color:'#64748b',marginBottom:4}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{color:'#16a34a'}}> · Active</span>}</div>
+                    {ipC>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'2px 0'}}><span style={{color:'#1d4ed8'}}>IP Charges</span><span>{fmt(ipC)} × {ipC>0?Math.round(ipCComm/ipC*100):0}% = <b style={{color:'#dc2626'}}>{fmt(ipCComm)}</b></span></div>}
+                    {ipR>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'2px 0'}}><span style={{color:'#be185d'}}>Pharmacy</span><span>{fmt(ipR)} × {ipR>0?Math.round(ipRComm/ipR*100):0}% = <b style={{color:'#dc2626'}}>{fmt(ipRComm)}</b></span></div>}
+                    {ipL>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'2px 0'}}><span style={{color:'#7c3aed'}}>Lab</span><span>{fmt(ipL)} × {ipL>0?Math.round(ipLComm/ipL*100):0}% = <b style={{color:'#dc2626'}}>{fmt(ipLComm)}</b></span></div>}
+                  </div>)
+                })}
+              </div>}
+            </div>)
+          })}
+        </>}
+    </>}
+
+    {/* HISTORY TAB */}
+    {refTab==='history'&&<>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+        {[{k:'all',l:'All'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(f=>(
+          <button key={f.k} onClick={()=>setHFilter(f.k)} style={{padding:'6px 12px',borderRadius:20,border:'none',background:hFilter===f.k?'#16a34a':'#f0f0f0',color:hFilter===f.k?'#fff':'#555',fontSize:12,fontWeight:600,cursor:'pointer'}}>{f.l}</button>
+        ))}
       </div>
-    ))}
-  </>)
-}
-
-/*  INSURANCE MAIN TAB  */
-const InsuranceMainTab=({db,setDb,gotoIP,hospital})=>{
-  const [filter,setFilter]=useState('active')
-  const [selPat,setSelPat]=useState(null)
-  const [status,setStatus]=useState('')
-  const [newApproved,setNewApproved]=useState('')
-  const [insPayAmt,setInsPayAmt]=useState('')
-  const [insPayDate,setInsPayDate]=useState(todayStr())
-  const [insPayNote,setInsPayNote]=useState('')
-  const [busy,setBusy]=useState(false)
-  const [saved,setSaved]=useState(false)
-
-  // All IP patients with insurance
-  const allInsPats=db.ip_patients.filter(p=>p.insurance_type&&p.insurance_type.trim())
-  const filtered=filter==='active'?allInsPats.filter(p=>!p.discharge_date):
-    filter==='discharged'?allInsPats.filter(p=>p.discharge_date):allInsPats
-
-  // Summary stats
-  const totalExpected=allInsPats.reduce((a,p)=>a+(p.insurance_expected||0),0)
-  const totalInsRec=allInsPats.reduce((a,p)=>a+(p.payments||[]).filter(py=>py.mode==='insurance').reduce((s,py)=>s+(py.amount||0),0),0)
-  const totalInsPend=Math.max(totalExpected-totalInsRec,0)
-  const pendingApprovals=allInsPats.filter(p=>p.insurance_status==='pending'||!p.insurance_status).length
-
-  const openPat=(p)=>{
-    setSelPat(p)
-    setStatus(p.insurance_status||'pending')
-    setNewApproved(String(p.insurance_expected||0))
-    setInsPayAmt('')
-    setInsPayNote('')
-    setInsPayDate(todayStr())
-  }
-
-  const saveStatus=async()=>{
-    if(!selPat)return
-    setBusy(true)
-    const approved=parseFloat(newApproved)||0
-    const {error}=await supabase.from('ip_patients').update({
-      insurance_status:status,
-      insurance_expected:approved
-    }).eq('id',selPat.id)
-    if(error){alert('Update failed: '+error.message);setBusy(false);return}
-    setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,insurance_status:status,insurance_expected:approved}:p)}))
-    setSelPat(p=>({...p,insurance_status:status,insurance_expected:approved}))
-    setSaved(true);setTimeout(()=>setSaved(false),2000)
-    setBusy(false)
-  }
-
-  const addPayment=async()=>{
-    if(!selPat||!insPayAmt||parseFloat(insPayAmt)<=0){alert('Enter amount');return}
-    setBusy(true)
-    const amt=parseFloat(insPayAmt)
-    const newPmt={id:uid(),date:insPayDate,amount:amt,mode:'insurance',note:insPayNote||'Insurance payment received'}
-    const newPayments=[...(selPat.payments||[]),newPmt]
-    const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',selPat.id)
-    if(error){alert('Failed: '+error.message);setBusy(false);return}
-    setDb(d=>({...d,
-      ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p)
-    }))
-    setSelPat(p=>({...p,payments:newPayments}))
-    setInsPayAmt('');setInsPayNote('')
-    setBusy(false)
-  }
-
-  // Patient detail panel
-  if(selPat){
-    const p=db.ip_patients.find(x=>x.id===selPat.id)||selPat
-    const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
-    const bills=db.income.filter(e=>e.patient_id===p.id)
-    const approved=parseFloat(newApproved)||p.insurance_expected||0
-    const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
-    const insRec=insPayments.reduce((a,py)=>a+(py.amount||0),0)
-    const insPend=Math.max(approved-insRec,0)
-    const copay=Math.max(totalBill-approved,0)
-    const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
-    const copayPend=Math.max(copay-cashRec,0)
-
-    return(<div style={{background:'#f8fafc',minHeight:'100vh'}}>
-      <div style={{background:'#0f172a',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,position:'sticky',top:0,zIndex:10}}>
-        <button onClick={()=>setSelPat(null)} style={{color:'#94a3b8',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>← Back</button>
-        <div style={{flex:1}}>
-          <div style={{fontSize:14,fontWeight:700,color:'#fff'}}>{p.name}</div>
-          <div style={{fontSize:11,color:'#64748b'}}>{p.insurance_type}{p.insurance_policy_no?' — '+p.insurance_policy_no:''}</div>
-        </div>
-        <button onClick={()=>gotoIP&&gotoIP(p.id)} style={{fontSize:11,color:'#60a5fa',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>View IP →</button>
-      </div>
-      <div style={{padding:'16px'}}>
-
-        {/* Bill summary */}
-        <div style={{background:'linear-gradient(160deg,#0f1628 0%,#1a1a2e 50%,#12172e 100%)',borderRadius:16,padding:'16px',marginBottom:16}}>
-          <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:10}}>Admitted: {fmtD(p.admission_date)}{p.discharge_date?' | Discharged: '+fmtD(p.discharge_date):' | Active'}
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
-              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>TOTAL BILL</div>
-              <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>{fmt(totalBill)}</div>
-            </div>
-            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
-              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>INS APPROVED</div>
-              <div style={{fontSize:16,fontWeight:800,color:'#60a5fa'}}>{fmt(approved)}</div>
-            </div>
-            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
-              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>CO-PAY</div>
-              <div style={{fontSize:16,fontWeight:800,color:'#a78bfa'}}>{fmt(copay)}</div>
-            </div>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:4,fontSize:12}}>
-            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'rgba(255,255,255,0.5)'}}>Insurance received</span><span style={{color:'#4ade80',fontWeight:700}}>{fmt(insRec)}</span></div>
-            {insPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#fbbf24',fontWeight:600}}>Insurance pending</span><span style={{color:'#fbbf24',fontWeight:700}}>{fmt(insPend)}</span></div>}
-            {copayPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#f87171',fontWeight:600}}>Co-pay pending</span><span style={{color:'#f87171',fontWeight:700}}>{fmt(copayPend)}</span></div>}
-            {insPend===0&&copayPend===0&&totalBill>0&&<div style={{textAlign:'center',color:'#4ade80',fontWeight:700}}>✅ Fully settled</div>}
-          </div>
-        </div>
-
-        {/* Bills breakdown */}
-        {bills.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:10}}>Bills added</div>
-          {bills.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f5f5f5'}}>
-            <div><div style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={e.type}/><span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span></div>
-              {e.notes&&<div style={{fontSize:10,color:'#aaa',marginTop:1}}>{e.notes}</div>}
+      {hFilter==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+        <input type="date" value={hFrom} onChange={e=>setHFrom(e.target.value)} style={{...S.inp,fontSize:12}}/>
+        <input type="date" value={hTo} onChange={e=>setHTo(e.target.value)} style={{...S.inp,fontSize:12}}/>
+      </div>}
+      <select value={hDoc} onChange={e=>setHDoc(e.target.value)} style={{...S.sel,marginBottom:12}}>
+        <option value="">All Doctors</option>
+        {allDocNames.map(n=><option key={n} value={n}>Dr. {n}</option>)}
+      </select>
+      {histPays.length===0
+        ?<div style={{textAlign:'center',padding:'24px',color:'#aaa',fontSize:13}}>No payment history for this filter</div>
+        :<>
+          {histPays.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,marginBottom:6}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700}}>Dr. {e.description?.replace('Commission to Dr. ','')}</div>
+              <div style={{fontSize:11,color:'#64748b'}}>{fmtD(e.date)} · {e.payment==='written_off'?'Written off':e.payment}</div>
             </div>
             <div style={{textAlign:'right'}}>
-              <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{fmt(e.amount)}</div>
-              <div style={{fontSize:10,color:e.payment==='insurance'?'#2563eb':e.payment==='credit'?'#dc2626':'#94a3b8'}}>{e.payment}</div>
+              <div style={{fontSize:16,fontWeight:800,color:e.payment==='written_off'?'#6b7280':'#16a34a'}}>{fmt(e.amount)}</div>
+              {editPayId!==e.id
+                ?<div style={{display:'flex',gap:4,marginTop:4}}>
+                  <button onClick={()=>{setEditPayId(e.id);setEditPayForm({amount:String(e.amount),date:e.date,payment:e.payment||'cash'})}} style={{fontSize:10,padding:'2px 8px',background:'none',border:'1px solid #e2e8f0',borderRadius:6,cursor:'pointer',color:'#6366f1'}}>Edit</button>
+                  <DBtn onClick={()=>{if(window.confirm('Delete?'))actions.delExpense(e.id)}}>Del</DBtn>
+                </div>
+                :<div style={{marginTop:4}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:4,marginBottom:4}}>
+                    <input style={{...S.inp,fontSize:11,padding:'4px 6px'}} type="number" value={editPayForm.amount} onChange={e2=>setEditPayForm(f=>({...f,amount:e2.target.value}))}/>
+                    <input style={{...S.inp,fontSize:11,padding:'4px 6px'}} type="date" value={editPayForm.date} onChange={e2=>setEditPayForm(f=>({...f,date:e2.target.value}))}/>
+                  </div>
+                  <div style={{display:'flex',gap:4}}>
+                    <button onClick={async()=>{const amt=parseFloat(editPayForm.amount);if(!amt)return;await actions.updateExpense(e.id,{amount:amt,date:editPayForm.date,payment:editPayForm.payment});setEditPayId(null)}} style={{flex:1,padding:'5px',background:'#16a34a',color:'#fff',border:'none',borderRadius:7,fontSize:11,cursor:'pointer'}}>Save</button>
+                    <button onClick={()=>setEditPayId(null)} style={{flex:1,padding:'5px',background:'#f0f0f0',border:'none',borderRadius:7,fontSize:11,cursor:'pointer'}}>Cancel</button>
+                  </div>
+                </div>}
             </div>
-          </div>))}
-          <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'2px solid #111',fontWeight:800,fontSize:13}}>
-            <span>Total billed</span><span style={{color:'#0f172a'}}>{fmt(totalBill)}</span>
+          </div>)}
+          <div style={{padding:'10px 14px',background:'#1a1a2e',borderRadius:12,display:'flex',justifyContent:'space-between',marginTop:8}}>
+            <span style={{color:'rgba(255,255,255,0.6)',fontSize:12,fontWeight:700}}>Total Paid</span>
+            <span style={{color:'#c9a84c',fontSize:18,fontWeight:800}}>{fmt(histPays.reduce((a,e)=>a+e.amount,0))}</span>
           </div>
-        </div>}
-
-        {/* Update approval */}
-        <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Update insurance approval</div>
-          <FSel label="Status" value={status} onChange={e=>setStatus(e.target.value)}>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </FSel>
-          <FInp label="Total approved amount (Rs)" type="number" value={newApproved} onChange={e=>setNewApproved(e.target.value)} placeholder="e.g. 25000"/>
-          {parseFloat(newApproved)>0&&<div style={{background:'#eff6ff',borderRadius:8,padding:'8px 10px',fontSize:12,color:'#1e40af',marginBottom:8}}>
-            Approved: {fmt(parseFloat(newApproved))} — Patient co-pay: {fmt(Math.max(totalBill-parseFloat(newApproved),0))}
-          </div>}
-          <GBtn onClick={saveStatus} disabled={busy}>{busy?'Saving...':saved?'✓ Saved':'Save approval'}</GBtn>
-        </div>
-
-        {/* Record insurance payment */}
-        <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Record insurance payment received</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            <FInp label="Amount (Rs)" type="number" value={insPayAmt} onChange={e=>setInsPayAmt(e.target.value)} placeholder="0"/>
-            <FInp label="Date" type="date" value={insPayDate} onChange={e=>setInsPayDate(e.target.value)}/>
-          </div>
-          <FInp label="Note" type="text" value={insPayNote} onChange={e=>setInsPayNote(e.target.value)} placeholder="e.g. Pre-auth 1, Final settlement"/>
-          {insPayAmt&&insPend>0&&<div style={{fontSize:11,color:'#d97706',marginBottom:8}}>After this: insurance pending = {fmt(Math.max(insPend-parseFloat(insPayAmt||0),0))}</div>}
-          <GBtn onClick={addPayment} disabled={busy}>{busy?'Saving...':'Record payment'}</GBtn>
-        </div>
-
-        {/* Payment history */}
-        {insPayments.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px'}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Insurance payment history</div>
-          {insPayments.map((py,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
-            <div><div style={{fontSize:13,fontWeight:600}}>{py.note||'Insurance payment'}</div>
-              <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(py.date)}</div>
-            </div>
-            <div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(py.amount)}</div>
-          </div>))}
-          <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #e5e7eb',fontWeight:700,fontSize:13}}>
-            <span>Total received</span><span style={{color:'#16a34a'}}>{fmt(insRec)}</span>
-          </div>
-        </div>}
-      </div>
-    </div>)
-  }
-
-  // Patient list view
-  return(<>
-    {/* Summary */}
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
-      {[
-        {l:'Total insurance expected',v:fmt(totalExpected),c:'#2563eb',bg:'#eff6ff'},
-        {l:'Insurance received',v:fmt(totalInsRec),c:'#16a34a',bg:'#f0fdf4'},
-        {l:'Insurance pending',v:fmt(totalInsPend),c:'#d97706',bg:'#fffbeb'},
-        {l:'Pending approvals',v:pendingApprovals+' patients',c:'#dc2626',bg:'#fef2f2'},
-      ].map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'12px'}}>
-        <div style={{fontSize:10,color:m.c,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
-        <div style={{fontSize:18,fontWeight:800,color:m.c}}>{m.v}</div>
-      </div>))}
-    </div>
-
-    {/* Filter */}
-    <div style={{display:'flex',gap:6,marginBottom:14}}>
-      {[{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'all',l:'All'}].map(f=>(
-        <button key={f.k} onClick={()=>setFilter(f.k)} style={{padding:'6px 16px',borderRadius:20,border:'none',
-          background:filter===f.k?'#1d4ed8':'#f1f5f9',color:filter===f.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer'}}>{f.l}</button>
-      ))}
-    </div>
-
-    {filtered.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No insurance patients found. Admit a patient under Insurance to get started.</div>}
-    {filtered.map(p=>{
-      const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
-      const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
-      const insPend=Math.max((p.insurance_expected||0)-insRec,0)
-      const copay=Math.max(totalBill-(p.insurance_expected||0),0)
-      const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
-      const copayPend=Math.max(copay-cashRec,0)
-      const st=p.insurance_status||'pending'
-      return(<div key={p.id} onClick={()=>openPat(p)} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:10,cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-          <div>
-            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.name}</div>
-            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{p.insurance_type}</div>
-            {p.insurance_policy_no&&<div style={{fontSize:11,color:'#94a3b8'}}>{p.insurance_policy_no}</div>}
-            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{color:'#16a34a',fontWeight:600}}> Active</span>}</div>
-          </div>
-          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:700,flexShrink:0,
-            background:st==='approved'?'#f0fdf4':st==='rejected'?'#fef2f2':'#fffbeb',
-            color:st==='approved'?'#16a34a':st==='rejected'?'#dc2626':'#d97706'
-          }}>{st==='approved'?'Approved':st==='rejected'?'Rejected':'Pending'}</span>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
-          <div style={{textAlign:'center',background:'#f8fafc',borderRadius:8,padding:'6px'}}>
-            <div style={{fontSize:9,color:'#94a3b8',fontWeight:700}}>BILL</div>
-            <div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
-          </div>
-          <div style={{textAlign:'center',background:'#eff6ff',borderRadius:8,padding:'6px'}}>
-            <div style={{fontSize:9,color:'#2563eb',fontWeight:700}}>APPROVED</div>
-            <div style={{fontSize:13,fontWeight:800,color:'#2563eb'}}>{fmt(p.insurance_expected||0)}</div>
-          </div>
-          <div style={{textAlign:'center',background:copayPend>0||insPend>0?'#fef2f2':'#f0fdf4',borderRadius:8,padding:'6px'}}>
-            <div style={{fontSize:9,color:copayPend>0||insPend>0?'#dc2626':'#16a34a',fontWeight:700}}>{copayPend>0||insPend>0?'PENDING':'SETTLED'}</div>
-            <div style={{fontSize:13,fontWeight:800,color:copayPend>0||insPend>0?'#dc2626':'#16a34a'}}>{copayPend>0||insPend>0?fmt(insPend+copayPend):'✓'}</div>
-          </div>
-        </div>
-      </div>)
-    })}
-  </>)
+        </>}
+    </>}
+  </div>)
 }
 
 /*  IP BILLING MODULE  */
