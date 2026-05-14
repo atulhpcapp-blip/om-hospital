@@ -3892,7 +3892,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           return(<div key={i} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:13}}>{e.patient_name||'—'}</div>
+                <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>
                 {ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
                 {notes&&<div style={{fontSize:12,color:'#64748b',marginTop:3,fontStyle:'italic'}}>📝 {notes}</div>}
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
