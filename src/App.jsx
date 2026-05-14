@@ -109,7 +109,7 @@ const getPkgPayments=(pats,datePrefix)=>{
   })})
   return all
 }
-const buildRef=income=>{const docs={};income.forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim()||!comm)return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_referral:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=comm;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,referral:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
+const buildRef=income=>{const docs={};income.filter(e=>!isExcluded(e)).forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim())return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=comm;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
 
 const S={
   inp:{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:15,background:'#fff',color:'#1a1a2e',boxSizing:'border-box',fontFamily:"'DM Sans',system-ui,sans-serif",outline:'none',transition:'border-color .2s,box-shadow .2s',letterSpacing:'0.01em'},
@@ -1384,7 +1384,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
           </div>
           <FSel label="" value={iF.ref} onChange={e=>{if(e.target.value==='__new__'){setIF({...iF,ref:'__new__'})}else{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?(itype==='op_r'?sel.op_r_pct:itype==='op_l'?sel.op_l_pct:sel.op_pct):null;setIF({...iF,ref:e.target.value,custom_commission:(pct!=null&&pct>0)?String(pct):'',newRefName:'',newRefPct:'',newRefArea:''})}}}>
             <option value="">- No referral / Self patient -</option>
-            {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+            {(db.ref_doctors||[]).sort((a,b)=>a.name.localeCompare(b.name)).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
             <option value="__new__">+ Add new doctor...</option>
           </FSel>
         </div>}
@@ -1884,7 +1884,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <div style={{fontSize:11,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Referral details</div>
           <FSel label="Referring doctor (select from Ref Doctors)" value={pF.ref} onChange={e=>{setPF({...pF,ref:e.target.value,custom_commission:''})}}>
             <option value="">- No referral / Self patient -</option>
-            {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+            {(db.ref_doctors||[]).sort((a,b)=>a.name.localeCompare(b.name)).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
           </FSel>
           {pF.ref&&(()=>{const doc=db.ref_doctors.find(d=>d.name===pF.ref);if(!doc)return null;return(<div>
             {doc.area&&<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
@@ -2649,6 +2649,49 @@ const IPSlip=({ipPats,db,doc,per,rm,ry,paid,balance,actions,payDoc,setPayDoc,all
   </>)
 }
 
+const HistoryTab=({allPaid,docs})=>{
+  const [hFilter,setHFilter]=useState('all')
+  const [hDoc,setHDoc]=useState('')
+  const [hFrom,setHFrom]=useState('')
+  const [hTo,setHTo]=useState('')
+  const pays=allPaid.filter(e=>e.category==='ref_paid').filter(e=>{
+    if(hDoc&&e.description!==hDoc&&e.description!=='Commission to Dr. '+hDoc)return false
+    if(hFilter==='month')return e.date?.startsWith(new Date().toISOString().slice(0,7))
+    if(hFilter==='year')return e.date?.startsWith(new Date().getFullYear().toString())
+    if(hFilter==='custom')return e.date>=hFrom&&e.date<=hTo
+    return true
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const docNames=[...new Set(allPaid.map(e=>e.description||''))].filter(Boolean).sort()
+  const total=pays.reduce((a,e)=>a+e.amount,0)
+  return(<>
+    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+      {['all','month','year','custom'].map(f=><button key={f} onClick={()=>setHFilter(f)} style={{padding:'6px 12px',borderRadius:20,border:'none',background:hFilter===f?'#16a34a':'#f0f0f0',color:hFilter===f?'#fff':'#555',fontSize:12,fontWeight:600,cursor:'pointer'}}>{f==='all'?'All Time':f[0].toUpperCase()+f.slice(1)}</button>)}
+    </div>
+    {hFilter==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+      <input type="date" value={hFrom} onChange={e=>setHFrom(e.target.value)} style={{...S.inp,fontSize:12}}/>
+      <input type="date" value={hTo} onChange={e=>setHTo(e.target.value)} style={{...S.inp,fontSize:12}}/>
+    </div>}
+    <select value={hDoc} onChange={e=>setHDoc(e.target.value)} style={{...S.sel,marginBottom:12}}>
+      <option value="">All Doctors</option>
+      {docNames.map(d=><option key={d} value={d}>Dr. {d}</option>)}
+    </select>
+    {pays.length===0?<div style={{textAlign:'center',padding:'24px',color:'#aaa',fontSize:13}}>No payment history found</div>:
+    <>
+      {pays.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,marginBottom:6}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>✅ Dr. {e.description||e.description?.replace('Commission to Dr. ','')}</div>
+          <div style={{fontSize:11,color:'#64748b'}}>{fmtD(e.date)} · {e.payment}</div>
+        </div>
+        <div style={{fontSize:15,fontWeight:800,color:'#16a34a'}}>{fmt(e.amount)}</div>
+      </div>)}
+      <div style={{padding:'10px 12px',background:'#1a1a2e',borderRadius:10,display:'flex',justifyContent:'space-between',marginTop:6}}>
+        <span style={{color:'rgba(255,255,255,0.6)',fontSize:12,fontWeight:700}}>Total Paid</span>
+        <span style={{color:'#c9a84c',fontSize:16,fontWeight:800}}>{fmt(total)}</span>
+      </div>
+    </>}
+  </>)
+}
+
 const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,gotoIP})=>{
   const [per,setPer]=useState('month')
   const [payDoc,setPayDoc]=useState(null)
@@ -2656,6 +2699,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
   const [selDoc,setSelDoc]=useState('')
   const [editPayId,setEditPayId]=useState(null)
   const [docActiveTab,setDocActiveTab]=useState({})
+  const [refSubTab,setRefSubTab]=useState('pending')
   const [editPayForm,setEditPayForm]=useState({amount:'',date:'',payment:'cash'})
   const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):per==='year'?income.filter(e=>e.date?.startsWith(ry)):income
   // Also include doctors who have IP patients in this period (even if no OP income in fi)
@@ -2706,14 +2750,12 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
           </div>
           {/* Referral Paid Button - always visible */}
           <div style={{marginBottom:10}}>
-            {balance>0
-              ?(!isOpen
-                ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'12px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:14,fontWeight:800,cursor:'pointer'}}>💸 Referral Paid — Due: {fmt(balance)}</button>
-                :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)
-              :<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10}}>
-                <span style={{fontSize:13,color:'#16a34a',fontWeight:700}}>✅ Fully Paid</span>
-                <button onClick={()=>setPayDoc(doc.name)} style={{fontSize:11,color:'#6366f1',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>+ Add payment</button>
-              </div>}
+            {balance>0&&<>
+              {!isOpen
+                ?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'12px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:14,fontWeight:800,cursor:'pointer',marginBottom:6}}>💸 Referral Paid — Due: {fmt(balance)}</button>
+                :<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}
+              <button onClick={()=>{if(window.confirm('Write off Rs '+fmt(balance)+' referral due for Dr. '+doc.name+'?\nThis forgives the amount without payment.'))actions.addExpense({id:uid(),date:todayStr(),category:'ref_paid',amount:balance,description:doc.name,payment:'written_off',is_monthly:false})}} style={{width:'100%',padding:'8px',background:'#6b7280',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off — {fmt(balance)}</button>
+            </>}
           </div>
           {/* OP / IP sub-tabs */}
           {(()=>{
