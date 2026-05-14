@@ -83,6 +83,7 @@ const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');retu
 const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
+const getCommAll=e=>(e.payment==='written_off'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const getComm=e=>(e.payment==='credit'||e.payment==='written_off'||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isCredit=e=>e.payment==='credit'
 const isExcluded=e=>e.payment==='credit'||e.payment==='written_off'
@@ -109,7 +110,7 @@ const getPkgPayments=(pats,datePrefix)=>{
   })})
   return all
 }
-const buildRef=income=>{const docs={};income.filter(e=>!isExcluded(e)).forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim())return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=comm;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
+const buildRef=income=>{const docs={};income.filter(e=>e.payment!=='written_off').forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim())return;const commAll=getCommAll(e);if(!commAll&&!e.amount)return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=commAll;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
 
 const S={
   inp:{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:15,background:'#fff',color:'#1a1a2e',boxSizing:'border-box',fontFamily:"'DM Sans',system-ui,sans-serif",outline:'none',transition:'border-color .2s,box-shadow .2s',letterSpacing:'0.01em'},
@@ -6180,7 +6181,7 @@ export default function App(){
   const tc=TAB_COLORS[tab]||{active:'#16a34a',bg:'#f0fdf4'}
   return(
     <div className="app-wrapper" style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
-      <div className="app-header" style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:10,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
+      <div className="app-header" style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:200,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <div style={{width:34,height:34,borderRadius:10,background:tc.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
