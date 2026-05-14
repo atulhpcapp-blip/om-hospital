@@ -2726,7 +2726,12 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
     <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
       {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
     </div>
-    {subTab==='commission'&&<>
+    {subTab==='commission'&&<div style={{display:'flex',gap:6,marginBottom:12}}>
+      <button onClick={()=>setRefSubTab('pending')} style={{flex:1,padding:'10px',borderRadius:10,border:'none',background:refSubTab!=='history'?'#1a1a2e':'#f0f0f0',color:refSubTab!=='history'?'#c9a84c':'#555',fontSize:13,fontWeight:700,cursor:'pointer'}}>⏳ Pending</button>
+      <button onClick={()=>setRefSubTab('history')} style={{flex:1,padding:'10px',borderRadius:10,border:'none',background:refSubTab==='history'?'#16a34a':'#f0f0f0',color:refSubTab==='history'?'#fff':'#555',fontSize:13,fontWeight:700,cursor:'pointer'}}>✅ History</button>
+    </div>}
+    {subTab==='commission'&&refSubTab==='history'&&<HistoryTab allPaid={allPaid} docs={docs}/>}
+    {subTab==='commission'&&refSubTab!=='history'&&<>
     <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
       <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
       {[{k:'month',l:'This month'},{k:'year',l:'This year'},{k:'all',l:'All time'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:13,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
