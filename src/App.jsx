@@ -3771,7 +3771,10 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     const ipPat=pid?ipMap[pid]:db.ip_patients.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase())
     const click=()=>{if(isIP&&gotoIP&&ipPat){gotoIP(ipPat.id,'rep')}else if(!isIP&&gotoOP){gotoOP(name,'rep')}}
     const canNav=isIP?(!!gotoIP&&!!ipPat):(!!gotoOP)
-    return(<button onClick={canNav?click:undefined} style={{fontSize:13,fontWeight:700,color:canNav?(isIP?'#7c3aed':'#1d4ed8'):'#1a1a2e',background:canNav?(isIP?'#faf5ff':'#eff6ff'):'transparent',border:'none',cursor:canNav?'pointer':'default',padding:canNav?'2px 8px':'0',borderRadius:canNav?20:0,textAlign:'left',textDecoration:'none'}}>{name}</button>)
+    return(<span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+      <button onClick={canNav?click:undefined} style={{fontSize:13,fontWeight:700,color:canNav?(isIP?'#7c3aed':'#1d4ed8'):'#1a1a2e',background:'none',border:'none',cursor:canNav?'pointer':'default',padding:0,textAlign:'left',textDecoration:canNav?'underline':'none'}}>{name}</button>
+      {canNav&&<span onClick={click} style={{fontSize:11,color:'#fff',background:isIP?'#7c3aed':'#1d4ed8',borderRadius:20,padding:'1px 7px',cursor:'pointer',fontWeight:700}}>{isIP?'IP →':'OP →'}</span>}
+    </span>)
   }
 
   return(<>
