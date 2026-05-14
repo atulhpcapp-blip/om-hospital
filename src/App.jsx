@@ -2755,7 +2755,7 @@ const DrTimeline=({docName,income,db,allPaid,onBack,gotoOP,gotoIP,onSelectPat})=
     {Object.values(opByPat).map((p,i)=>{
       const comm=p.ents.reduce((a,e)=>a+getCommAll(e),0)
       const amt=p.ents.reduce((a,e)=>a+e.amount,0)
-      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#eff6ff',borderRadius:10,marginBottom:6,cursor:'pointer',border:'1px solid #bfdbfe'}} onClick={()=>onSelectPat({name:p.name,id:null})}>
+      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#eff6ff',borderRadius:10,marginBottom:6,cursor:'pointer',border:'1px solid #bfdbfe'}} onClick={()=>gotoOP&&gotoOP(p.name,'rep')}>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:'#1d4ed8'}}>{i+1}. {p.name} →</div>
           <div style={{fontSize:10,color:'#64748b'}}>{p.ents.length} visit{p.ents.length>1?'s':''}</div>
@@ -2772,7 +2772,7 @@ const DrTimeline=({docName,income,db,allPaid,onBack,gotoOP,gotoIP,onSelectPat})=
       const ents=income.filter(e=>e.patient_id===p.id&&e.payment!=='written_off')
       const comm=ents.reduce((a,e)=>a+getCommAll(e),0)
       const amt=ents.reduce((a,e)=>a+e.amount,0)
-      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:p.discharge_date?'#f8fafc':'#f0fdf4',borderRadius:10,marginBottom:6,cursor:'pointer',border:'1px solid '+(p.discharge_date?'#e2e8f0':'#bbf7d0')}} onClick={()=>onSelectPat(p)}>
+      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:p.discharge_date?'#f8fafc':'#f0fdf4',borderRadius:10,marginBottom:6,cursor:'pointer',border:'1px solid '+(p.discharge_date?'#e2e8f0':'#bbf7d0')}} onClick={()=>gotoIP&&gotoIP(p.id,'rep')}>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:'#1d4ed8'}}>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'} →</div>
           <div style={{fontSize:10,color:'#64748b'}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{color:'#16a34a'}}> · Active</span>}</div>
@@ -2950,8 +2950,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
 
     {/* HISTORY TAB */}
     {refTab==='history'&&<>
-    {selHistPat&&<PatTimeline pat={selHistPat} income={income} db={db} onBack={()=>setSelHistPat(null)}/>}
-    {!selHistPat&&selHistDoc&&<DrTimeline docName={selHistDoc} income={income} db={db} allPaid={allPaid} onBack={()=>setSelHistDoc(null)} gotoOP={gotoOP} gotoIP={gotoIP} onSelectPat={p=>setSelHistPat(p)}/>}
+    {selHistDoc&&<DrTimeline docName={selHistDoc} income={income} db={db} allPaid={allPaid} onBack={()=>setSelHistDoc(null)} gotoOP={gotoOP} gotoIP={gotoIP} onSelectPat={p=>setSelHistPat(p)}/>}
     {!selHistPat&&!selHistDoc&&<>
       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
         {[{k:'all',l:'All'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(f=>(
@@ -3772,7 +3771,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     const ipPat=pid?ipMap[pid]:db.ip_patients.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase())
     const click=()=>{if(isIP&&gotoIP&&ipPat){gotoIP(ipPat.id,'rep')}else if(!isIP&&gotoOP){gotoOP(name,'rep')}}
     const canNav=isIP?(!!gotoIP&&!!ipPat):(!!gotoOP)
-    return(<button onClick={canNav?click:undefined} style={{fontSize:13,fontWeight:700,color:canNav?(isIP?'#2563eb':'#1d4ed8'):'#1a1a2e',background:'none',border:'none',cursor:canNav?'pointer':'default',padding:0,textAlign:'left',textDecoration:canNav?'underline':'none',textDecorationColor:isIP?'#2563eb':'#1d4ed8'}}>{name}</button>)
+    return(<button onClick={canNav?click:undefined} style={{fontSize:13,fontWeight:700,color:canNav?(isIP?'#7c3aed':'#1d4ed8'):'#1a1a2e',background:canNav?(isIP?'#faf5ff':'#eff6ff'):'transparent',border:'none',cursor:canNav?'pointer':'default',padding:canNav?'2px 8px':'0',borderRadius:canNav?20:0,textAlign:'left',textDecoration:'none'}}>{name}</button>)
   }
 
   return(<>
