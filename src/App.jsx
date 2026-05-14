@@ -2693,6 +2693,100 @@ const HistoryTab=({allPaid,docs})=>{
   </>)
 }
 
+const PatTimeline=({pat,income,db,onBack})=>{
+  const ents=[...income.filter(e=>e.patient_id===pat.id||((e.patient_name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()&&!['ip','ip_r','ip_l','ip_p'].includes(e.type)))].sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const total=ents.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
+  const comm=ents.reduce((a,e)=>a+getCommAll(e),0)
+  return(<div>
+    <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:6,color:'#3b82f6',fontSize:13,fontWeight:700,background:'none',border:'none',cursor:'pointer',marginBottom:12,padding:0}}>← Back</button>
+    <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'14px',marginBottom:14,color:'#fff'}}>
+      <div style={{fontSize:16,fontWeight:800}}>{pat.name}</div>
+      {pat.admission_date&&<div style={{fontSize:11,color:'rgba(255,255,255,0.6)',marginTop:2}}>{fmtD(pat.admission_date)}{pat.discharge_date?' → '+fmtD(pat.discharge_date):<span style={{color:'#4ade80'}}> · Active</span>}</div>}
+      {pat.diagnosis&&<div style={{fontSize:11,color:'#fbbf24',marginTop:2}}>Dx: {pat.diagnosis}</div>}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:10}}>
+        <div><div style={{fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase'}}>Total Billed</div><div style={{fontSize:18,fontWeight:800,color:'#4ade80'}}>{fmt(total)}</div></div>
+        <div><div style={{fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase'}}>Commission</div><div style={{fontSize:18,fontWeight:800,color:'#c9a84c'}}>{fmt(comm)}</div></div>
+      </div>
+    </div>
+    {ents.length===0?<div style={{textAlign:'center',padding:'24px',color:'#aaa',fontSize:13}}>No records</div>:
+    ents.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'10px 12px',background:'#f8fafc',border:'1px solid #f0f0f0',borderRadius:10,marginBottom:6}}>
+      <div>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}><TypeTag t={e.type}/><span style={{fontSize:12,fontWeight:600}}>{ITYPES.find(x=>x.key===e.type)?.full}</span></div>
+        <div style={{fontSize:11,color:'#64748b'}}>{fmtD(e.date)}</div>
+        {e.notes&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{e.notes}</div>}
+      </div>
+      <div style={{textAlign:'right'}}>
+        <div style={{fontSize:13,fontWeight:700,color:isCredit(e)?'#f59e0b':'#16a34a'}}>{fmt(e.amount)}{isCredit(e)?' (credit)':''}</div>
+        {getCommAll(e)>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:600}}>Comm: {fmt(getCommAll(e))}</div>}
+        <div style={{fontSize:10,color:'#94a3b8'}}>{e.payment}</div>
+      </div>
+    </div>)}
+  </div>)
+}
+
+const DrTimeline=({docName,income,db,allPaid,onBack,gotoOP,gotoIP,onSelectPat})=>{
+  const opEnts=income.filter(e=>e.ref_doctor===docName&&['op','opd','op_r','op_l'].includes(e.type)&&e.patient_name)
+  const ipPats=db.ip_patients.filter(p=>p.ref_doctor===docName)
+  const paidList=allPaid.filter(e=>e.category==='ref_paid'&&(e.description===docName||e.description==='Commission to Dr. '+docName))
+  const totalPaid=paidList.reduce((a,e)=>a+e.amount,0)
+  // Group OP by patient
+  const opByPat={};opEnts.forEach(e=>{const k=(e.patient_name||'').trim();if(!opByPat[k])opByPat[k]={name:k,ents:[]};opByPat[k].ents.push(e)})
+  const totalComm=[...income.filter(e=>e.ref_doctor===docName&&e.payment!=='written_off')].reduce((a,e)=>a+getCommAll(e),0)
+  +[...ipPats.flatMap(p=>income.filter(e=>e.patient_id===p.id))].reduce((a,e)=>a+getCommAll(e),0)
+  const bal=totalComm-totalPaid
+  return(<div>
+    <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:6,color:'#3b82f6',fontSize:13,fontWeight:700,background:'none',border:'none',cursor:'pointer',marginBottom:12,padding:0}}>← Back</button>
+    <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'14px',marginBottom:14,color:'#fff'}}>
+      <div style={{fontSize:18,fontWeight:800}}>Dr. {docName}</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:10}}>
+        <div><div style={{fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase'}}>Total Comm</div><div style={{fontSize:16,fontWeight:800,color:'#c9a84c'}}>{fmt(totalComm)}</div></div>
+        <div><div style={{fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:16,fontWeight:800,color:'#4ade80'}}>{fmt(totalPaid)}</div></div>
+        <div><div style={{fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:16,fontWeight:800,color:bal>0?'#f87171':'#4ade80'}}>{fmt(bal)}</div></div>
+      </div>
+    </div>
+    {/* Payment history */}
+    {paidList.length>0&&<><div style={{fontSize:11,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Payment History</div>
+    {paidList.sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',background:'#f0fdf4',borderRadius:8,marginBottom:4,border:'1px solid #bbf7d0'}}>
+      <span style={{fontSize:12}}>{fmtD(e.date)} · {e.payment==='written_off'?'Written off':e.payment}</span>
+      <span style={{fontSize:13,fontWeight:700,color:e.payment==='written_off'?'#6b7280':'#16a34a'}}>{fmt(e.amount)}</span>
+    </div>)}</>}
+    {/* OP Patients */}
+    {Object.keys(opByPat).length>0&&<><div style={{fontSize:11,color:'#0369a1',fontWeight:700,textTransform:'uppercase',marginTop:14,marginBottom:6}}>OP Patients</div>
+    {Object.values(opByPat).map((p,i)=>{
+      const comm=p.ents.reduce((a,e)=>a+getCommAll(e),0)
+      const amt=p.ents.reduce((a,e)=>a+e.amount,0)
+      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#eff6ff',borderRadius:10,marginBottom:6,cursor:'pointer',border:'1px solid #bfdbfe'}} onClick={()=>onSelectPat({name:p.name,id:null})}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:'#1d4ed8'}}>{i+1}. {p.name} →</div>
+          <div style={{fontSize:10,color:'#64748b'}}>{p.ents.length} visit{p.ents.length>1?'s':''}</div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontSize:13,fontWeight:700}}>{fmt(amt)}</div>
+          {comm>0&&<div style={{fontSize:11,color:'#dc2626'}}>Comm: {fmt(comm)}</div>}
+        </div>
+      </div>)
+    })}</>}
+    {/* IP Patients */}
+    {ipPats.length>0&&<><div style={{fontSize:11,color:'#16a34a',fontWeight:700,textTransform:'uppercase',marginTop:14,marginBottom:6}}>IP Patients</div>
+    {ipPats.map((p,i)=>{
+      const ents=income.filter(e=>e.patient_id===p.id&&e.payment!=='written_off')
+      const comm=ents.reduce((a,e)=>a+getCommAll(e),0)
+      const amt=ents.reduce((a,e)=>a+e.amount,0)
+      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:p.discharge_date?'#f8fafc':'#f0fdf4',borderRadius:10,marginBottom:6,cursor:'pointer',border:'1px solid '+(p.discharge_date?'#e2e8f0':'#bbf7d0')}} onClick={()=>onSelectPat(p)}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:'#1d4ed8'}}>{i+1}. {p.name} {p.discharge_date?'✅':'🟢'} →</div>
+          <div style={{fontSize:10,color:'#64748b'}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{color:'#16a34a'}}> · Active</span>}</div>
+          {p.diagnosis&&<div style={{fontSize:10,color:'#7c3aed'}}>Dx: {p.diagnosis}</div>}
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontSize:13,fontWeight:700}}>{fmt(amt)}</div>
+          {comm>0&&<div style={{fontSize:11,color:'#dc2626'}}>Comm: {fmt(comm)}</div>}
+        </div>
+      </div>)
+    })}</>}
+  </div>)
+}
+
 const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,gotoIP})=>{
   const [per,setPer]=useState('month')
   const [refTab,setRefTab]=useState('pending')
@@ -2705,6 +2799,8 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
   const [hDoc,setHDoc]=useState('')
   const [hFrom,setHFrom]=useState(todayStr().slice(0,8)+'01')
   const [hTo,setHTo]=useState(todayStr())
+  const [selHistDoc,setSelHistDoc]=useState(null)
+  const [selHistPat,setSelHistPat]=useState(null)
 
   const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):
             per==='year'?income.filter(e=>e.date?.startsWith(ry)):income
@@ -2750,7 +2846,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
 
   return(<div>
     {/* Period selector */}
-    <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+    <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap',position:'sticky',top:148,zIndex:80,background:'#f8fafc',paddingTop:6,paddingBottom:6,marginLeft:-16,marginRight:-16,paddingLeft:16,paddingRight:16}}>
       {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'all',l:'All Time'}].map(v=>(
         <button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:'none',background:per===v.k?'#1a1a2e':'#f0f0f0',color:per===v.k?'#c9a84c':'#555',fontSize:12,fontWeight:700,cursor:'pointer'}}>{v.l}</button>
       ))}
@@ -2854,6 +2950,9 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
 
     {/* HISTORY TAB */}
     {refTab==='history'&&<>
+    {selHistPat&&<PatTimeline pat={selHistPat} income={income} db={db} onBack={()=>setSelHistPat(null)}/>}
+    {!selHistPat&&selHistDoc&&<DrTimeline docName={selHistDoc} income={income} db={db} allPaid={allPaid} onBack={()=>setSelHistDoc(null)} gotoOP={gotoOP} gotoIP={gotoIP} onSelectPat={p=>setSelHistPat(p)}/>}
+    {!selHistPat&&!selHistDoc&&<>
       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
         {[{k:'all',l:'All'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(f=>(
           <button key={f.k} onClick={()=>setHFilter(f.k)} style={{padding:'6px 12px',borderRadius:20,border:'none',background:hFilter===f.k?'#16a34a':'#f0f0f0',color:hFilter===f.k?'#fff':'#555',fontSize:12,fontWeight:600,cursor:'pointer'}}>{f.l}</button>
@@ -2870,9 +2969,9 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
       {histPays.length===0
         ?<div style={{textAlign:'center',padding:'24px',color:'#aaa',fontSize:13}}>No payment history for this filter</div>
         :<>
-          {histPays.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,marginBottom:6}}>
+          {histPays.map((e,i)=>{const dn=e.description?.replace('Commission to Dr. ','')||e.description;return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,marginBottom:6}}>
             <div>
-              <div style={{fontSize:13,fontWeight:700}}>Dr. {e.description?.replace('Commission to Dr. ','')}</div>
+              <div style={{fontSize:13,fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline'}} onClick={()=>setSelHistDoc(dn)}>Dr. {dn} →</div>
               <div style={{fontSize:11,color:'#64748b'}}>{fmtD(e.date)} · {e.payment==='written_off'?'Written off':e.payment}</div>
             </div>
             <div style={{textAlign:'right'}}>
@@ -2893,13 +2992,17 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,gotoOP,g
                   </div>
                 </div>}
             </div>
-          </div>)}
+          </div>)})
+          }
           <div style={{padding:'10px 14px',background:'#1a1a2e',borderRadius:12,display:'flex',justifyContent:'space-between',marginTop:8}}>
             <span style={{color:'rgba(255,255,255,0.6)',fontSize:12,fontWeight:700}}>Total Paid</span>
             <span style={{color:'#c9a84c',fontSize:18,fontWeight:800}}>{fmt(histPays.reduce((a,e)=>a+e.amount,0))}</span>
           </div>
         </>}
-    </>}
+    </>
+    }
+    </>
+    }
   </div>)
 }
 
@@ -3669,7 +3772,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     const ipPat=pid?ipMap[pid]:db.ip_patients.find(p=>p.name.trim().toLowerCase()===name.trim().toLowerCase())
     const click=()=>{if(isIP&&gotoIP&&ipPat){gotoIP(ipPat.id,'rep')}else if(!isIP&&gotoOP){gotoOP(name,'rep')}}
     const canNav=isIP?(!!gotoIP&&!!ipPat):(!!gotoOP)
-    return(<button onClick={canNav?click:undefined} style={{fontSize:13,fontWeight:700,color:isIP?'#2563eb':'#1d4ed8',background:'none',border:'none',cursor:canNav?'pointer':'default',padding:0,textAlign:'left',textDecoration:canNav?'underline':'none',textDecorationColor:'rgba(37,99,235,0.3)'}}>{name}</button>)
+    return(<button onClick={canNav?click:undefined} style={{fontSize:13,fontWeight:700,color:canNav?(isIP?'#2563eb':'#1d4ed8'):'#1a1a2e',background:'none',border:'none',cursor:canNav?'pointer':'default',padding:0,textAlign:'left',textDecoration:canNav?'underline':'none',textDecorationColor:isIP?'#2563eb':'#1d4ed8'}}>{name}</button>)
   }
 
   return(<>
@@ -4752,7 +4855,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const ExpT=({exp})=>{if(exp.total===0)return<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No expenses</div>;return<Card>{ECATS.filter(c=>exp[c.key]>0).map(c=><Row key={c.key} left={c.label} right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(exp[c.key])}</span>}/>)}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total expenses</span><span>{fmt(exp.total)}</span></div></Card>}
   return(
     <div>
-      <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4}}>
+      <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:4,position:'sticky',top:96,zIndex:90,background:'#f8fafc',paddingTop:8,marginTop:-8}}>
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
       {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
