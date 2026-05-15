@@ -128,6 +128,12 @@ const GBtn=({children,onClick,style={}})=><button style={{...S.gbtn,transition:'
 const DBtn=({children,onClick})=><button style={S.dbtn} onClick={onClick}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
+const getPayModeAmt=(e,mode)=>{
+  if(e.payment_splits&&e.payment_splits.length>1){
+    return e.payment_splits.filter(s=>s.mode===mode).reduce((a,s)=>a+parseFloat(s.amount||0),0)
+  }
+  return e.payment===mode?e.amount:0
+}
 const payLabel=e=>{
   if(e.payment_splits&&e.payment_splits.length>1){
     return e.payment_splits.map(s=>`${s.mode[0].toUpperCase()+s.mode.slice(1)}: Rs ${parseFloat(s.amount).toLocaleString('en-IN')}`).join(' + ')
@@ -454,7 +460,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
   const loadHospData=async(h)=>{
     setDataLoading(true)
     const [inc,exp,pts,rds]=await Promise.all([
-      supabase.from('income').select('id,date,type,amount,patient_name,ref_doctor,payment,consultant_fee,speciality,patient_area').eq('hospital_id',h.id).order('date',{ascending:false}).limit(500),
+      supabase.from('income').select('id,date,type,amount,patient_name,ref_doctor,payment,consultant_fee,speciality,patient_area,payment_splits,patient_id,notes').eq('hospital_id',h.id).order('date',{ascending:false}).limit(500),
       supabase.from('expenses').select('id,date,category,amount,description').eq('hospital_id',h.id).order('date',{ascending:false}).limit(200),
       supabase.from('ip_patients').select('id,name,admission_date,discharge_date,ref_doctor,is_package').eq('hospital_id',h.id).order('admission_date',{ascending:false}).limit(200),
       supabase.from('ref_doctors').select('id,name,area').eq('hospital_id',h.id)
@@ -591,7 +597,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={async()=>{
           setDataLoading(true)
           const [inc,exp,pts,rds,cons]=await Promise.all([
-            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,conditions').eq('hospital_id',sel.id).order('date',{ascending:false}).limit(2000),
+            supabase.from('income').select('id,date,type,amount,patient_id,patient_name,ref_doctor,payment,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,conditions,payment_splits').eq('hospital_id',sel.id).order('date',{ascending:false}).limit(2000),
             supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',sel.id).order('date',{ascending:false}).limit(1000),
             supabase.from('ip_patients').select('*').eq('hospital_id',sel.id).order('admission_date',{ascending:false}).limit(500),
             supabase.from('ref_doctors').select('*').eq('hospital_id',sel.id),
@@ -3734,23 +3740,25 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const opLabByPat={}
   dI.filter(e=>e.type==='op_l').forEach(e=>{
     const k=(e.patient_name||'Unknown').trim().toLowerCase()
-    if(!opLabByPat[k])opLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0,cash:0,upi:0,card:0,credit:0}
+    if(!opLabByPat[k])opLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0,cash:0,upi:0,card:0,bank:0,credit:0}
     opLabByPat[k].amount+=e.amount
-    if(e.payment==='cash')opLabByPat[k].cash+=e.amount
-    else if(e.payment==='upi')opLabByPat[k].upi+=e.amount
-    else if(e.payment==='card')opLabByPat[k].card+=e.amount
-    else if(e.payment==='credit')opLabByPat[k].credit+=e.amount
+    opLabByPat[k].cash+=getPayModeAmt(e,'cash')
+    opLabByPat[k].upi+=getPayModeAmt(e,'upi')
+    opLabByPat[k].card+=getPayModeAmt(e,'card')
+    opLabByPat[k].bank+=getPayModeAmt(e,'bank')
+    opLabByPat[k].credit+=getPayModeAmt(e,'credit')
     if(e.ref_doctor&&!opLabByPat[k].ref)opLabByPat[k].ref=e.ref_doctor
   })
   const ipLabByPat={}
   dI.filter(e=>e.type==='ip_l').forEach(e=>{
     const k=e.patient_id||(e.patient_name||'Unknown').trim().toLowerCase()
-    if(!ipLabByPat[k])ipLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0,cash:0,upi:0,card:0,credit:0}
+    if(!ipLabByPat[k])ipLabByPat[k]={name:(e.patient_name||'Unknown').trim(),pid:e.patient_id,ref:e.ref_doctor||'',amount:0,cash:0,upi:0,card:0,bank:0,credit:0}
     ipLabByPat[k].amount+=e.amount
-    if(e.payment==='cash')ipLabByPat[k].cash+=e.amount
-    else if(e.payment==='upi')ipLabByPat[k].upi+=e.amount
-    else if(e.payment==='card')ipLabByPat[k].card+=e.amount
-    else if(e.payment==='credit')ipLabByPat[k].credit+=e.amount
+    ipLabByPat[k].cash+=getPayModeAmt(e,'cash')
+    ipLabByPat[k].upi+=getPayModeAmt(e,'upi')
+    ipLabByPat[k].card+=getPayModeAmt(e,'card')
+    ipLabByPat[k].bank+=getPayModeAmt(e,'bank')
+    ipLabByPat[k].credit+=getPayModeAmt(e,'credit')
     if(e.ref_doctor&&!ipLabByPat[k].ref)ipLabByPat[k].ref=e.ref_doctor
   })
   const opLabEnts=Object.values(opLabByPat)
@@ -3813,10 +3821,11 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           const consFee=pat.entries.reduce((a,e)=>a+(e.consultant_fee||0),0)
           const consName=pat.entries.find(e=>e.consultant_name)?.consultant_name
           const ref=pat.entries.find(e=>e.ref_doctor)?.ref_doctor
-          const cashAmt=pat.entries.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
-          const upiAmt=pat.entries.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
-          const cardAmt=pat.entries.filter(e=>e.payment==='card').reduce((a,e)=>a+e.amount,0)
-          const creditAmt=pat.entries.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
+          const cashAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'cash'),0)
+          const upiAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'upi'),0)
+          const cardAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'card'),0)
+          const bankAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'bank'),0)
+          const creditAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'credit'),0)
           return(<div key={pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>
@@ -3826,6 +3835,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                   {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
                   {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
                   {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
+                  {bankAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0f9ff',color:'#0369a1',fontWeight:700}}>Bank {fmt(bankAmt)}</span>}
                   {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
                 </div>
               </div>
@@ -3975,6 +3985,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                 {e.cash>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(e.cash)}</span>}
                 {e.upi>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(e.upi)}</span>}
                 {e.card>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(e.card)}</span>}
+                {e.bank>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0f9ff',color:'#0369a1',fontWeight:700}}>Bank {fmt(e.bank)}</span>}
                 {e.credit>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(e.credit)}</span>}
               </div>
             </div>
@@ -3990,6 +4001,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                 {e.cash>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(e.cash)}</span>}
                 {e.upi>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(e.upi)}</span>}
                 {e.card>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(e.card)}</span>}
+                {e.bank>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0f9ff',color:'#0369a1',fontWeight:700}}>Bank {fmt(e.bank)}</span>}
                 {e.credit>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(e.credit)}</span>}
               </div>
             </div>
@@ -4067,8 +4079,13 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {/* OP Consultation - names */}
           {opInc>0&&<>
             <R l="OP Consultation" v={fmt(opInc)} green/>
-            {dI.filter(e=>e.type==='op'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{e.payment_splits&&e.payment_splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='op'&&e.payment!=='credit').map((e,i)=><div key={i} style={{padding:'2px 0 4px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151'}}>
+                <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              </div>
+              <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:2}}>
+                {(e.payment_splits&&e.payment_splits.length>1?e.payment_splits:[{amount:e.amount,mode:e.payment}]).map((s,si)=><span key={si} style={{fontSize:9,padding:'1px 6px',borderRadius:10,background:{cash:'#f0fdf4',upi:'#eff6ff',card:'#fdf4ff',bank:'#f0f9ff',insurance:'#f0fdf4',credit:'#fef2f2'}[s.mode]||'#f0f0f0',color:{cash:'#16a34a',upi:'#2563eb',card:'#7c3aed',bank:'#0369a1',insurance:'#16a34a',credit:'#dc2626'}[s.mode]||'#555',fontWeight:700}}>{s.mode[0].toUpperCase()+s.mode.slice(1)} {fmt(parseFloat(s.amount))}</span>)}
+              </div>
             </div>)}
           </>}
           {/* OPD Services */}
@@ -4990,7 +5007,7 @@ export default function App(){
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,payment_splits').eq('hospital_id',hid).order('date',{ascending:false}).limit(500),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(500).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
