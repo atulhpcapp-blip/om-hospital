@@ -128,6 +128,12 @@ const GBtn=({children,onClick,style={}})=><button style={{...S.gbtn,transition:'
 const DBtn=({children,onClick})=><button style={S.dbtn} onClick={onClick}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
+const payLabel=e=>{
+  if(e.payment_splits&&e.payment_splits.length>1){
+    return e.payment_splits.map(s=>`${s.mode[0].toUpperCase()+s.mode.slice(1)}: Rs ${parseFloat(s.amount).toLocaleString('en-IN')}`).join(' + ')
+  }
+  return e.payment?e.payment[0].toUpperCase()+e.payment.slice(1):''
+}
 const Row=({left,sub,right,onClick})=>(
   <div onClick={onClick} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 0',borderBottom:'1px solid #f1f5f9',cursor:onClick?'pointer':'default'}}>
     <div style={{flex:1,minWidth:0,paddingRight:8}}>
@@ -1763,7 +1769,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>
-                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Ref: '+fmt(getComm(e)):''}</div>
+                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':payLabel(e)}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Ref: '+fmt(getComm(e)):''}</div>
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -2695,7 +2701,7 @@ const HistoryTab=({allPaid,docs})=>{
       {pays.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,marginBottom:6}}>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>✅ Dr. {e.description||e.description?.replace('Commission to Dr. ','')}</div>
-          <div style={{fontSize:11,color:'#64748b'}}>{fmtD(e.date)} · {e.payment}</div>
+          <div style={{fontSize:11,color:'#64748b'}}>{fmtD(e.date)} · {payLabel(e)}</div>
         </div>
         <div style={{fontSize:15,fontWeight:800,color:'#16a34a'}}>{fmt(e.amount)}</div>
       </div>)}
@@ -4062,14 +4068,14 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {opInc>0&&<>
             <R l="OP Consultation" v={fmt(opInc)} green/>
             {dI.filter(e=>e.type==='op'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              <span>{e.payment_splits&&e.payment_splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {/* OPD Services */}
           {opdInc>0&&<>
             <R l="OPD Services" v={fmt(opdInc)} green/>
             {dI.filter(e=>e.type==='opd'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              <span>{e.payment_splits&&e.payment_splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
@@ -4077,7 +4083,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {oprInc>0&&<>
             <R l="OP Pharmacy" v={fmt(oprInc)} green/>
             {dI.filter(e=>e.type==='op_r'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              <span>{e.payment_splits&&e.payment_splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {/* IP Charges + Pharmacy - names + amounts */}
