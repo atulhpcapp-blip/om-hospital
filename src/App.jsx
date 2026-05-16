@@ -4632,6 +4632,11 @@ const DailyReferralSection=({db,dI,rd,allPaidComm,actions})=>{
 }
 
 
+const useResponsive=()=>{
+  const [w,setW]=useState(typeof window!=='undefined'?window.innerWidth:375)
+  useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)},[])
+  return{isMobile:w<768,isTablet:w>=768&&w<1200,isDesktop:w>=1200,w}
+}
 const PatientDataReport=({db})=>{
   const [filterArea,setFilterArea]=useState('')
   const [filterRef,setFilterRef]=useState('')
