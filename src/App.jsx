@@ -118,7 +118,7 @@ const RESP_CSS='@media(min-width:768px){'+
 '.app-header>div:first-child{padding:20px 16px 12px!important;border-bottom:1px solid #f0f0f0!important;margin-bottom:8px!important}'+
 '.app-nav-tabs{flex-direction:column!important;overflow:visible!important;gap:0!important;padding:0!important;margin:0!important;border-bottom:none!important}'+
 '.app-nav-tabs button{width:100%!important;text-align:left!important;border-radius:0!important;border-bottom:none!important;border-right:3px solid transparent!important;padding:13px 20px!important;font-size:13px!important;white-space:normal!important;flex-shrink:unset!important}'+
-'.app-main-content{flex:1!important;min-width:0!important;max-width:none!important;padding:24px 40px 60px!important;box-sizing:border-box}'+
+'.app-main-content{flex:1!important;min-width:0!important;max-width:none!important;padding:24px 40px 60px!important;box-sizing:border-box}'+'.app-main-content .rvtabs-sticky{top:0!important}'+
 '.dash-grid-2{grid-template-columns:repeat(4,1fr)!important}'+
 '.logout-btn-mobile{display:none!important}'+
 '}'+
@@ -4739,28 +4739,16 @@ const PatientDataReport=({db})=>{
     {/* On desktop: all filters inline. On mobile: collapsible */}
     {!pdMobile
       ?<div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:8,marginBottom:12,alignItems:'end',marginTop:8}}>
-          <div>
-            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Search</div>
-            <input placeholder="Name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{width:'100%',padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
-          </div>
-          <div>
-            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Area</div>
-            <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-              <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Ref Doctor</div>
-            <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-              <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Condition</div>
-            <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-              <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
-            </select>
-          </div>
+          <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{width:'100%',padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+          </select>
+          <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
+          </select>
           <div style={{display:'flex',gap:6}}>
             {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{padding:'8px 10px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕</button>}
             <button onClick={exportPDF} style={{padding:'8px 14px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📄 Export</button>
@@ -5766,7 +5754,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const ExpT=({exp})=>{if(exp.total===0)return<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No expenses</div>;return<Card>{ECATS.filter(c=>exp[c.key]>0).map(c=><Row key={c.key} left={c.label} right={<span style={{color:'#ef4444',fontWeight:600}}>{fmt(exp[c.key])}</span>}/>)}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total expenses</span><span>{fmt(exp.total)}</span></div></Card>}
   return(
     <div>
-      <div style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:6,position:'sticky',top:96,zIndex:90,background:'#f8fafc',paddingTop:8,marginTop:-8,borderBottom:'2px solid #e2e8f0',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+      <div className="rvtabs-sticky" style={{display:'flex',gap:6,marginBottom:16,overflowX:'auto',paddingBottom:6,position:'sticky',top:96,zIndex:90,background:'#f8fafc',paddingTop:8,marginTop:-8,borderBottom:'2px solid #e2e8f0',boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
       {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
