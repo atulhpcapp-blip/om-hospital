@@ -4948,6 +4948,593 @@ const RealIncomeReport=({db})=>{
   </>)
 }
 
+const LostDoctorsReport=({db})=>{
+  const inc=db.income||[]
+  const today=todayStr()
+  const thisMonth=today.slice(0,7)
+  
+  // Get month strings for past 6 months
+  const getMonth=(monthsBack)=>{
+    const d=new Date()
+    d.setMonth(d.getMonth()-monthsBack)
+    return d.toISOString().slice(0,7)
+  }
+  
+  // Doctors who sent patients this month
+  const activeThisMonth=new Set(inc.filter(e=>e.date?.startsWith(thisMonth)&&e.ref_doctor?.trim()).map(e=>e.ref_doctor.trim()))
+  
+  // For each past month, find doctors who sent patients then but NOT this month
+  const periods=[1,2,3,4,5,6].map(n=>{
+    const mon=getMonth(n)
+    const [yr,mo]=mon.split('-')
+    const label=MOFULL[parseInt(mo)-1]+' '+yr
+    const docsThisMonth=new Set(inc.filter(e=>e.date?.startsWith(mon)&&e.ref_doctor?.trim()).map(e=>e.ref_doctor.trim()))
+    const lostDocs=[...docsThisMonth].filter(d=>!activeThisMonth.has(d))
+    // Get their patient count and income from that month
+    const details=lostDocs.map(doc=>{
+      const docInc=inc.filter(e=>e.date?.startsWith(mon)&&e.ref_doctor===doc)
+      const pts=new Set(docInc.map(e=>e.patient_name||e.patient_id)).size
+      const total=docInc.reduce((a,e)=>a+e.amount,0)
+      const lastSeen=inc.filter(e=>e.ref_doctor===doc).map(e=>e.date).sort().reverse()[0]||mon
+      return{doc,pts,total,lastSeen}
+    }).sort((a,b)=>b.total-a.total)
+    return{mon,label,n,lostDocs:details}
+  }).filter(p=>p.lostDocs.length>0)
+
+  return(<>
+    <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:14,padding:'14px 16px',marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#991b1b',marginBottom:4}}>Lost referral doctors</div>
+      <div style={{fontSize:12,color:'#b91c1c'}}>Doctors who sent patients in past months but have NOT sent anyone this month. Call them today.</div>
+    </div>
+    {periods.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No lost doctors found — all referrals are active!</div>}
+    {periods.map(p=>(<div key={p.mon} style={{marginBottom:20}}>
+      <SecL>{p.n} month{p.n>1?'s':''} ago — {p.label} ({p.lostDocs.length} doctor{p.lostDocs.length>1?'s':''})</SecL>
+      <Card>
+        {p.lostDocs.map((d,i)=>(<div key={d.doc} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>Dr. {d.doc}</div>
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{d.pts} patient{d.pts>1?'s':''} that month — Income: {fmt(d.total)}</div>
+            <div style={{fontSize:11,color:'#d97706',marginTop:1}}>Last seen: {fmtD(d.lastSeen)}</div>
+          </div>
+          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700,whiteSpace:'nowrap'}}>{p.n}mo ago</span>
+        </div>))}
+      </Card>
+    </div>))}
+  </>)
+}
+
+/*  SUPPLIES REPORT  */
+
+const SuppliesReport=({db,actions})=>{
+  const [newItem,setNewItem]=useState('')
+  const [newQty,setNewQty]=useState('')
+  const [newUnit,setNewUnit]=useState('units')
+  const [adding,setAdding]=useState(false)
+  
+  // Use expenses with category 'supplies' as supply tracking
+  const supplies=db.expenses.filter(e=>e.category==='supplies').slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const thisMonth=todayStr().slice(0,7)
+  const monthSupplies=supplies.filter(e=>e.date?.startsWith(thisMonth))
+  const totalSpent=monthSupplies.reduce((a,e)=>a+e.amount,0)
+
+  return(<>
+    <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:14,padding:'14px 16px',marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:'#15803d'}}>Medical supplies this month</div>
+      <div style={{fontSize:22,fontWeight:800,color:'#16a34a',marginTop:4}}>{fmt(totalSpent)}</div>
+      <div style={{fontSize:11,color:'#86efac',marginTop:2}}>{monthSupplies.length} entries</div>
+    </div>
+    {adding?(<div style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:14,padding:'16px',marginBottom:16}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>Add supply entry</div>
+      <FInp label="Item name" value={newItem} onChange={e=>setNewItem(e.target.value)} placeholder="e.g. Gloves, Syringes, Bandages"/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+        <FInp label="Amount (Rs)" type="number" value={newQty} onChange={e=>setNewQty(e.target.value)} placeholder="500"/>
+        <FSel label="Unit" value={newUnit} onChange={e=>setNewUnit(e.target.value)}>
+          <option>units</option><option>boxes</option><option>packets</option><option>bottles</option><option>strips</option>
+        </FSel>
+      </div>
+      <div style={{display:'flex',gap:8,marginTop:8}}>
+        <PBtn onClick={async()=>{if(!newItem||!newQty){alert('Enter item and amount');return}await actions.addExpense({id:uid(),date:todayStr(),category:'supplies',amount:parseFloat(newQty),description:newItem+' ('+newUnit+')',payment:'cash',is_monthly:false});setNewItem('');setNewQty('');setAdding(false)}}>Save</PBtn>
+        <button onClick={()=>setAdding(false)} style={{flex:1,padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,cursor:'pointer'}}>Cancel</button>
+      </div>
+    </div>):(<GBtn onClick={()=>setAdding(true)} style={{width:'100%',marginBottom:16}}>+ Add supply purchase</GBtn>)}
+    <SecL>All supply entries</SecL>
+    {supplies.length===0?<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>No supplies recorded yet</div>:
+    <Card>
+      {supplies.map((e,i)=>(<div key={e.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:600,color:'#0f172a'}}>{e.description||'Supply'}</div>
+          <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(e.date)}</div>
+        </div>
+        <div style={{fontSize:14,fontWeight:700,color:'#dc2626'}}>{fmt(e.amount)}</div>
+      </div>))}
+    </Card>}
+  </>)
+}
+
+/*  INCOME CHART REPORT  */
+
+const IncomeChartReport=({db})=>{
+  const [period,setPeriod]=useState('month')
+  const [mon,setMon]=useState(todayStr().slice(0,7))
+  const [yr,setYr]=useState(todayStr().slice(0,4))
+  const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
+  
+  const inc=db.income||[]
+  const exps=(db.expenses||[]).filter(e=>e.category!=='ref_paid')
+  
+  let chartData=[]
+  if(period==='month'){
+    const days=[...new Set(inc.filter(e=>e.date?.startsWith(mon)).map(e=>e.date))].sort()
+    chartData=days.map(d=>{
+      const dI=inc.filter(e=>e.date===d)
+      const dE=exps.filter(e=>e.date===d)
+      const gross=dI.reduce((a,e)=>a+e.amount,0)
+      const comm=dI.reduce((a,e)=>a+getComm(e),0)
+      const exp=dE.reduce((a,e)=>a+e.amount,0)
+      return{label:d.slice(8),gross,real:gross-comm,actual:gross-comm-exp}
+    })
+  } else {
+    const mons=[...new Set(inc.filter(e=>e.date?.startsWith(yr)).map(e=>e.date?.slice(0,7)))].sort()
+    chartData=mons.map(m=>{
+      const mI=inc.filter(e=>e.date?.startsWith(m))
+      const mE=exps.filter(e=>e.date?.startsWith(m))
+      const gross=mI.reduce((a,e)=>a+e.amount,0)
+      const comm=mI.reduce((a,e)=>a+getComm(e),0)
+      const exp=mE.reduce((a,e)=>a+e.amount,0)
+      const [,mo]=m.split('-')
+      return{label:MOS[parseInt(mo)-1],gross,real:gross-comm,actual:gross-comm-exp}
+    })
+  }
+  
+  const maxVal=Math.max(...chartData.map(d=>d.gross),1)
+  
+  return(<>
+    <div style={{display:'flex',gap:6,marginBottom:12}}>
+      {[{k:'month',l:'Monthly'},{k:'year',l:'Yearly'}].map(t=>(<button key={t.k} onClick={()=>setPeriod(t.k)} style={{padding:'6px 16px',borderRadius:20,border:period===t.k?'none':'1px solid #e5e7eb',background:period===t.k?'#16a34a':'none',color:period===t.k?'#fff':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{t.l}</button>))}
+    </div>
+    {period==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={mon} onChange={e=>setMon(e.target.value)}/>}
+    {period==='year'&&<select style={{...S.sel,marginBottom:12}} value={yr} onChange={e=>setYr(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+    
+    {/* Legend */}
+    <div style={{display:'flex',gap:16,marginBottom:16,flexWrap:'wrap'}}>
+      {[{c:'#16a34a',l:'Gross collected'},{c:'#2563eb',l:'Real income'},{c:'#7c3aed',l:'Actual income'}].map(m=>(<div key={m.l} style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><div style={{width:12,height:12,borderRadius:3,background:m.c}}/>{m.l}</div>))}
+    </div>
+    
+    {chartData.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc'}}>No data for this period</div>:
+    <div style={{overflowX:'auto'}}>
+      <div style={{minWidth:Math.max(chartData.length*60,300),paddingBottom:8}}>
+        {/* Chart bars */}
+        <div style={{display:'flex',alignItems:'flex-end',gap:4,height:200,marginBottom:8,borderBottom:'2px solid #f0f0f0',paddingTop:8}}>
+          {chartData.map((d,i)=>(
+            <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,height:'100%',justifyContent:'flex-end',minWidth:40}}>
+              <div style={{width:'100%',display:'flex',gap:2,alignItems:'flex-end',height:'100%',justifyContent:'flex-end'}}>
+                <div style={{flex:1,background:'#16a34a',borderRadius:'3px 3px 0 0',height:Math.round((d.gross/maxVal)*180)+'px',minHeight:d.gross>0?2:0}}/>
+                <div style={{flex:1,background:'#2563eb',borderRadius:'3px 3px 0 0',height:Math.round((d.real/maxVal)*180)+'px',minHeight:d.real>0?2:0}}/>
+                <div style={{flex:1,background:'#7c3aed',borderRadius:'3px 3px 0 0',height:Math.round((Math.max(d.actual,0)/maxVal)*180)+'px',minHeight:Math.max(d.actual,0)>0?2:0}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* X-axis labels */}
+        <div style={{display:'flex',gap:4}}>
+          {chartData.map((d,i)=>(<div key={i} style={{flex:1,textAlign:'center',fontSize:10,color:'#94a3b8',minWidth:40}}>{d.label}</div>))}
+        </div>
+      </div>
+    </div>}
+    
+    {/* Summary table */}
+    {chartData.length>0&&<>
+      <SecL>Summary</SecL>
+      <Card>
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,paddingBottom:8,borderBottom:'1px solid #f0f0f0',marginBottom:4}}>
+          <div style={{fontSize:10,color:'#aaa',fontWeight:700}}></div>
+          <div style={{fontSize:10,color:'#16a34a',fontWeight:700,textAlign:'right',minWidth:72}}>Gross</div>
+          <div style={{fontSize:10,color:'#2563eb',fontWeight:700,textAlign:'right',minWidth:72}}>Real</div>
+          <div style={{fontSize:10,color:'#7c3aed',fontWeight:700,textAlign:'right',minWidth:72}}>Actual</div>
+        </div>
+        {chartData.map((d,i)=>(<div key={i} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
+          <span style={{fontSize:12,fontWeight:600}}>{d.label}</span>
+          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#16a34a'}}>{fmt(d.gross)}</span>
+          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:'#2563eb'}}>{fmt(d.real)}</span>
+          <span style={{fontSize:12,textAlign:'right',minWidth:72,color:d.actual>=0?'#7c3aed':'#dc2626',fontWeight:d.actual<0?700:400}}>{fmt(d.actual)}</span>
+        </div>))}
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',borderTop:'2px solid #111',marginTop:4}}>
+          <span style={{fontSize:13,fontWeight:800}}>Total</span>
+          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#16a34a'}}>{fmt(chartData.reduce((a,d)=>a+d.gross,0))}</span>
+          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#2563eb'}}>{fmt(chartData.reduce((a,d)=>a+d.real,0))}</span>
+          <span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:72,color:'#7c3aed'}}>{fmt(chartData.reduce((a,d)=>a+d.actual,0))}</span>
+        </div>
+      </Card>
+    </>}
+  </>)
+}
+
+/*  INSURANCE UPDATE PANEL  */
+
+const ExpensesReport=({db})=>{
+  const [per,setPer]=useState('month')
+  const [rm2,setRm2]=useState(todayStr().slice(0,7))
+  const [ry2,setRy2]=useState(todayStr().slice(0,4))
+  const [from,setFrom]=useState(todayStr().slice(0,7)+'-01')
+  const [to,setTo]=useState(todayStr())
+  const yrs=[...new Set(db.expenses.map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
+  if(!yrs.includes(ry2))yrs.unshift(ry2)
+  const expList=(per==='month'?db.expenses.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.expenses.filter(e=>e.date?.startsWith(ry2)):db.expenses.filter(e=>e.date>=from&&e.date<=to)).filter(e=>e.category!=='ref_paid')
+  const total=expList.reduce((a,e)=>a+e.amount,0)
+  const byCat={};expList.forEach(e=>{if(!byCat[e.category])byCat[e.category]=0;byCat[e.category]+=e.amount})
+  const sorted=Object.entries(byCat).sort((a,b)=>b[1]-a[1])
+  return(<>
+    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+      {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+    </div>
+    {per==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm2} onChange={e=>setRm2(e.target.value)}/>}
+    {per==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry2} onChange={e=>setRy2(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+    {per==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={from} onChange={e=>setFrom(e.target.value)}/><FInp label="To" type="date" value={to} onChange={e=>setTo(e.target.value)}/></div>}
+    <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:14,padding:'16px',marginBottom:14}}><div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total expenses</div><div style={{fontSize:32,fontWeight:800,color:'#dc2626'}}>{fmt(total)}</div><div style={{fontSize:11,color:'#aaa',marginTop:4}}>{expList.length} entries</div></div>
+    <SecL>By category</SecL>
+    <Card>
+      {sorted.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#ccc',fontSize:13}}>No expenses</div>}
+      {sorted.map(([cat,amt])=>{const c=ECATS.find(x=>x.key===cat);const pct=total>0?Math.round(amt/total*100):0;return(<div key={cat} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}><span style={{fontSize:13,fontWeight:500}}>{c?.label||cat}</span><span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(amt)}</span></div><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:6,background:'#f0f0f0',borderRadius:3}}><div style={{width:pct+'%',height:6,background:'#ef4444',borderRadius:3,opacity:0.7}}/></div><span style={{fontSize:10,color:'#aaa',minWidth:28}}>{pct}%</span></div></div>)})}
+      {total>0&&<div style={{display:'flex',justifyContent:'space-between',paddingTop:10,marginTop:4,borderTop:'2px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total</span><span style={{color:'#ef4444'}}>{fmt(total)}</span></div>}
+    </Card>
+    <HBarChart title="Expenses by category" data={sorted.slice(0,8).map(([cat,amt])=>{const c=ECATS.find(x=>x.key===cat);return{label:(c?.label||cat).split(' ').slice(0,2).join(' '),value:amt,color:'#ef4444',fmt:fmt(amt)}})}/>
+  </>)
+}
+
+/*  PATIENT LIST REPORT  */
+
+const InsuranceReport=({db,actions})=>{
+  const [filter,setFilter]=useState('all')
+  
+  // Get all IP patients with insurance
+  const insPatients=db.ip_patients.filter(p=>p.insurance_type&&p.insurance_type.trim())
+  
+  // Calculate totals per patient
+  const insData=insPatients.map(p=>{
+    const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
+    const cashPayments=(p.payments||[]).filter(py=>py.mode!=='insurance')
+    const insReceived=insPayments.reduce((a,py)=>a+(py.amount||0),0)
+    const cashReceived=cashPayments.reduce((a,py)=>a+(py.amount||0),0)
+    const totalIncome=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+    const totalPaid=insReceived+cashReceived
+    const expectedFromIns=p.insurance_expected||0
+    const insPending=Math.max(expectedFromIns-insReceived,0)
+    const patientCopay=Math.max(totalIncome-expectedFromIns,0)
+    const copayPending=Math.max(patientCopay-cashReceived,0)
+    const status=p.insurance_status||'pending'
+    return{p,insReceived,cashReceived,totalIncome,totalPaid,expectedFromIns,insPending,patientCopay,copayPending,status,insPayments}
+  })
+  
+  const filtered=filter==='all'?insData:insData.filter(d=>d.status===filter)
+  
+  // Summary stats
+  const totalExpected=insData.reduce((a,d)=>a+d.expectedFromIns,0)
+  const totalInsReceived=insData.reduce((a,d)=>a+d.insReceived,0)
+  const totalInsPending=insData.reduce((a,d)=>a+d.insPending,0)
+  const totalCopayPending=insData.reduce((a,d)=>a+d.copayPending,0)
+  const pendingApprovals=insData.filter(d=>d.status==='pending').length
+  const rejected=insData.filter(d=>d.status==='rejected').length
+
+  return(<>
+    {/* Summary cards */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+      {[
+        {l:'Total expected from insurance',v:fmt(totalExpected),c:'#2563eb',bg:'#eff6ff'},
+        {l:'Received from insurance',v:fmt(totalInsReceived),c:'#16a34a',bg:'#f0fdf4'},
+        {l:'Pending from insurance',v:fmt(totalInsPending),c:'#d97706',bg:'#fffbeb'},
+        {l:'Co-pay pending from patients',v:fmt(totalCopayPending),c:'#dc2626',bg:'#fef2f2'},
+      ].map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'12px'}}>
+        <div style={{fontSize:10,color:m.c,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
+        <div style={{fontSize:20,fontWeight:800,color:m.c}}>{m.v}</div>
+      </div>))}
+    </div>
+    
+    {/* Alert row */}
+    {(pendingApprovals>0||rejected>0)&&<div style={{display:'flex',gap:8,marginBottom:16}}>
+      {pendingApprovals>0&&<div style={{flex:1,background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'8px 12px',fontSize:12}}>
+        <span style={{fontWeight:700,color:'#d97706'}}>⏳ {pendingApprovals} pending approval{pendingApprovals>1?'s':''}</span>
+        <div style={{color:'#92400e',marginTop:2}}>Follow up with TPA/insurer</div>
+      </div>}
+      {rejected>0&&<div style={{flex:1,background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'8px 12px',fontSize:12}}>
+        <span style={{fontWeight:700,color:'#dc2626'}}>❌ {rejected} rejected claim{rejected>1?'s':''}</span>
+        <div style={{color:'#991b1b',marginTop:2}}>Review and resubmit</div>
+      </div>}
+    </div>}
+    
+    {/* Filter */}
+    <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+      {[{k:'all',l:'All'},{k:'pending',l:'Pending'},{k:'approved',l:'Approved'},{k:'rejected',l:'Rejected'}].map(f=>(
+        <button key={f.k} onClick={()=>setFilter(f.k)} style={{padding:'5px 14px',borderRadius:20,border:'none',
+          background:filter===f.k?'#16a34a':'#f1f5f9',color:filter===f.k?'#fff':'#64748b',fontSize:12,fontWeight:600,cursor:'pointer'}}>{f.l}</button>
+      ))}
+    </div>
+    
+    {/* Patient list */}
+    {filtered.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No insurance patients found</div>}
+    {filtered.map(({p,insReceived,totalIncome,expectedFromIns,insPending,patientCopay,copayPending,status})=>(
+      <div key={p.id} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.name}</div>
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{p.insurance_type}{p.insurance_policy_no?' — '+p.insurance_policy_no:''}</div>
+            <div style={{fontSize:11,color:'#94a3b8'}}>Admitted: {fmtD(p.admission_date)}{p.discharge_date?' | Discharged: '+fmtD(p.discharge_date):' | Active'}</div>
+          </div>
+          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:700,flexShrink:0,
+            background:status==='approved'?'#f0fdf4':status==='rejected'?'#fef2f2':'#fffbeb',
+            color:status==='approved'?'#16a34a':status==='rejected'?'#dc2626':'#d97706'
+          }}>{status==='approved'?'Approved':status==='rejected'?'Rejected':'Pending'}</span>
+        </div>
+        
+        {/* Bill breakdown */}
+        <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',fontSize:12}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+            <div><div style={{color:'#94a3b8',marginBottom:2}}>Total bill</div><div style={{fontWeight:700,color:'#0f172a',fontSize:14}}>{fmt(totalIncome)}</div></div>
+            <div><div style={{color:'#94a3b8',marginBottom:2}}>Insurance pays</div><div style={{fontWeight:700,color:'#2563eb',fontSize:14}}>{fmt(expectedFromIns)}</div></div>
+            <div><div style={{color:'#94a3b8',marginBottom:2}}>Patient co-pay</div><div style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{fmt(patientCopay)}</div></div>
+          </div>
+          <div style={{borderTop:'1px solid #e2e8f0',paddingTop:8,display:'flex',flexDirection:'column',gap:4}}>
+            <div style={{display:'flex',justifyContent:'space-between'}}>
+              <span style={{color:'#94a3b8'}}>Insurance received</span>
+              <span style={{fontWeight:600,color:'#16a34a'}}>{fmt(insReceived)}</span>
+            </div>
+            {insPending>0&&<div style={{display:'flex',justifyContent:'space-between'}}>
+              <span style={{color:'#d97706',fontWeight:600}}>Insurance pending</span>
+              <span style={{fontWeight:700,color:'#d97706'}}>{fmt(insPending)}</span>
+            </div>}
+            {copayPending>0&&<div style={{display:'flex',justifyContent:'space-between'}}>
+              <span style={{color:'#dc2626',fontWeight:600}}>Co-pay pending from patient</span>
+              <span style={{fontWeight:700,color:'#dc2626'}}>{fmt(copayPending)}</span>
+            </div>}
+            {insPending===0&&copayPending===0&&<div style={{textAlign:'center',color:'#16a34a',fontWeight:700,fontSize:13}}>✓ Fully settled</div>}
+          </div>
+        </div>
+      </div>
+    ))}
+  </>)
+}
+
+/*  INSURANCE MAIN TAB  */
+
+const InsuranceMainTab=({db,setDb,gotoIP,hospital})=>{
+  const [filter,setFilter]=useState('active')
+  const [selPat,setSelPat]=useState(null)
+  const [status,setStatus]=useState('')
+  const [newApproved,setNewApproved]=useState('')
+  const [insPayAmt,setInsPayAmt]=useState('')
+  const [insPayDate,setInsPayDate]=useState(todayStr())
+  const [insPayNote,setInsPayNote]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [saved,setSaved]=useState(false)
+
+  // All IP patients with insurance
+  const allInsPats=db.ip_patients.filter(p=>p.insurance_type&&p.insurance_type.trim())
+  const filtered=filter==='active'?allInsPats.filter(p=>!p.discharge_date):
+    filter==='discharged'?allInsPats.filter(p=>p.discharge_date):allInsPats
+
+  // Summary stats
+  const totalExpected=allInsPats.reduce((a,p)=>a+(p.insurance_expected||0),0)
+  const totalInsRec=allInsPats.reduce((a,p)=>a+(p.payments||[]).filter(py=>py.mode==='insurance').reduce((s,py)=>s+(py.amount||0),0),0)
+  const totalInsPend=Math.max(totalExpected-totalInsRec,0)
+  const pendingApprovals=allInsPats.filter(p=>p.insurance_status==='pending'||!p.insurance_status).length
+
+  const openPat=(p)=>{
+    setSelPat(p)
+    setStatus(p.insurance_status||'pending')
+    setNewApproved(String(p.insurance_expected||0))
+    setInsPayAmt('')
+    setInsPayNote('')
+    setInsPayDate(todayStr())
+  }
+
+  const saveStatus=async()=>{
+    if(!selPat)return
+    setBusy(true)
+    const approved=parseFloat(newApproved)||0
+    const {error}=await supabase.from('ip_patients').update({
+      insurance_status:status,
+      insurance_expected:approved
+    }).eq('id',selPat.id)
+    if(error){alert('Update failed: '+error.message);setBusy(false);return}
+    setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,insurance_status:status,insurance_expected:approved}:p)}))
+    setSelPat(p=>({...p,insurance_status:status,insurance_expected:approved}))
+    setSaved(true);setTimeout(()=>setSaved(false),2000)
+    setBusy(false)
+  }
+
+  const addPayment=async()=>{
+    if(!selPat||!insPayAmt||parseFloat(insPayAmt)<=0){alert('Enter amount');return}
+    setBusy(true)
+    const amt=parseFloat(insPayAmt)
+    const newPmt={id:uid(),date:insPayDate,amount:amt,mode:'insurance',note:insPayNote||'Insurance payment received'}
+    const newPayments=[...(selPat.payments||[]),newPmt]
+    const {error}=await supabase.from('ip_patients').update({payments:newPayments}).eq('id',selPat.id)
+    if(error){alert('Failed: '+error.message);setBusy(false);return}
+    setDb(d=>({...d,
+      ip_patients:d.ip_patients.map(p=>p.id===selPat.id?{...p,payments:newPayments}:p)
+    }))
+    setSelPat(p=>({...p,payments:newPayments}))
+    setInsPayAmt('');setInsPayNote('')
+    setBusy(false)
+  }
+
+  // Patient detail panel
+  if(selPat){
+    const p=db.ip_patients.find(x=>x.id===selPat.id)||selPat
+    const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+    const bills=db.income.filter(e=>e.patient_id===p.id)
+    const approved=parseFloat(newApproved)||p.insurance_expected||0
+    const insPayments=(p.payments||[]).filter(py=>py.mode==='insurance')
+    const insRec=insPayments.reduce((a,py)=>a+(py.amount||0),0)
+    const insPend=Math.max(approved-insRec,0)
+    const copay=Math.max(totalBill-approved,0)
+    const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+    const copayPend=Math.max(copay-cashRec,0)
+
+    return(<div style={{background:'#f8fafc',minHeight:'100vh'}}>
+      <div style={{background:'#0f172a',padding:'14px 16px',display:'flex',alignItems:'center',gap:10,position:'sticky',top:0,zIndex:10}}>
+        <button onClick={()=>setSelPat(null)} style={{color:'#94a3b8',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}>← Back</button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:700,color:'#fff'}}>{p.name}</div>
+          <div style={{fontSize:11,color:'#64748b'}}>{p.insurance_type}{p.insurance_policy_no?' — '+p.insurance_policy_no:''}</div>
+        </div>
+        <button onClick={()=>gotoIP&&gotoIP(p.id)} style={{fontSize:11,color:'#60a5fa',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',cursor:'pointer'}}>View IP →</button>
+      </div>
+      <div style={{padding:'16px'}}>
+
+        {/* Bill summary */}
+        <div style={{background:'linear-gradient(135deg,#1e3a5f,#1d4ed8)',borderRadius:16,padding:'16px',marginBottom:16}}>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:10}}>Admitted: {fmtD(p.admission_date)}{p.discharge_date?' | Discharged: '+fmtD(p.discharge_date):' | Active'}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>TOTAL BILL</div>
+              <div style={{fontSize:16,fontWeight:800,color:'#fff'}}>{fmt(totalBill)}</div>
+            </div>
+            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>INS APPROVED</div>
+              <div style={{fontSize:16,fontWeight:800,color:'#60a5fa'}}>{fmt(approved)}</div>
+            </div>
+            <div style={{textAlign:'center',background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'10px 6px'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.5)',fontWeight:700,marginBottom:4}}>CO-PAY</div>
+              <div style={{fontSize:16,fontWeight:800,color:'#a78bfa'}}>{fmt(copay)}</div>
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:4,fontSize:12}}>
+            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'rgba(255,255,255,0.5)'}}>Insurance received</span><span style={{color:'#4ade80',fontWeight:700}}>{fmt(insRec)}</span></div>
+            {insPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#fbbf24',fontWeight:600}}>Insurance pending</span><span style={{color:'#fbbf24',fontWeight:700}}>{fmt(insPend)}</span></div>}
+            {copayPend>0&&<div style={{display:'flex',justifyContent:'space-between'}}><span style={{color:'#f87171',fontWeight:600}}>Co-pay pending</span><span style={{color:'#f87171',fontWeight:700}}>{fmt(copayPend)}</span></div>}
+            {insPend===0&&copayPend===0&&totalBill>0&&<div style={{textAlign:'center',color:'#4ade80',fontWeight:700}}>✅ Fully settled</div>}
+          </div>
+        </div>
+
+        {/* Bills breakdown */}
+        {bills.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:10}}>Bills added</div>
+          {bills.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f5f5f5'}}>
+            <div><div style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={e.type}/><span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span></div>
+              {e.notes&&<div style={{fontSize:10,color:'#aaa',marginTop:1}}>{e.notes}</div>}
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{fmt(e.amount)}</div>
+              <div style={{fontSize:10,color:e.payment==='insurance'?'#2563eb':e.payment==='credit'?'#dc2626':'#94a3b8'}}>{e.payment}</div>
+            </div>
+          </div>))}
+          <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'2px solid #111',fontWeight:800,fontSize:13}}>
+            <span>Total billed</span><span style={{color:'#0f172a'}}>{fmt(totalBill)}</span>
+          </div>
+        </div>}
+
+        {/* Update approval */}
+        <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Update insurance approval</div>
+          <FSel label="Status" value={status} onChange={e=>setStatus(e.target.value)}>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </FSel>
+          <FInp label="Total approved amount (Rs)" type="number" value={newApproved} onChange={e=>setNewApproved(e.target.value)} placeholder="e.g. 25000"/>
+          {parseFloat(newApproved)>0&&<div style={{background:'#eff6ff',borderRadius:8,padding:'8px 10px',fontSize:12,color:'#1e40af',marginBottom:8}}>
+            Approved: {fmt(parseFloat(newApproved))} — Patient co-pay: {fmt(Math.max(totalBill-parseFloat(newApproved),0))}
+          </div>}
+          <GBtn onClick={saveStatus} disabled={busy}>{busy?'Saving...':saved?'✓ Saved':'Save approval'}</GBtn>
+        </div>
+
+        {/* Record insurance payment */}
+        <div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:12}}>Record insurance payment received</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FInp label="Amount (Rs)" type="number" value={insPayAmt} onChange={e=>setInsPayAmt(e.target.value)} placeholder="0"/>
+            <FInp label="Date" type="date" value={insPayDate} onChange={e=>setInsPayDate(e.target.value)}/>
+          </div>
+          <FInp label="Note" type="text" value={insPayNote} onChange={e=>setInsPayNote(e.target.value)} placeholder="e.g. Pre-auth 1, Final settlement"/>
+          {insPayAmt&&insPend>0&&<div style={{fontSize:11,color:'#d97706',marginBottom:8}}>After this: insurance pending = {fmt(Math.max(insPend-parseFloat(insPayAmt||0),0))}</div>}
+          <GBtn onClick={addPayment} disabled={busy}>{busy?'Saving...':'Record payment'}</GBtn>
+        </div>
+
+        {/* Payment history */}
+        {insPayments.length>0&&<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginBottom:10}}>Insurance payment history</div>
+          {insPayments.map((py,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+            <div><div style={{fontSize:13,fontWeight:600}}>{py.note||'Insurance payment'}</div>
+              <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(py.date)}</div>
+            </div>
+            <div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(py.amount)}</div>
+          </div>))}
+          <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #e5e7eb',fontWeight:700,fontSize:13}}>
+            <span>Total received</span><span style={{color:'#16a34a'}}>{fmt(insRec)}</span>
+          </div>
+        </div>}
+      </div>
+    </div>)
+  }
+
+  // Patient list view
+  return(<>
+    {/* Summary */}
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+      {[
+        {l:'Total insurance expected',v:fmt(totalExpected),c:'#2563eb',bg:'#eff6ff'},
+        {l:'Insurance received',v:fmt(totalInsRec),c:'#16a34a',bg:'#f0fdf4'},
+        {l:'Insurance pending',v:fmt(totalInsPend),c:'#d97706',bg:'#fffbeb'},
+        {l:'Pending approvals',v:pendingApprovals+' patients',c:'#dc2626',bg:'#fef2f2'},
+      ].map((m,i)=>(<div key={i} style={{background:m.bg,borderRadius:12,padding:'12px'}}>
+        <div style={{fontSize:10,color:m.c,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{m.l}</div>
+        <div style={{fontSize:18,fontWeight:800,color:m.c}}>{m.v}</div>
+      </div>))}
+    </div>
+
+    {/* Filter */}
+    <div style={{display:'flex',gap:6,marginBottom:14}}>
+      {[{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'all',l:'All'}].map(f=>(
+        <button key={f.k} onClick={()=>setFilter(f.k)} style={{padding:'6px 16px',borderRadius:20,border:'none',
+          background:filter===f.k?'#1d4ed8':'#f1f5f9',color:filter===f.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer'}}>{f.l}</button>
+      ))}
+    </div>
+
+    {filtered.length===0&&<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No insurance patients found. Admit a patient under Insurance to get started.</div>}
+    {filtered.map(p=>{
+      const totalBill=db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+(e.amount||0),0)
+      const insRec=(p.payments||[]).filter(py=>py.mode==='insurance').reduce((a,py)=>a+(py.amount||0),0)
+      const insPend=Math.max((p.insurance_expected||0)-insRec,0)
+      const copay=Math.max(totalBill-(p.insurance_expected||0),0)
+      const cashRec=(p.payments||[]).filter(py=>py.mode!=='insurance').reduce((a,py)=>a+(py.amount||0),0)
+      const copayPend=Math.max(copay-cashRec,0)
+      const st=p.insurance_status||'pending'
+      return(<div key={p.id} onClick={()=>openPat(p)} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:14,padding:'14px',marginBottom:10,cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#0f172a'}}>{p.name}</div>
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{p.insurance_type}</div>
+            {p.insurance_policy_no&&<div style={{fontSize:11,color:'#94a3b8'}}>{p.insurance_policy_no}</div>}
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' → '+fmtD(p.discharge_date):<span style={{color:'#16a34a',fontWeight:600}}> Active</span>}</div>
+          </div>
+          <span style={{fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:700,flexShrink:0,
+            background:st==='approved'?'#f0fdf4':st==='rejected'?'#fef2f2':'#fffbeb',
+            color:st==='approved'?'#16a34a':st==='rejected'?'#dc2626':'#d97706'
+          }}>{st==='approved'?'Approved':st==='rejected'?'Rejected':'Pending'}</span>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+          <div style={{textAlign:'center',background:'#f8fafc',borderRadius:8,padding:'6px'}}>
+            <div style={{fontSize:9,color:'#94a3b8',fontWeight:700}}>BILL</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{fmt(totalBill)}</div>
+          </div>
+          <div style={{textAlign:'center',background:'#eff6ff',borderRadius:8,padding:'6px'}}>
+            <div style={{fontSize:9,color:'#2563eb',fontWeight:700}}>APPROVED</div>
+            <div style={{fontSize:13,fontWeight:800,color:'#2563eb'}}>{fmt(p.insurance_expected||0)}</div>
+          </div>
+          <div style={{textAlign:'center',background:copayPend>0||insPend>0?'#fef2f2':'#f0fdf4',borderRadius:8,padding:'6px'}}>
+            <div style={{fontSize:9,color:copayPend>0||insPend>0?'#dc2626':'#16a34a',fontWeight:700}}>{copayPend>0||insPend>0?'PENDING':'SETTLED'}</div>
+            <div style={{fontSize:13,fontWeight:800,color:copayPend>0||insPend>0?'#dc2626':'#16a34a'}}>{copayPend>0||insPend>0?fmt(insPend+copayPend):'✓'}</div>
+          </div>
+        </div>
+      </div>)
+    })}
+  </>)
+}
+
+/*  IP BILLING MODULE  */
+
+
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
