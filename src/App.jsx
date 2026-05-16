@@ -4882,6 +4882,72 @@ const SpecialityReport=({db})=>{
   </>)
 }
 
+const RealIncomeReport=({db})=>{
+  const [per,setPer]=useState('month')
+  const [rm2,setRm2]=useState(todayStr().slice(0,7))
+  const [ry2,setRy2]=useState(todayStr().slice(0,4))
+  const income=per==='month'?db.income.filter(e=>e.date?.startsWith(rm2)):
+               per==='year'?db.income.filter(e=>e.date?.startsWith(ry2)):db.income
+  const expenses=per==='month'?db.expenses.filter(e=>e.date?.startsWith(rm2)&&e.category!=='ref_paid'):
+                 per==='year'?db.expenses.filter(e=>e.date?.startsWith(ry2)&&e.category!=='ref_paid'):
+                 db.expenses.filter(e=>e.category!=='ref_paid')
+  const yrs2=[...new Set(db.income.map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
+  const allInc=income.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)
+  const allComm=income.reduce((a,e)=>a+getComm(e),0)
+  const allVCFees=income.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const allExp=expenses.reduce((a,e)=>a+e.amount,0)
+  const allReal=allInc-allComm-allVCFees-allExp
+  return(<>
+    <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+      {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'all',l:'All Time'}].map(v=>(
+        <button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'7px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#1a1a2e':'none',color:per===v.k?'#c9a84c':'#888',fontSize:12,fontWeight:700,cursor:'pointer'}}>{v.l}</button>
+      ))}
+    </div>
+    {per==='month'&&<input style={{...S.inp,marginBottom:10}} type="month" value={rm2} onChange={e=>setRm2(e.target.value)}/>}
+    {per==='year'&&<select style={{...S.sel,marginBottom:10}} value={ry2} onChange={e=>setRy2(e.target.value)}>{yrs2.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+    <Card>
+      {ITYPES.map(t=>{
+        const ents=income.filter(e=>e.type===t.key&&!isExcluded(e))
+        const inc=ents.reduce((a,e)=>a+e.amount,0)
+        const comm=ents.reduce((a,e)=>a+getComm(e),0)
+        const vcf=t.key==='vc'?ents.reduce((a,e)=>a+(e.consultant_fee||0),0):0
+        if(!inc)return null
+        const rate=inc>0?Math.round((comm+vcf)/inc*100):0
+        return(<div key={t.key} style={{padding:'8px 0',borderBottom:'1px solid #f5f5f5'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+            <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span>
+            <span style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(inc-comm-vcf)}</span>
+          </div>
+          <div style={{display:'flex',gap:12,fontSize:11,color:'#94a3b8',paddingLeft:4}}>
+            <span>Collected: {fmt(inc)}</span>
+            {(comm+vcf)>0&&<span style={{color:'#dc2626'}}>Deduct: {fmt(comm+vcf)} ({rate}%)</span>}
+          </div>
+        </div>)
+      })}
+      <div style={{display:'flex',justifyContent:'space-between',padding:'10px 0 0',marginTop:4,borderTop:'2px solid #1a1a2e',fontSize:14,fontWeight:800}}>
+        <span>Net Income (before expenses)</span>
+        <span style={{color:'#16a34a'}}>{fmt(allInc-allComm-allVCFees)}</span>
+      </div>
+    </Card>
+    {allExp>0&&<Card style={{marginTop:8}}>
+      <div style={{fontSize:11,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:8}}>Expenses</div>
+      {ECATS.filter(c=>c.key!=='ref_paid').map(cat=>{
+        const amt=expenses.filter(e=>e.category===cat.key).reduce((a,e)=>a+e.amount,0)
+        if(!amt)return null
+        return(<Row key={cat.key} left={cat.label} right={<span style={{color:'#ef4444',fontWeight:600}}>-{fmt(amt)}</span>}/>)
+      })}
+      <div style={{display:'flex',justifyContent:'space-between',padding:'8px 0 0',borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700,color:'#ef4444'}}>
+        <span>Total Expenses</span><span>-{fmt(allExp)}</span>
+      </div>
+    </Card>}
+    <div style={{background:'linear-gradient(135deg,#1a1a2e,#2d2d4e)',borderRadius:14,padding:'16px',marginTop:12,color:'#fff'}}>
+      <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Real Income (After All Deductions)</div>
+      <div style={{fontSize:32,fontWeight:900,color:allReal>=0?'#c9a84c':'#f87171'}}>{fmt(allReal)}</div>
+      <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:4}}>Collected {fmt(allInc)} − Referral {fmt(allComm)} − VC Fees {fmt(allVCFees)} − Expenses {fmt(allExp)}</div>
+    </div>
+  </>)
+}
+
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
