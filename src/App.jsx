@@ -4727,39 +4727,61 @@ const PatientDataReport=({db})=>{
     }
   }
 
+  const {isMobile:pdMobile}=useResponsive()
   const [showFilters,setShowFilters]=useState(false)
   const activeFilters=[filterArea,filterRef,filterCond].filter(Boolean).length
   return(<>
-    {/* Search + Filter toggle */}
-    <div style={{display:'flex',gap:6,marginBottom:8,alignItems:'center'}}>
-      <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
-      <button onClick={()=>setShowFilters(f=>!f)} style={{padding:'9px 14px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',background:activeFilters>0?'#1a1a2e':'#fff',color:activeFilters>0?'#c9a84c':'#555',whiteSpace:'nowrap'}}>
-        ⚙ Filters {activeFilters>0&&`(${activeFilters})`}
-      </button>
-      <button onClick={exportPDF} style={{padding:'9px 12px',background:'#dc2626',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📄</button>
-    </div>
-    {/* Collapsible filter panel */}
-    {showFilters&&<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px',marginBottom:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-      <div>
-        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Area</div>
-        <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{width:'100%',padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-          <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
-        </select>
-      </div>
-      <div>
-        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Ref Doctor</div>
-        <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{width:'100%',padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-          <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
-        </select>
-      </div>
-      <div style={{gridColumn:'1/-1'}}>
-        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Condition</div>
-        <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{width:'100%',padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-          <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
-        </select>
-      </div>
-      {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{gridColumn:'1/-1',padding:'7px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear Filters</button>}
-    </div>}
+    {/* On desktop: all filters inline. On mobile: collapsible */}
+    {!pdMobile
+      ?<div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:8,marginBottom:12,alignItems:'end'}}>
+          <div>
+            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Search</div>
+            <input placeholder="Name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{width:'100%',padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Area</div>
+            <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+              <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Ref Doctor</div>
+            <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+              <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Condition</div>
+            <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+              <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
+            </select>
+          </div>
+          <div style={{display:'flex',gap:6}}>
+            {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{padding:'8px 10px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕</button>}
+            <button onClick={exportPDF} style={{padding:'8px 14px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📄 Export</button>
+          </div>
+        </div>
+      :<>
+        <div style={{display:'flex',gap:6,marginBottom:8,alignItems:'center'}}>
+          <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
+          <button onClick={()=>setShowFilters(f=>!f)} style={{padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',background:activeFilters>0?'#1a1a2e':'#fff',color:activeFilters>0?'#c9a84c':'#555'}}>
+            ⚙{activeFilters>0&&` (${activeFilters})`}
+          </button>
+          <button onClick={exportPDF} style={{padding:'9px 12px',background:'#dc2626',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄</button>
+        </div>
+        {showFilters&&<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px',marginBottom:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+          </select>
+          <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff',gridColumn:'1/-1'}}>
+            <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
+          </select>
+          {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{gridColumn:'1/-1',padding:'7px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear</button>}
+        </div>}
+      </>}
     <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>{pats.length} patients found</div>
     <div style={{overflowX:'auto'}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
