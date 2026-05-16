@@ -4638,6 +4638,8 @@ const PatientDataReport=({db})=>{
   const [filterSpec,setFilterSpec]=useState('')
   const [filterCond,setFilterCond]=useState('')
   const [search,setSearch]=useState('')
+  const [showFilters,setShowFilters]=useState(false)
+  const {isMobile:pdMobile}=useResponsive()
 
   // Build unique patient registry
   const patMap={}
@@ -4727,8 +4729,6 @@ const PatientDataReport=({db})=>{
     }
   }
 
-  const {isMobile:pdMobile}=useResponsive()
-  const [showFilters,setShowFilters]=useState(false)
   const activeFilters=[filterArea,filterRef,filterCond].filter(Boolean).length
   return(<>
     {/* On desktop: all filters inline. On mobile: collapsible */}
