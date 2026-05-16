@@ -112,6 +112,8 @@ const getPkgPayments=(pats,datePrefix)=>{
 }
 const buildRef=income=>{const docs={};income.filter(e=>e.payment!=='written_off').forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim())return;const commAll=getCommAll(e);if(!commAll&&!e.amount)return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=commAll;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
 
+const RESP_CSS='@media(min-width:768px){.app-wrapper{max-width:none!important;display:flex!important}.app-header{width:230px!important;flex-shrink:0!important;height:100vh!important;position:sticky!important;top:0!important;overflow-y:auto!important;border-right:2px solid #f0f0f0!important;border-bottom:none!important;display:flex!important;flex-direction:column!important;padding:16px 0 0!important;box-shadow:2px 0 8px rgba(0,0,0,0.06)!important}.header-tabs{flex-direction:column!important;overflow:visible!important;gap:0!important;padding:0!important}.header-tabs button{width:100%!important;text-align:left!important;border-radius:0!important;border-bottom:none!important;border-right:3px solid transparent!important;padding:12px 20px!important}.app-main-content{flex:1!important;min-width:0!important;padding:24px 40px 40px!important}.dash-grid-2{grid-template-columns:repeat(4,1fr)!important}}'+'@media(min-width:768px) and (max-width:1199px){.app-header{width:190px!important}.dash-grid-2{grid-template-columns:repeat(3,1fr)!important}.app-main-content{padding:16px 24px!important}}'
+const InjectCSS=()=>{useEffect(()=>{const el=Object.assign(document.createElement('style'),{id:'easymed-resp',textContent:RESP_CSS});document.head.appendChild(el);return()=>el.remove()},[]);return null}
 const S={
   inp:{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:15,background:'#fff',color:'#1a1a2e',boxSizing:'border-box',fontFamily:"'DM Sans',system-ui,sans-serif",outline:'none',transition:'border-color .2s,box-shadow .2s',letterSpacing:'0.01em'},
   sel:{width:'100%',padding:'13px 16px',border:'1.5px solid #e8e2d9',borderRadius:10,fontSize:15,background:'#fff',color:'#1a1a2e',boxSizing:'border-box',fontFamily:"'DM Sans',system-ui,sans-serif",outline:'none',appearance:'auto'},
@@ -5224,6 +5226,7 @@ export default function App(){
   const tc=TAB_COLORS[tab]||{active:'#16a34a',bg:'#f0fdf4'}
   return(
     <div className="app-wrapper" style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
+      <InjectCSS/>
       <div className="app-header" style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:200,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
