@@ -39,6 +39,21 @@ const getPkgPayments=(pats,datePrefix)=>{
 }
 const buildRef=income=>{const docs={};income.forEach(e=>{const doc=e.ref_doctor;const comm=getComm(e);if(!doc||!doc.trim()||!comm)return;if(!docs[doc])docs[doc]={name:doc,total_income:0,total_commission:0,by_type:{}};docs[doc].total_income+=e.amount;docs[doc].total_commission+=comm;if(!docs[doc].by_type[e.type])docs[doc].by_type[e.type]={income:0,commission:0};docs[doc].by_type[e.type].income+=e.amount;docs[doc].by_type[e.type].commission+=comm});return Object.values(docs).sort((a,b)=>b.total_commission-a.total_commission)}
 
+const RESP_CSS='@media(min-width:768px){'+
+'.app-wrapper{max-width:100vw!important;width:100%!important;display:flex!important;flex-direction:row!important;align-items:flex-start!important}'+
+'.app-header{width:230px!important;flex-shrink:0!important;min-height:100vh!important;position:sticky!important;top:0!important;overflow-y:auto!important;border-right:2px solid #f0f0f0!important;border-bottom:none!important;display:flex!important;flex-direction:column!important;padding:0!important;box-shadow:2px 0 12px rgba(0,0,0,0.06)!important;box-sizing:border-box!important}'+
+'.app-nav-tabs{flex-direction:column!important;overflow:visible!important;gap:0!important;padding:0!important;margin:0!important;border-bottom:none!important}'+
+'.app-nav-tabs button{width:100%!important;text-align:left!important;border-radius:0!important;border-bottom:none!important;border-right:3px solid transparent!important;padding:13px 20px!important;font-size:13px!important}'+
+'.app-main-content{flex:1!important;min-width:0!important;max-width:none!important;padding:28px 32px 60px!important;box-sizing:border-box!important}'+
+'.app-main-content .rvtabs-sticky{top:0!important}'+
+'.dash-grid-2{grid-template-columns:repeat(4,1fr)!important}'+
+'}'+
+'@media(min-width:768px) and (max-width:1199px){'+
+'.app-header{width:190px!important}'+
+'.dash-grid-2{grid-template-columns:repeat(3,1fr)!important}'+
+'.app-main-content{padding:20px 24px 40px!important}'+
+'}'
+const InjectCSS=()=>{useEffect(()=>{const el=Object.assign(document.createElement('style'),{id:'easymed-resp',textContent:RESP_CSS});document.head.appendChild(el);return()=>el.remove()},[]);return null}
 const S={
   inp:{width:'100%',padding:'12px 14px',border:'2px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none',transition:'border-color .15s'},
   sel:{width:'100%',padding:'12px 14px',border:'2px solid #e5e7eb',borderRadius:12,fontSize:16,background:'#fff',color:'#111',boxSizing:'border-box',fontFamily:'inherit',outline:'none'},
@@ -4473,6 +4488,7 @@ export default function App(){
       </div>
     </div>
   )
+  if(loading)return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{textAlign:'center',color:'#94a3b8'}}><div style={{fontSize:40,marginBottom:8}}>🏥</div><div style={{fontSize:14,fontWeight:600}}>Loading...</div></div></div>)
   if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage session={session} onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
@@ -4495,6 +4511,7 @@ export default function App(){
   const tc=TAB_COLORS[tab]||{active:'#16a34a',bg:'#f0fdf4'}
   return(
     <div className="app-wrapper" style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
+      <InjectCSS/>
       <div className="app-header" style={{background:'#fff',borderBottom:'2px solid '+tc.bg,padding:'12px 16px 0',position:'sticky',top:0,zIndex:10,boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -4512,11 +4529,11 @@ export default function App(){
           </div>
         </div>
         {dbLoading&&<div style={{fontSize:11,color:'#3b82f6',marginBottom:6,textAlign:'center',fontWeight:600}}>Syncing...</div>}
-        <div style={{display:'flex',overflowX:'auto',gap:4,marginBottom:-1,paddingBottom:0,WebkitOverflowScrolling:'touch'}}>
+        <div className="app-nav-tabs" style={{display:'flex',overflowX:'auto',gap:4,marginBottom:-1,paddingBottom:0,WebkitOverflowScrolling:'touch'}}>
           {TABS.map(t=>{const tcolor=TAB_COLORS[t.k]||{active:'#16a34a',bg:'#f0fdf4'};const on=tab===t.k;return(<button key={t.k} onClick={()=>setTab(t.k)} style={{flexShrink:0,padding:'9px 12px',fontSize:11,fontWeight:700,border:'none',background:on?tcolor.bg:'transparent',color:on?tcolor.active:'#94a3b8',borderBottom:on?'2.5px solid '+tcolor.active:'2.5px solid transparent',cursor:'pointer',whiteSpace:'nowrap',borderRadius:'8px 8px 0 0',transition:'all .15s'}}>{t.l}</button>)})}
         </div>
       </div>
-      <div style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
+      <div className="app-main-content" style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
