@@ -62,11 +62,9 @@ const cleanNotes=n=>{
   return n.trim()
 }
 const PAY_STYLE={cash:{bg:'#dcfce7',color:'#16a34a',label:'Cash'},upi:{bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},card:{bg:'#f3e8ff',color:'#7c3aed',label:'Card'},bank:{bg:'#e0f2fe',color:'#0369a1',label:'Bank'},insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},credit:{bg:'#fed7aa',color:'#c2410c',label:'Credit'}}
-const PAY_ICON={cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳',written_off:'✂️'}
 const PayBadges=({e,cr})=>{
-  if(cr)return<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>⏳ Credit</span>
-  const st=PAY_STYLE[e.payment]||{bg:'#f0f0f0',color:'#555',label:e.payment||''}
-  return(<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:st.bg,color:st.color,fontWeight:700,display:'inline-block'}}>{PAY_ICON[e.payment]||'💰'} {st.label}</span>)
+  if(cr)return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fed7aa',color:'#c2410c',fontWeight:700}}>⏳ Credit</span>
+  return(<span style={{display:'inline-flex',gap:4,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:PAY_STYLE[e.payment]?.bg||'#f0f0f0',color:PAY_STYLE[e.payment]?.color||'#555',fontWeight:700}}>{PAY_STYLE[e.payment]?.label||e.payment}</span></span>)
 }
 const Row=({left,sub,right,onClick})=>(
   <div onClick={onClick} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 0',borderBottom:'1px solid #f1f5f9',cursor:onClick?'pointer':'default'}}>
@@ -3777,8 +3775,6 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           const cashAmt=pat.entries.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
           const upiAmt=pat.entries.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
           const cardAmt=pat.entries.filter(e=>e.payment==='card').reduce((a,e)=>a+e.amount,0)
-          const bankAmt=pat.entries.filter(e=>e.payment==='bank').reduce((a,e)=>a+e.amount,0)
-          const insurAmt=pat.entries.filter(e=>e.payment==='insurance').reduce((a,e)=>a+e.amount,0)
           const creditAmt=pat.entries.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
           return(<div key={pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
@@ -3786,12 +3782,11 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                 {ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
                 {consFee>0&&<div style={{fontSize:11,color:'#7c3aed',marginTop:2}}>Cons fee: {fmt(consFee)}{consName?' ('+consName+')':''}</div>}
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
-                  {cashAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>💵 Cash {fmt(cashAmt)}</span>}
-                  {upiAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>📱 UPI {fmt(upiAmt)}</span>}
-                  {cardAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#f3e8ff',color:'#7c3aed',fontWeight:700}}>💳 Card {fmt(cardAmt)}</span>}
-                  {bankAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>🏦 Bank {fmt(bankAmt)}</span>}
-                  {insurAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fef9c3',color:'#854d0e',fontWeight:700}}>🛡 Ins {fmt(insurAmt)}</span>}
-                  {creditAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>⏳ Credit {fmt(creditAmt)}</span>}
+                  {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
+                  {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
+                  {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
+                  {typeof bankAmt!=='undefined'&&bankAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>Bank {fmt(bankAmt)}</span>}
+                  {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
                 </div>
               </div>
               <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(total)}</div><TypeTag t="op"/></div>
@@ -3842,12 +3837,11 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>{ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
-                  {cashAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>💵 Cash {fmt(cashAmt)}</span>}
-                  {upiAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>📱 UPI {fmt(upiAmt)}</span>}
-                  {cardAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#f3e8ff',color:'#7c3aed',fontWeight:700}}>💳 Card {fmt(cardAmt)}</span>}
-                  {bankAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>🏦 Bank {fmt(bankAmt)}</span>}
-                  {insurAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fef9c3',color:'#854d0e',fontWeight:700}}>🛡 Ins {fmt(insurAmt)}</span>}
-                  {creditAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>⏳ Credit {fmt(creditAmt)}</span>}
+                  {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
+                  {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
+                  {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
+                  {typeof bankAmt!=='undefined'&&bankAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>Bank {fmt(bankAmt)}</span>}
+                  {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
                 </div>
               </div>
               <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(total)}</div><TypeTag t="op_r"/></div>
@@ -4144,95 +4138,65 @@ const PatientDataReport=({db})=>{
   const [search,setSearch]=useState('')
   const [filterArea,setFilterArea]=useState('')
   const [filterRef,setFilterRef]=useState('')
-  const [filterCond,setFilterCond]=useState('')
-  const [showFilters,setShowFilters]=useState(false)
 
   const patMap={}
-  ;(db.income||[]).filter(e=>e.patient_name&&['op','opd','op_r','op_l','ip','ip_r','ip_l'].includes(e.type)).forEach(e=>{
+  ;(db.income||[]).forEach(e=>{
+    if(!e.patient_name)return
     const k=(e.patient_name||'').trim().toLowerCase()
     if(!k)return
-    if(!patMap[k])patMap[k]={name:(e.patient_name||'').trim(),phone:'',area:'',ref_doctor:'',reg_no:'',visits:0,lastVisit:'',conditions:[]}
+    if(!patMap[k])patMap[k]={name:(e.patient_name||'').trim(),phone:e.patient_phone||'',area:e.patient_area||'',ref_doctor:e.ref_doctor||'',reg_no:e.reg_no||'',visits:0,lastVisit:''}
     patMap[k].visits++
-    if(e.date>patMap[k].lastVisit)patMap[k].lastVisit=e.date
+    if((e.date||'')>(patMap[k].lastVisit||''))patMap[k].lastVisit=e.date||''
     if(!patMap[k].phone&&e.patient_phone)patMap[k].phone=e.patient_phone
     if(!patMap[k].area&&e.patient_area)patMap[k].area=e.patient_area
     if(!patMap[k].ref_doctor&&e.ref_doctor)patMap[k].ref_doctor=e.ref_doctor
     if(!patMap[k].reg_no&&e.reg_no)patMap[k].reg_no=e.reg_no
-    const conds=(e.conditions||'').split(',').filter(Boolean)
-    conds.forEach(cd=>{if(!patMap[k].conditions.includes(cd))patMap[k].conditions.push(cd)})
-  });
-  (db.ip_patients||[]).forEach(p=>{
-    const k=(p.name||'').trim().toLowerCase()
-    if(!k)return
-    if(!patMap[k])patMap[k]={name:(p.name||'').trim(),phone:'',area:'',ref_doctor:'',reg_no:'',visits:0,lastVisit:'',conditions:[]}
-    if(!patMap[k].phone&&p.phone)patMap[k].phone=p.phone
-    if(!patMap[k].area&&p.patient_area)patMap[k].area=p.patient_area
-    if(!patMap[k].ref_doctor&&p.ref_doctor)patMap[k].ref_doctor=p.ref_doctor
-    if(!patMap[k].reg_no&&p.reg_no)patMap[k].reg_no=p.reg_no
   })
 
   let pats=Object.values(patMap).sort((a,b)=>(a.name||'').localeCompare(b.name||''))
   const areas=[...new Set(pats.map(p=>p.area).filter(Boolean))].sort()
   const refs=[...new Set(pats.map(p=>p.ref_doctor).filter(Boolean))].sort()
-  const allConds=[...new Set(pats.flatMap(p=>p.conditions||[]))].sort()
 
   if(search.trim().length>1){const s=search.trim().toLowerCase();pats=pats.filter(p=>(p.name||'').toLowerCase().includes(s)||(p.phone||'').includes(s)||(p.reg_no||'').toLowerCase().includes(s))}
   if(filterArea)pats=pats.filter(p=>p.area===filterArea)
   if(filterRef)pats=pats.filter(p=>p.ref_doctor===filterRef)
-  if(filterCond)pats=pats.filter(p=>(p.conditions||[]).includes(filterCond))
-
-  const activeFilters=[filterArea,filterRef,filterCond].filter(Boolean).length
 
   return(<>
-    {/* Search + Filters */}
-    <div style={{display:'flex',gap:6,marginBottom:8,alignItems:'center',flexWrap:'wrap'}}>
-      <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)}
-        style={{flex:'1 1 180px',padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
-      <button onClick={()=>setShowFilters(f=>!f)}
-        style={{padding:'9px 14px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',
-          background:activeFilters>0?'#1a1a2e':'#fff',color:activeFilters>0?'#c9a84c':'#555',whiteSpace:'nowrap'}}>
-        ⚙ Filters{activeFilters>0?` (${activeFilters})`:''}
-      </button>
-    </div>
-    {showFilters&&<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px',marginBottom:10,display:'flex',flexDirection:'column',gap:8}}>
-      <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+    <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap'}}>
+      <input placeholder="Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:'1 1 160px',padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
+      <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'9px 10px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,background:'#fff'}}>
         <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
       </select>
-      <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+      <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'9px 10px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,background:'#fff'}}>
         <option value="">All Ref Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
       </select>
-      <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-        <option value="">All Conditions</option>{allConds.map(cd=><option key={cd} value={cd}>{cd}</option>)}
-      </select>
-      {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}}
-        style={{padding:'8px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear Filters</button>}
-    </div>}
-    <div style={{fontSize:12,color:'#64748b',marginBottom:10,fontWeight:600}}>{pats.length} patients found</div>
-    {pats.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc'}}>No patients found</div>:
+      {(filterArea||filterRef)&&<button onClick={()=>{setFilterArea('');setFilterRef('')}} style={{padding:'9px 12px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕</button>}
+    </div>
+    <div style={{fontSize:12,color:'#64748b',marginBottom:8,fontWeight:600}}>{pats.length} patients found</div>
     <div style={{overflowX:'auto'}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr style={{background:'#1a1a2e',color:'#fff'}}>
-          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Name / Reg</th>
-          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Phone</th>
-          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Area</th>
-          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Ref Doctor</th>
-          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Conditions</th>
-          <th style={{padding:'8px 6px',textAlign:'center',fontWeight:700}}>Visits</th>
-          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Last Visit</th>
+          <th style={{padding:'8px 10px',textAlign:'left'}}>Name / Reg</th>
+          <th style={{padding:'8px 10px',textAlign:'left'}}>Phone</th>
+          <th style={{padding:'8px 10px',textAlign:'left'}}>Area</th>
+          <th style={{padding:'8px 10px',textAlign:'left'}}>Ref Doctor</th>
+          <th style={{padding:'8px 6px',textAlign:'center'}}>Visits</th>
+          <th style={{padding:'8px 10px',textAlign:'left'}}>Last Visit</th>
         </tr></thead>
         <tbody>
-          {pats.map((p,i)=><tr key={p.name} style={{background:i%2===0?'#fff':'#f8fafc',borderBottom:'1px solid #f0f0f0'}}>
-            <td style={{padding:'8px 10px'}}><div style={{fontWeight:700,color:'#111'}}>{p.name}</div>{p.reg_no&&<div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no}</div>}</td>
-            <td style={{padding:'8px 10px',color:'#555'}}>{p.phone||'—'}</td>
-            <td style={{padding:'8px 10px',color:'#555'}}>{p.area||'—'}</td>
-            <td style={{padding:'8px 10px',color:p.ref_doctor?'#d97706':'#ccc',fontWeight:p.ref_doctor?600:400}}>{p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}</td>
-            <td style={{padding:'8px 10px'}}>{(p.conditions||[]).map(cd=><span key={cd} style={{fontSize:10,padding:'1px 7px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700,marginRight:4,display:'inline-block'}}>{cd}</span>)}</td>
-            <td style={{padding:'8px 6px',textAlign:'center',fontWeight:700,color:'#1d4ed8'}}>{p.visits}</td>
-            <td style={{padding:'8px 10px',color:'#555',fontSize:12}}>{p.lastVisit?fmtD(p.lastVisit):'—'}</td>
-          </tr>)}
+          {pats.map((p,i)=>(
+            <tr key={i} style={{background:i%2===0?'#fff':'#f8fafc',borderBottom:'1px solid #f0f0f0'}}>
+              <td style={{padding:'8px 10px'}}><div style={{fontWeight:700}}>{p.name}</div>{p.reg_no&&<div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no}</div>}</td>
+              <td style={{padding:'8px 10px',color:'#555'}}>{p.phone||'—'}</td>
+              <td style={{padding:'8px 10px',color:'#555'}}>{p.area||'—'}</td>
+              <td style={{padding:'8px 10px',color:p.ref_doctor?'#d97706':'#ccc',fontWeight:p.ref_doctor?600:400}}>{p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}</td>
+              <td style={{padding:'8px 6px',textAlign:'center',fontWeight:700,color:'#1d4ed8'}}>{p.visits}</td>
+              <td style={{padding:'8px 10px',color:'#555',fontSize:12}}>{p.lastVisit?fmtD(p.lastVisit):'—'}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
-    </div>}
+    </div>
   </>)
 }
 
