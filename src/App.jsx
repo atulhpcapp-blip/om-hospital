@@ -1530,20 +1530,26 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
             </>}
           </>}
         <div style={{marginBottom:8}}>
-          <FInp label="Amount (Rs) — enter 0 for free consultation" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>setIF({...iF,amount:e.target.value})}/>
+          <FInp label="Amount (Rs) — enter 0 for free consultation" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>{const newAmt=e.target.value;const newSplits=(iF.splits||[]).length<=1?[{amount:newAmt,mode:(iF.splits||[])[0]?.mode||iF.pay}]:iF.splits;setIF({...iF,amount:newAmt,splits:newSplits})}}/>
           {(iF.amount===''||iF.amount==='0'||parseFloat(iF.amount||1)===0)&&<div style={{fontSize:11,color:'#16a34a',marginTop:3,fontWeight:600}}>✓ Free / complimentary — will be saved as Rs 0</div>}
         </div>
         {prev>0&&iF.ref&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
         <div style={{marginBottom:12}}>
           <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:6}}>PAYMENT MODE</label>
-          {(iF.splits||[{amount:iF.amount,mode:iF.pay}]).map((sp,si)=><div key={si} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
-            <input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount" onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:tot>0?String(tot):iF.amount,pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
-            <select value={sp.mode} onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],mode:e.target.value};setIF({...iF,splits:s,pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}
-            </select>
-            {si>0?<button onClick={()=>{const s=(iF.splits||[]).filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16,lineHeight:1}}>×</button>:<div/>}
-          </div>)}
-          <button onClick={()=>setIF({...iF,splits:[...(iF.splits||[{amount:iF.amount,mode:iF.pay}]),{amount:'',mode:'cash'}]})} style={{width:'100%',padding:'8px',background:'#f0f9ff',color:'#0369a1',border:'1.5px dashed #7dd3fc',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',marginBottom:4}}>+ Split Payment (e.g. Cash + UPI)</button>
+          {(iF.splits||[{amount:iF.amount,mode:iF.pay}]).map((sp,si)=>{
+            const multiSplit=(iF.splits||[]).length>1
+            return(<div key={si} style={{display:'grid',gridTemplateColumns:multiSplit?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
+              {multiSplit&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount"
+                onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}}
+                style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
+              <select value={sp.mode} onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],mode:e.target.value};setIF({...iF,splits:s,pay:s[0].mode})}}
+                style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
+                {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}
+              </select>
+              {si>0?<button onClick={()=>{const s=(iF.splits||[]).filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16,lineHeight:1}}>×</button>:<div/>}
+            </div>)
+          })}
+          <button onClick={()=>setIF({...iF,splits:[{amount:iF.amount||'',mode:iF.pay},{amount:'',mode:'cash'}]})} style={{width:'100%',padding:'8px',background:'#f0f9ff',color:'#0369a1',border:'1.5px dashed #7dd3fc',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',marginBottom:4}}>+ Split Payment (e.g. Cash + UPI)</button>
           {(iF.splits||[]).length>1&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 10px',background:'#f0fdf4',borderRadius:8,fontSize:13,fontWeight:700}}>
             <span style={{color:'#16a34a'}}>Total</span>
             <span style={{color:'#16a34a'}}>Rs {(iF.splits||[]).reduce((a,s)=>a+(parseFloat(s.amount)||0),0).toLocaleString('en-IN')}</span>
