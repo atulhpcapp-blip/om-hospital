@@ -4134,6 +4134,176 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
 }
 
 
+const useResponsive=()=>{
+  const [w,setW]=useState(typeof window!=='undefined'?window.innerWidth:375)
+  useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener('resize',h);return()=>window.removeEventListener('resize',h)},[])
+  return{isMobile:w<768,isTablet:w>=768&&w<1200,isDesktop:w>=1200,w}
+}
+const PatientDataReport=({db})=>{
+  const [filterArea,setFilterArea]=useState('')
+  const [filterRef,setFilterRef]=useState('')
+  const [filterSpec,setFilterSpec]=useState('')
+  const [filterCond,setFilterCond]=useState('')
+  const [search,setSearch]=useState('')
+  const [showFilters,setShowFilters]=useState(false)
+  const {isMobile:pdMobile}=useResponsive()
+
+  // Build unique patient registry
+  const patMap={}
+  db.income.filter(e=>e.patient_name&&['op','opd','op_r'].includes(e.type)).forEach(e=>{
+    const k=(e.patient_name||'').trim().toLowerCase()
+    if(!k)return
+    if(!patMap[k]){patMap[k]={name:e.patient_name,phone:e.patient_phone||'',area:e.patient_area||'',ref_doctor:e.ref_doctor||'',reg_no:e.reg_no||'',visits:0,lastVisit:e.date}}
+    patMap[k].visits++
+    if(e.date>patMap[k].lastVisit)patMap[k].lastVisit=e.date
+    if(!patMap[k].phone&&e.patient_phone)patMap[k].phone=e.patient_phone
+    if(!patMap[k].area&&e.patient_area)patMap[k].area=e.patient_area
+    if(!patMap[k].ref_doctor&&e.ref_doctor)patMap[k].ref_doctor=e.ref_doctor
+    if(!patMap[k].reg_no&&e.reg_no)patMap[k].reg_no=e.reg_no
+  })
+  // Add IP patients
+  db.ip_patients.forEach(p=>{
+    const k=(p.name||'').trim().toLowerCase()
+    if(!k)return
+    if(!patMap[k]){patMap[k]={name:p.name,phone:p.phone||'',area:p.patient_area||'',ref_doctor:p.ref_doctor||'',reg_no:p.reg_no||'',visits:1,lastVisit:p.admission_date}}
+    if(!patMap[k].phone&&p.phone)patMap[k].phone=p.phone
+    if(!patMap[k].area&&p.patient_area)patMap[k].area=p.patient_area
+    if(!patMap[k].reg_no&&p.reg_no)patMap[k].reg_no=p.reg_no
+    patMap[k].visiting_consultant=patMap[k].visiting_consultant||p.visiting_consultant||''
+  })
+
+  let pats=Object.values(patMap).sort((a,b)=>a.name.localeCompare(b.name))
+
+  // Get filter options
+  // Build conditions from income entries
+  pats.forEach(p=>{
+    const patEnts=db.income.filter(e=>(e.patient_name||'').toLowerCase().trim()===(p.name||'').toLowerCase().trim()&&e.conditions)
+    const allConds=[...new Set(patEnts.flatMap(e=>e.conditions.split(',').filter(Boolean)))]
+    p.conditions=allConds
+  })
+  const areas=[...new Set(pats.map(p=>p.area).filter(Boolean))].sort()
+  const refs=[...new Set(pats.map(p=>p.ref_doctor).filter(Boolean))].sort()
+  const allConditions=[...new Set(pats.flatMap(p=>p.conditions||[]))].sort()
+  const specs=[...new Set(db.consultants.map(c=>c.speciality).filter(Boolean))].sort()
+
+  // Apply filters
+  if(filterArea)pats=pats.filter(p=>p.area===filterArea)
+  if(filterRef)pats=pats.filter(p=>p.ref_doctor===filterRef)
+  if(filterCond)pats=pats.filter(p=>(p.conditions||[]).includes(filterCond))
+  if(search.trim().length>1){const s=search.trim().toLowerCase();pats=pats.filter(p=>p.name.toLowerCase().includes(s)||p.phone?.includes(s)||p.reg_no?.toLowerCase().includes(s))}
+
+  const exportPDF=()=>{
+    const rows=pats.map((p,i)=>`<tr style="background:${i%2===0?'#fff':'#f8fafc'}">
+      <td>${i+1}</td><td><strong>${p.name}</strong><br/><span style="font-size:10px;color:#666">${p.reg_no||'—'}</span></td>
+      <td>${p.phone||'—'}</td><td>${p.area||'—'}</td>
+      <td>${p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}</td>
+      <td>${p.visits}</td><td>${p.lastVisit||'—'}</td>
+    </tr>`).join('')
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+      body{font-family:Arial,sans-serif;font-size:10pt;margin:0;padding:12mm}
+      h2{text-align:center;margin-bottom:4px}
+      p{text-align:center;color:#666;margin-bottom:12px;font-size:10px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#1e3a5f;color:#fff;padding:6px 8px;font-size:9pt;text-align:left}
+      td{padding:5px 8px;font-size:9pt;border-bottom:1px solid #e2e8f0;vertical-align:top}
+      @media print{@page{size:A4 landscape;margin:12mm}}
+    </style></head><body>
+    <h2>Patient Data Report</h2>
+    <p>Filters: ${filterArea?'Area: '+filterArea+' | ':''}${filterRef?'Ref: Dr. '+filterRef+' | ':''}Total: ${pats.length} patients | Generated: ${new Date().toLocaleDateString('en-IN')}</p>
+    <table><thead><tr><th>#</th><th>Patient Name / Reg No</th><th>Phone</th><th>Area</th><th>Ref Doctor</th><th>Visits</th><th>Last Visit</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    </body></html>`
+    const blob=new Blob([html],{type:'text/html'})
+    const url=URL.createObjectURL(blob)
+    const win=window.open(url,'_blank')
+    if(!win){
+      const ov=document.createElement('div')
+      ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#fff;overflow:auto'
+      const closeBtn=document.createElement('button')
+      closeBtn.textContent='✕ Close'
+      closeBtn.style.cssText='padding:8px 16px;background:none;border:1px solid #475569;border-radius:8px;color:#fff;cursor:pointer'
+      closeBtn.onclick=()=>ov.remove()
+      const printBtn=document.createElement('button')
+      printBtn.textContent='🖨 Print / PDF'
+      printBtn.style.cssText='padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer'
+      printBtn.onclick=()=>window.print()
+      const bar=document.createElement('div')
+      bar.style.cssText='position:sticky;top:0;background:#1e293b;padding:10px 16px;display:flex;gap:8px'
+      bar.appendChild(printBtn);bar.appendChild(closeBtn)
+      ov.appendChild(bar)
+      ov.innerHTML+=html
+      document.body.appendChild(ov)
+    }
+  }
+
+  const activeFilters=[filterArea,filterRef,filterCond].filter(Boolean).length
+  return(<>
+    {/* On desktop: all filters inline. On mobile: collapsible */}
+    {!pdMobile
+      ?<div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:8,marginBottom:12,alignItems:'end',marginTop:8}}>
+          <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{width:'100%',padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+          </select>
+          <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
+          </select>
+          <div style={{display:'flex',gap:6}}>
+            {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{padding:'8px 10px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕</button>}
+            <button onClick={exportPDF} style={{padding:'8px 14px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>📄 Export</button>
+          </div>
+        </div>
+      :<>
+        <div style={{display:'flex',gap:6,marginBottom:8,alignItems:'center'}}>
+          <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
+          <button onClick={()=>setShowFilters(f=>!f)} style={{padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',background:activeFilters>0?'#1a1a2e':'#fff',color:activeFilters>0?'#c9a84c':'#555'}}>
+            ⚙{activeFilters>0&&` (${activeFilters})`}
+          </button>
+          <button onClick={exportPDF} style={{padding:'9px 12px',background:'#dc2626',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄</button>
+        </div>
+        {showFilters&&<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px',marginBottom:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+          <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+            <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+          </select>
+          <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'7px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff',gridColumn:'1/-1'}}>
+            <option value="">All Conditions</option>{allConditions.map(cond=><option key={cond} value={cond}>{cond}</option>)}
+          </select>
+          {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{gridColumn:'1/-1',padding:'7px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear</button>}
+        </div>}
+      </>}
+    <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>{pats.length} patients found</div>
+    <div style={{overflowX:'auto'}}>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        <thead><tr style={{background:'#1e3a5f',color:'#fff'}}>
+          <th style={{padding:'8px',textAlign:'left'}}>Name / Reg No</th>
+          <th style={{padding:'8px'}}>Phone</th>
+          <th style={{padding:'8px'}}>Area</th>
+          <th style={{padding:'8px'}}>Ref Doctor</th>
+          <th style={{padding:'8px'}}>Conditions</th>
+          <th style={{padding:'8px'}}>Visits</th>
+          <th style={{padding:'8px'}}>Last Visit</th>
+        </tr></thead>
+        <tbody>{pats.map((p,i)=>(<tr key={i} style={{background:i%2===0?'#fff':'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+          <td style={{padding:'7px 8px'}}><div style={{fontWeight:600}}>{p.name}</div><div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no||'—'}</div></td>
+          <td style={{padding:'7px 8px',textAlign:'center'}}>{p.phone||<span style={{color:'#ccc'}}>—</span>}</td>
+          <td style={{padding:'7px 8px'}}>{p.area||<span style={{color:'#ccc'}}>—</span>}</td>
+          <td style={{padding:'7px 8px'}}>{p.ref_doctor?<span style={{color:'#1d4ed8'}}>Dr. {p.ref_doctor}</span>:<span style={{color:'#94a3b8'}}>Self</span>}</td>
+          <td style={{padding:'7px 8px'}}>{(p.conditions||[]).length>0?<div style={{display:'flex',flexWrap:'wrap',gap:3}}>{p.conditions.slice(0,3).map((cond,ci)=><span key={ci} style={{fontSize:10,padding:'1px 6px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:600}}>{cond}</span>)}{p.conditions.length>3&&<span style={{fontSize:10,color:'#94a3b8'}}>+{p.conditions.length-3}</span>}</div>:<span style={{color:'#ccc',fontSize:11}}>—</span>}</td>
+          <td style={{padding:'7px 8px',textAlign:'center',fontWeight:600}}>{p.visits}</td>
+          <td style={{padding:'7px 8px',fontSize:11,color:'#64748b'}}>{p.lastVisit||'—'}</td>
+        </tr>))}
+        </tbody>
+      </table>
+    </div>
+  </>)
+}
+
 const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
