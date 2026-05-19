@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase.js'
 
-const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
+const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'op_p',label:'OP-P',full:'OP Procedures'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
 const ECATS=[{key:'ref_paid',label:'Referral commission paid'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'consultant_fee',label:'Consultant fee paid'},{key:'municipality',label:'Municipality'},{key:'biomedical_bags',label:'Biomedical waste bags'},{key:'stationary',label:'Stationary'},{key:'washroom_cleaner',label:'Washroom cleaner'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)'},{key:'misc',label:'Miscellaneous'}]
 const PMODES=['cash','upi','card','bank','credit','insurance']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
 const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,ip_p:0.30,vc:0}
 const CLBL={op:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%',ip_p:'30%',vc:'None'}
-const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],ip_p:['#ecfdf5','#065f46'],vc:['#f0fdf4','#065f46']}
+const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],ip_p:['#ecfdf5','#065f46'],vc:['#f0fdf4','#065f46'],opd:['#f0fdf4','#15803d'],op_p:['#fef3c7','#a16207']}
+
 const ROLES=['admin','management','accounts','staff']
 const OP_TYPES=['New OP','Review OP']
 const IP_PAT_TYPES=['Regular','Package','VC']
@@ -3780,6 +3781,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
 
   // Totals
   const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
+  const opdInc=dI.filter(e=>e.type==='opd').reduce((a,e)=>a+e.amount,0)
+  const oppInc=dI.filter(e=>e.type==='op_p').reduce((a,e)=>a+e.amount,0)
   const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
   const vcConsFee=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
@@ -4008,7 +4011,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:'#0369a1'}}>OP and IP Income</div>
-            <div style={{fontSize:10,color:'#7dd3fc',marginTop:2,lineHeight:1.5}}>OP + VC hospital profit + OP Pharmacy + IP Charges + IP Pharmacy{}minus all expenses except lab to lab</div>
+            <div style={{fontSize:10,color:'#7dd3fc',marginTop:2,lineHeight:1.5}}>OP + OPD + OP Procedures + VC + OP Pharmacy + IP Charges + IP Pharmacy minus all non-lab expenses</div>
           </div>
           <div style={{textAlign:'right',flexShrink:0,marginLeft:12}}>
             <div style={{fontSize:10,color:'#7dd3fc'}}>Actual income</div>
@@ -4016,10 +4019,37 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           </div>
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
-          {opInc>0&&<R l="OP Consultation" v={fmt(opInc)} green/>}
+          {opInc>0&&<>
+            <R l="OP Consultation" v={fmt(opInc)} green/>
+            {dI.filter(e=>e.type==='op'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''} <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {opdInc>0&&<>
+            <R l="OPD Services" v={fmt(opdInc)} green/>
+            {dI.filter(e=>e.type==='opd'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/> <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {oppInc>0&&<>
+            <R l="OP Procedures" v={fmt(oppInc)} green/>
+            {dI.filter(e=>e.type==='op_p'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/> <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
-          {oprInc>0&&<R l="OP Pharmacy" v={fmt(oprInc)} green/>}
-          {ipInc>0&&<R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>}
+          {oprInc>0&&<>
+            <R l="OP Pharmacy" v={fmt(oprInc)} green/>
+            {dI.filter(e=>e.type==='op_r'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/> <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {ipInc>0&&<>
+            <R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>
+            {(()=>{const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type)&&!isCredit(e));const byPat={};ipEnts.forEach(e=>{const k=e.patient_name||'—';if(!byPat[k])byPat[k]={amt:0,pid:e.patient_id||null};byPat[k].amt+=e.amount});return Object.entries(byPat).map(([name,d],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/></span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
+            </div>)})()}
+          </>}
           {(opComm+oprComm+ipComm)>0&&<R l="Ref commissions" v={'- '+fmt(opComm+oprComm+ipComm)} red/>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
