@@ -180,6 +180,7 @@ const PayBadges=({e,cr})=>{
     )})}
   </span>)
 }
+const cleanNotes=n=>n?n.replace(/\[splits:[^\]]+\]/g,'').trim():''
 const payLabel=e=>{
   const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes)
   if(splits&&splits.length>1){
@@ -1066,7 +1067,7 @@ const CreditTab=({db,actions})=>{
                 </div>
                 {typeEntries.map(e=>(
                   <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6,paddingLeft:6}}>
-                    <span style={{fontSize:12,color:'#aaa'}}>{fmtD(e.date)} - {fmt(e.amount)}{e.notes?' - '+e.notes:''}</span>
+                    <span style={{fontSize:12,color:'#aaa'}}>{fmtD(e.date)} - {fmt(e.amount)}{cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''}</span>
                     <div style={{display:'flex',gap:6}}>
                       <button onClick={()=>setCollectEntry(e)} style={{padding:'4px 12px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>
                       <button onClick={()=>{if(window.confirm('Write off Rs '+e.amount+' — '+it?.full+'\nfor '+pt.name+'?\nThis settles the debt without payment.'))actions.editIncome({...e,payment:'written_off'})}} style={{padding:'4px 10px',background:'#6b7280',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Write off</button>
@@ -1197,7 +1198,7 @@ const collectFromEntries=async(creds,collectAmt,pay,date,actions)=>{
         patient_id:e.patient_id||null,
         patient_name:e.patient_name||'',
         ref_doctor:e.ref_doctor||'',
-        notes:'[credit:'+e.id+':'+collectedNow+'] Partial collection'+(e.notes?' - '+e.notes:''),
+        notes:'[credit:'+e.id+':'+collectedNow+'] Partial collection'+(cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''),
         consultant_fee:0,
         consultant_name:'',
         op_type:e.op_type||'',
@@ -1694,7 +1695,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   <TypeTag t={t.key}/>{e.patient_name||'-'}
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Ref: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
+                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Ref: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''}</div>
                 {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}{e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{fontSize:10,color:'#7c3aed',marginTop:1}}>{e.conditions.split(',').filter(Boolean).join(' · ')}</div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
@@ -1795,7 +1796,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 {te.map(e=>(
                   <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6,paddingTop:6,borderTop:'1px dashed #fef3c7'}}>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:12,color:'#92400e'}}>{fmtD(e.date)} — <span style={{fontWeight:700}}>{fmt(e.amount)}</span> remaining{e.notes?' · '+e.notes:''}</div>
+                      <div style={{fontSize:12,color:'#92400e'}}>{fmtD(e.date)} — <span style={{fontWeight:700}}>{fmt(e.amount)}</span> remaining{cleanNotes(e.notes)?' · '+cleanNotes(e.notes):''}</div>
                       {(()=>{const colls=JSON.parse(e.collections||'[]');if(!colls.length)return null;return(<div style={{marginTop:3}}>{colls.map((cl,ci)=><div key={ci} style={{fontSize:10,color:'#16a34a'}}>✓ Collected {fmt(cl.amount)} · {cl.payment} · {fmtD(cl.date)}</div>)}</div>)})()}
                     </div>
                     <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700,flexShrink:0}}>Credit</span>
@@ -2194,7 +2195,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
               <span style={{float:'right',fontWeight:700,color:'#1d4ed8'}}>{fmt(db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0))}</span>
             </div>))}
             <Card>
-              {allEnts.map(e=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Ref: '+fmt(comm):''}</div>}{e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{e.notes}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:2,fontWeight:600}}>✎ {e.entered_by}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit</span>}{!isIP&&<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>}<span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
+              {allEnts.map(e=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Ref: '+fmt(comm):''}</div>}{cleanNotes(e.notes)&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{cleanNotes(e.notes)}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:2,fontWeight:600}}>✎ {e.entered_by}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit</span>}{!isIP&&<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>}<span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
             </Card>
           </>)
         })()}
@@ -2824,12 +2825,12 @@ const PatTimeline=({pat,income,db,onBack})=>{
       <div>
         <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}><TypeTag t={e.type}/><span style={{fontSize:12,fontWeight:600}}>{ITYPES.find(x=>x.key===e.type)?.full}</span></div>
         <div style={{fontSize:11,color:'#64748b'}}>{fmtD(e.date)}</div>
-        {e.notes&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{e.notes}</div>}
+        {cleanNotes(e.notes)&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{cleanNotes(e.notes)}</div>}
       </div>
       <div style={{textAlign:'right'}}>
         <div style={{fontSize:13,fontWeight:700,color:isCredit(e)?'#f59e0b':'#16a34a'}}>{fmt(e.amount)}{isCredit(e)?' (credit)':''}</div>
         {getCommAll(e)>0&&<div style={{fontSize:11,color:'#dc2626',fontWeight:600}}>Comm: {fmt(getCommAll(e))}</div>}
-        <div style={{fontSize:10,color:'#94a3b8'}}>{e.payment}</div>
+        <div style={{marginTop:2,display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={isCredit(e)}/></div>
       </div>
     </div>)}
   </div>)
@@ -4177,7 +4178,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {opdInc>0&&<>
             <R l="OPD Services" v={fmt(opdInc)} green/>
             {dI.filter(e=>e.type==='opd'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{(()=>{const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes);return splits&&splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')})()} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              <span>{(()=>{const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes);return splits&&splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')})()} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{cleanNotes(e.notes)?' — '+cleanNotes(e.notes):''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
@@ -5515,7 +5516,7 @@ const InsuranceMainTab=({db,setDb,gotoIP,hospital})=>{
           <div style={{fontSize:12,fontWeight:700,color:'#0f172a',marginBottom:10}}>Bills added</div>
           {bills.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div><div style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={e.type}/><span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span></div>
-              {e.notes&&<div style={{fontSize:10,color:'#aaa',marginTop:1}}>{e.notes}</div>}
+              {cleanNotes(e.notes)&&<div style={{fontSize:10,color:'#aaa',marginTop:1}}>{cleanNotes(e.notes)}</div>}
             </div>
             <div style={{textAlign:'right'}}>
               <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{fmt(e.amount)}</div>
@@ -5658,7 +5659,7 @@ const PatientTimeline=({db,pid,onBack})=>{
   ents.forEach(e=>{const cr=isCredit(e);events.push({date:e.date,label:(ITYPES.find(t=>t.key===e.type)?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':payLabel(e))+(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()?' - '+(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()):''),color:cr?'#c2410c':'#16a34a',icon:'IP'})})
   pkgs.forEach(py=>{events.push({date:py.date,label:'Package payment - '+fmt(py.amount),sub:py.payment+(py.commission>0?' - Comm: '+fmt(py.commission):''),color:'#1d4ed8',icon:'Pkg'})})
   if(p.discharge_date)events.push({date:p.discharge_date,label:'Discharged',sub:'',color:'#6b7280',icon:'D'})
-  opEnts.forEach(e=>{const cr=isCredit(e);const it=ITYPES.find(t=>t.key===e.type);events.push({date:e.date,label:(it?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':payLabel(e))+(e.ref_doctor?' - Ref: '+e.ref_doctor:'')+(e.op_type?' - '+e.op_type:'')+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#3b82f6',icon:'OP'})})
+  opEnts.forEach(e=>{const cr=isCredit(e);const it=ITYPES.find(t=>t.key===e.type);events.push({date:e.date,label:(it?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':payLabel(e))+(e.ref_doctor?' - Ref: '+e.ref_doctor:'')+(e.op_type?' - '+e.op_type:'')+(cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''),color:cr?'#c2410c':'#3b82f6',icon:'OP'})})
   events.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
   const ipBilled=ents.reduce((a,e)=>a+e.amount,0)+pkgs.reduce((a,py)=>a+py.amount,0)
   const opBilled=opEnts.reduce((a,e)=>a+e.amount,0)
