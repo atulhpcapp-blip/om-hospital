@@ -159,6 +159,27 @@ const getPayModeAmt=(e,mode)=>{
   }
   return e.payment===mode?e.amount:0
 }
+const PAY_STYLE={
+  cash:  {bg:'#dcfce7',color:'#16a34a',label:'Cash'},
+  upi:   {bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},
+  card:  {bg:'#f3e8ff',color:'#7c3aed',label:'Card'},
+  bank:  {bg:'#e0f2fe',color:'#0369a1',label:'Bank'},
+  insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},
+  credit:{bg:'#fed7aa',color:'#c2410c',label:'Credit'},
+  written_off:{bg:'#f3f4f6',color:'#6b7280',label:'Written off'},
+}
+const PayBadges=({e,cr})=>{
+  if(cr)return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fed7aa',color:'#c2410c',fontWeight:700,display:'inline-block'}}>⏳ Credit</span>
+  const splits=(e.payment_splits&&e.payment_splits.length>1)?e.payment_splits:decodeSplits(e.notes)
+  const modes=splits&&splits.length>1?splits:[{amount:e.amount,mode:e.payment}]
+  return(<span style={{display:'inline-flex',gap:4,flexWrap:'wrap'}}>
+    {modes.map((s,i)=>{const st=PAY_STYLE[s.mode]||{bg:'#f0f0f0',color:'#555',label:s.mode};return(
+      <span key={i} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:st.bg,color:st.color,fontWeight:700,display:'inline-block'}}>
+        {st.label}{modes.length>1?' Rs '+parseFloat(s.amount).toLocaleString('en-IN'):''}
+      </span>
+    )})}
+  </span>)
+}
 const payLabel=e=>{
   const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes)
   if(splits&&splits.length>1){
@@ -1835,7 +1856,11 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>
-                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':payLabel(e)}{(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()||'')?(' — '+(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()||'')):''}{getComm(e)>0?' — Ref: '+fmt(getComm(e)):''}</div>
+                  <div style={{marginTop:4,display:'flex',flexWrap:'wrap',gap:4,alignItems:'center'}}>
+                    <PayBadges e={e} cr={cr}/>
+                    {(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()||'')?<span style={{fontSize:10,color:'#94a3b8'}}>— {e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()}</span>:''}
+                    {getComm(e)>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>Ref: {fmt(getComm(e))}</span>}
+                  </div>
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
