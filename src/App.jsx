@@ -6210,6 +6210,7 @@ export default function App(){
       <PreviewApp db={previewHospital.db} hospital={previewHospital.hospital} onExit={()=>setPreviewHospital(null)}/>
     </div>
   )
+  if(!hospital)return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc'}}><div style={{textAlign:'center'}}><div style={{fontSize:32,marginBottom:12}}>🏥</div><div style={{fontSize:14,color:'#94a3b8',fontWeight:600}}>Setting up your hospital...</div></div></div>)
   if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
     return <PaymentPage session={session}/>
   }
