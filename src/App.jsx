@@ -1089,10 +1089,8 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
   const todayCash=cashTotal(di);const todayCredit=credTotal(di)
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   const go=async()=>{
-    try {
     const amt=parseFloat(iF.amount);
-    console.log('SAVE: amt=',amt,'splits=',JSON.stringify(iF.splits),'itype=',itype)
-    if(isNaN(amt)||amt<0){alert('Enter a valid amount (got: '+iF.amount+')');return}
+    if(isNaN(amt)||amt<0){alert('Enter a valid amount');return}
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
@@ -1101,20 +1099,13 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     const isMultiSplit=activeSplits.length>1
     let ok=true
     if(isMultiSplit){
-      console.log('SAVING SPLITS:',activeSplits.map(s=>s.amount+' '+s.mode).join(' + '))
       for(const sp of activeSplits){
         const sa=parseFloat(sp.amount)||0
-        const spMode=sp.mode
-        console.log('  → entry: amount='+sa+' mode='+spMode)
-        const r=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:sa,patient_id:pid,patient_name:pname,payment:spMode,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(sa*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
+        const r=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:sa,patient_id:pid,patient_name:pname,payment:sp.mode,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(sa*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
         if(!r)ok=false
       }
     } else { const ok2=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(amt*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')});ok=ok2}
     if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',conditions:[],newCondition:'',splits:[{amount:'',mode:'cash'}]})
-    } catch(err) {
-      console.error('SAVE ERROR:',err)
-      alert('Save crashed: '+(err?.message||err))
-    }
   }
   return(
     <div>
@@ -1226,7 +1217,21 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
         const ents=di.filter(e=>e.type===t.key);if(!ents.length)return null
         return(<div key={t.key}>
           <SecL>{t.full} - {fmt(tots[t.key])}</SecL>
-          <Card>{ents.map(e=>{const doc=getRefDoc(e,db.ip_patients);const comm=getComm(e);const cr=isCredit(e);return(
+          <Card>{(()=>{
+            const grouped={}
+            ents.forEach(e=>{
+              const k=(e.patient_name||'').trim().toLowerCase()+'|'+e.type+'|'+e.date+'|'+(e.ref_doctor||'')+'|'+(e.consultant_name||'')
+              if(!grouped[k])grouped[k]={base:e,entries:[]}
+              grouped[k].entries.push(e)
+            })
+            return Object.values(grouped).map(g=>{
+              const e=g.base
+              const allEntries=g.entries
+              const totalAmt=allEntries.reduce((a,x)=>a+x.amount,0)
+              const doc=getRefDoc(e,db.ip_patients)
+              const comm=allEntries.reduce((a,x)=>a+getComm(x),0)
+              const cr=isCredit(e)
+              return(
             <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
               <div style={{flex:1,minWidth:0,paddingRight:8}}>
                 <div style={{fontSize:13,fontWeight:500,color:'#111',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
@@ -1234,7 +1239,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
                 <div style={{marginTop:3,display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
-                  <PayBadges e={e} cr={cr}/>
+                  {allEntries.map((x,xi)=><PayBadges key={xi} e={x} cr={isCredit(x)}/>)}
                   {doc&&<span style={{fontSize:10,color:'#d97706'}}>Ref: {doc}</span>}
                   {comm>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>Comm: {fmt(comm)}</span>}
                   {e.type==='vc'&&e.consultant_fee>0&&<span style={{fontSize:10,color:'#7c3aed'}}>Fee: {fmt(e.consultant_fee)}</span>}
@@ -1245,12 +1250,12 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                 </div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-                <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
+                <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(totalAmt)}</span>
                 <button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
-                <DBtn onClick={()=>actions.delIncome(e.id)}></DBtn>
+                <DBtn onClick={()=>{const ok=allEntries.length>1?window.confirm('Delete all '+allEntries.length+' split entries?'):true;if(ok)allEntries.forEach(x=>actions.delIncome(x.id))}}></DBtn>
               </div>
             </div>
-          )})}</Card>
+          )})})()}</Card>
         </div>)
       })}
     </div>
