@@ -4029,10 +4029,10 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         {Object.values(oprByPat).map(pat=>{
           const total=pat.entries.reduce((a,e)=>a+e.amount,0)
           const ref=pat.entries.find(e=>e.ref_doctor)?.ref_doctor
-          const cashAmt=pat.entries.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
-          const upiAmt=pat.entries.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
-          const cardAmt=pat.entries.filter(e=>e.payment==='card').reduce((a,e)=>a+e.amount,0)
-          const creditAmt=pat.entries.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
+          const cashAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'cash'),0)
+          const upiAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'upi'),0)
+          const cardAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'card'),0)
+          const creditAmt=pat.entries.reduce((a,e)=>a+getPayModeAmt(e,'credit'),0)
           return(<div key={pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>{ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
@@ -4040,6 +4040,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                   {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
                   {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
                   {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
+                  {bankAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0f9ff',color:'#0369a1',fontWeight:700}}>Bank {fmt(bankAmt)}</span>}
                   {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
                 </div>
               </div>
@@ -4098,9 +4099,9 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
       :<Card>
         {Object.values(ipByPat).map(pat=>{
           const ipEnts=dI.filter(e=>['ip','ip_r'].includes(e.type)&&(e.patient_id===pat.id||(e.patient_name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()))
-          const cashAmt=ipEnts.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
-          const upiAmt=ipEnts.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
-          const creditAmt=ipEnts.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
+          const cashAmt=ipEnts.reduce((a,e)=>a+getPayModeAmt(e,'cash'),0)
+          const upiAmt=ipEnts.reduce((a,e)=>a+getPayModeAmt(e,'upi'),0)
+          const creditAmt=ipEnts.reduce((a,e)=>a+getPayModeAmt(e,'credit'),0)
           return(<div key={pat.id||pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
             <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.id} isIP={true}/>
