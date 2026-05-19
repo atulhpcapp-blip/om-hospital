@@ -144,14 +144,20 @@ const GBtn=({children,onClick,style={}})=><button style={{...S.gbtn,transition:'
 const DBtn=({children,onClick})=><button style={S.dbtn} onClick={onClick}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
-const encodeSplits=splits=>'[splits:'+splits.map(s=>s.mode+':'+s.amount).join(',')+']'
+const encodeSplits=splits=>'SPL:'+splits.map(s=>s.mode+'='+s.amount).join('|')
 const decodeSplits=notes=>{
-  if(!notes)return null
-  const m=notes.match(/\[splits:([^\]]+)\]/)
-  if(!m)return null
-  const parts=m[1].split(',').map(p=>{const [mode,...rest]=p.split(':');return{mode,amount:parseFloat(rest.join(':'))||0}})
-  return parts.length>1?parts:null
+  if(!notes||notes.indexOf('SPL:')<0)return null
+  const raw=notes.slice(notes.indexOf('SPL:')+4).split(' ')[0]
+  const parts=raw.split('|').map(p=>{const eq=p.indexOf('=');return{mode:p.slice(0,eq),amount:parseFloat(p.slice(eq+1))||0}})
+  return parts.length>1&&parts.every(p=>p.mode)?parts:null
 }
+const cleanNotes=n=>{
+  if(!n)return ''
+  const i=n.indexOf('SPL:')
+  if(i<0)return n.trim()
+  return n.slice(0,i).trim()
+}
+
 const getPayModeAmt=(e,mode)=>{
   const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes)
   if(splits&&splits.length>1){
@@ -180,7 +186,6 @@ const PayBadges=({e,cr})=>{
     )})}
   </span>)
 }
-const cleanNotes=n=>n?n.replace(/\[splits:[^\]]+\]/g,'').trim():''
 const payLabel=e=>{
   const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes)
   if(splits&&splits.length>1){
@@ -1259,7 +1264,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         patient_area:patArea||'',
         ref_doctor:ref.trim(),
         payment:pay,
-        notes:splits.filter(s=>parseFloat(s.amount)>0).length>1?(notes?notes+' ':'')+encodeSplits(splits.filter(s=>parseFloat(s.amount)>0)):notes,
+        notes:splits.filter(s=>parseFloat(s.amount)>0).length>1?(cleanNotes(notes)?cleanNotes(notes)+' ':'')+encodeSplits(splits.filter(s=>parseFloat(s.amount)>0)):cleanNotes(notes),
         date,
         op_type:opType,
         custom_commission:custComm!==''?parseFloat(custComm):null,
@@ -1375,7 +1380,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
     let regNo=null;if(!isIP&&(itype==='op'||itype==='opd')){regNo=iF.linkedRegNo?.trim()||await genRegNo()}
-    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:(iF.splits&&iF.splits.filter(s=>parseFloat(s.amount)>0).length>1?(iF.notes?iF.notes+' ':'')+encodeSplits(iF.splits.filter(s=>parseFloat(s.amount)>0)):iF.notes),patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(','),payment_splits:(iF.splits||[]).filter(s=>parseFloat(s.amount)>0).length>1?(iF.splits||[]).filter(s=>parseFloat(s.amount)>0).map(s=>({amount:parseFloat(s.amount),mode:s.mode})):null})
+    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:(iF.splits&&iF.splits.filter(s=>parseFloat(s.amount)>0).length>1?(iF.notes&&!iF.notes.includes('SPL:')?iF.notes+' ':iF.notes?.includes('SPL:')?iF.notes.slice(0,iF.notes.indexOf('SPL:')).trim()+' ':'')+encodeSplits(iF.splits.filter(s=>parseFloat(s.amount)>0)):iF.notes),patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(','),payment_splits:(iF.splits||[]).filter(s=>parseFloat(s.amount)>0).length>1?(iF.splits||[]).filter(s=>parseFloat(s.amount)>0).map(s=>({amount:parseFloat(s.amount),mode:s.mode})):null})
     if(ok!==false){const ks=iF.speciality||'General Medicine';setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:'',speciality:ks,newSpec:'',conditions:[],newCondition:'',splits:[{amount:'',mode:'cash'}]})}
   }
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
