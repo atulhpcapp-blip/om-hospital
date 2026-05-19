@@ -1835,7 +1835,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>
-                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':(e.payment_splits&&e.payment_splits.length>1?e.payment_splits.map(s=>s.mode[0].toUpperCase()+s.mode.slice(1)+' Rs '+parseFloat(s.amount).toLocaleString('en-IN')).join(' + '):e.payment)}{e.notes?' — '+e.notes:''}{getComm(e)>0?' — Ref: '+fmt(getComm(e)):''}</div>
+                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':payLabel(e)}{(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()||'')?(' — '+(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()||'')):''}{getComm(e)>0?' — Ref: '+fmt(getComm(e)):''}</div>
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -4144,7 +4144,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                 <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
               </div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:2}}>
-                {(e.payment_splits&&e.payment_splits.length>1?e.payment_splits:[{amount:e.amount,mode:e.payment}]).map((s,si)=><span key={si} style={{fontSize:9,padding:'1px 6px',borderRadius:10,background:{cash:'#f0fdf4',upi:'#eff6ff',card:'#fdf4ff',bank:'#f0f9ff',insurance:'#f0fdf4',credit:'#fef2f2'}[s.mode]||'#f0f0f0',color:{cash:'#16a34a',upi:'#2563eb',card:'#7c3aed',bank:'#0369a1',insurance:'#16a34a',credit:'#dc2626'}[s.mode]||'#555',fontWeight:700}}>{s.mode[0].toUpperCase()+s.mode.slice(1)} {fmt(parseFloat(s.amount))}</span>)}
+                {(()=>{const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:(decodeSplits(e.notes)||[{amount:e.amount,mode:e.payment}]);return splits.map((s,si)=><span key={si} style={{fontSize:9,padding:'1px 6px',borderRadius:10,background:{cash:'#f0fdf4',upi:'#eff6ff',card:'#fdf4ff',bank:'#f0f9ff',insurance:'#f0fdf4',credit:'#fef2f2'}[s.mode]||'#f0f0f0',color:{cash:'#16a34a',upi:'#2563eb',card:'#7c3aed',bank:'#0369a1',insurance:'#16a34a',credit:'#dc2626'}[s.mode]||'#555',fontWeight:700}}>{s.mode[0].toUpperCase()+s.mode.slice(1)} {fmt(parseFloat(s.amount))}</span>)})()}
               </div>
             </div>)}
           </>}
@@ -4152,7 +4152,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {opdInc>0&&<>
             <R l="OPD Services" v={fmt(opdInc)} green/>
             {dI.filter(e=>e.type==='opd'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{e.payment_splits&&e.payment_splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              <span>{(()=>{const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes);return splits&&splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')})()} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.notes?' — '+e.notes:''}</span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
@@ -4160,7 +4160,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {oprInc>0&&<>
             <R l="OP Pharmacy" v={fmt(oprInc)} green/>
             {dI.filter(e=>e.type==='op_r'&&e.payment!=='credit').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>{e.payment_splits&&e.payment_splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+              <span>{(()=>{const splits=e.payment_splits&&e.payment_splits.length>1?e.payment_splits:decodeSplits(e.notes);return splits&&splits.length>1?'💳':({cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳'}[e.payment]||'💰')})()} <NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {/* IP Charges + Pharmacy - names + amounts */}
@@ -5630,10 +5630,10 @@ const PatientTimeline=({db,pid,onBack})=>{
   const hasOpRecords=opEnts.length>0
   const events=[]
   events.push({date:p.admission_date,label:'Admitted (IP)',sub:(p.diagnosis?'Dx: '+p.diagnosis:'')+(p.room?' - Room: '+p.room:''),color:'#1d4ed8',icon:'IP'})
-  ents.forEach(e=>{const cr=isCredit(e);events.push({date:e.date,label:(ITYPES.find(t=>t.key===e.type)?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':e.payment)+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#16a34a',icon:'IP'})})
+  ents.forEach(e=>{const cr=isCredit(e);events.push({date:e.date,label:(ITYPES.find(t=>t.key===e.type)?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':payLabel(e))+(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()?' - '+(e.notes?.replace(/\[splits:[^\]]+\]/g,'').trim()):''),color:cr?'#c2410c':'#16a34a',icon:'IP'})})
   pkgs.forEach(py=>{events.push({date:py.date,label:'Package payment - '+fmt(py.amount),sub:py.payment+(py.commission>0?' - Comm: '+fmt(py.commission):''),color:'#1d4ed8',icon:'Pkg'})})
   if(p.discharge_date)events.push({date:p.discharge_date,label:'Discharged',sub:'',color:'#6b7280',icon:'D'})
-  opEnts.forEach(e=>{const cr=isCredit(e);const it=ITYPES.find(t=>t.key===e.type);events.push({date:e.date,label:(it?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':e.payment)+(e.ref_doctor?' - Ref: '+e.ref_doctor:'')+(e.op_type?' - '+e.op_type:'')+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#3b82f6',icon:'OP'})})
+  opEnts.forEach(e=>{const cr=isCredit(e);const it=ITYPES.find(t=>t.key===e.type);events.push({date:e.date,label:(it?.full||e.type)+' - '+fmt(e.amount),sub:(cr?'Credit':payLabel(e))+(e.ref_doctor?' - Ref: '+e.ref_doctor:'')+(e.op_type?' - '+e.op_type:'')+(e.notes?' - '+e.notes:''),color:cr?'#c2410c':'#3b82f6',icon:'OP'})})
   events.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
   const ipBilled=ents.reduce((a,e)=>a+e.amount,0)+pkgs.reduce((a,py)=>a+py.amount,0)
   const opBilled=opEnts.reduce((a,e)=>a+e.amount,0)
