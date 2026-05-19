@@ -1193,6 +1193,11 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [ref,setRef]=useState(entry.ref_doctor||'')
   const [custComm,setCustComm]=useState(entry.custom_commission!=null?String(Math.round(entry.custom_commission)):'')
   const [pay,setPay]=useState(entry.payment||'cash')
+  const [splits,setSplits]=useState(
+    entry.payment_splits&&entry.payment_splits.length>1
+      ?entry.payment_splits.map(s=>({amount:String(s.amount),mode:s.mode}))
+      :[{amount:String(entry.amount||''),mode:entry.payment||'cash'}]
+  )
   const [notes,setNotes]=useState(entry.notes||'')
   const [date,setDate]=useState(entry.date||todayStr())
   const [opType,setOpType]=useState(entry.op_type||'New OP')
@@ -1229,7 +1234,8 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         consultant_name:isVC?vcConsultant:'',
         consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee,
         speciality:entry.speciality||'General Medicine',
-        conditions:Array.isArray(editConditions)?editConditions.join(','):''
+        conditions:Array.isArray(editConditions)?editConditions.join(','):'',
+        payment_splits:splits.filter(s=>parseFloat(s.amount)>0).length>1?splits.filter(s=>parseFloat(s.amount)>0).map(s=>({amount:parseFloat(s.amount),mode:s.mode})):null
       }
       await onSave(row)
     }catch(err){
@@ -1791,7 +1797,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               {te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div>
-                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':payLabel(e)}{e.notes?' - '+e.notes:''}{getComm(e)>0?' - Ref: '+fmt(getComm(e)):''}</div>
+                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':(e.payment_splits&&e.payment_splits.length>1?e.payment_splits.map(s=>s.mode[0].toUpperCase()+s.mode.slice(1)+' Rs '+parseFloat(s.amount).toLocaleString('en-IN')).join(' + '):e.payment)}{e.notes?' — '+e.notes:''}{getComm(e)>0?' — Ref: '+fmt(getComm(e)):''}</div>
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
