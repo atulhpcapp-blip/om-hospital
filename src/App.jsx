@@ -1091,7 +1091,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
   const go=async()=>{
     try {
     const amt=parseFloat(iF.amount);
-    console.log('SAVE: amt=',amt,'iF=',iF,'itype=',itype)
+    console.log('SAVE: amt=',amt,'splits=',JSON.stringify(iF.splits),'itype=',itype)
     if(isNaN(amt)||amt<0){alert('Enter a valid amount (got: '+iF.amount+')');return}
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
@@ -1101,9 +1101,12 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     const isMultiSplit=activeSplits.length>1
     let ok=true
     if(isMultiSplit){
+      console.log('SAVING SPLITS:',activeSplits.map(s=>s.amount+' '+s.mode).join(' + '))
       for(const sp of activeSplits){
         const sa=parseFloat(sp.amount)||0
-        const r=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:sa,patient_id:pid,patient_name:pname,payment:sp.mode,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(sa*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
+        const spMode=sp.mode
+        console.log('  → entry: amount='+sa+' mode='+spMode)
+        const r=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:sa,patient_id:pid,patient_name:pname,payment:spMode,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(sa*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
         if(!r)ok=false
       }
     } else { const ok2=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(amt*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')});ok=ok2}
