@@ -1218,7 +1218,22 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
         const ents=di.filter(e=>e.type===t.key);if(!ents.length)return null
         return(<div key={t.key}>
           <SecL>{t.full} - {fmt(tots[t.key])}</SecL>
-          <Card>{ents.map(e=>{const doc=getRefDoc(e,db.ip_patients);const comm=getComm(e);const cr=isCredit(e);return(
+          <Card>{(()=>{
+            // Group split-payment entries by patient+type+date
+            const grouped={}
+            ents.forEach(e=>{
+              const k=(e.patient_name||'').trim().toLowerCase()+'|'+e.type+'|'+e.date+'|'+(e.ref_doctor||'')+'|'+(e.consultant_name||'')
+              if(!grouped[k])grouped[k]={base:e,entries:[]}
+              grouped[k].entries.push(e)
+            })
+            return Object.values(grouped).map(g=>{
+              const e=g.base
+              const allEntries=g.entries
+              const totalAmt=allEntries.reduce((a,x)=>a+x.amount,0)
+              const doc=getRefDoc(e,db.ip_patients)
+              const comm=allEntries.reduce((a,x)=>a+getComm(x),0)
+              const cr=isCredit(e)
+              return(
             <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
               <div style={{flex:1,minWidth:0,paddingRight:8}}>
                 <div style={{fontSize:13,fontWeight:500,color:'#111',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
@@ -1226,7 +1241,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
                 <div style={{marginTop:3,display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
-                  <PayBadges e={e} cr={cr}/>
+                  {allEntries.map((x,xi)=><PayBadges key={xi} e={x} cr={isCredit(x)}/>)}
                   {doc&&<span style={{fontSize:10,color:'#d97706'}}>Ref: {doc}</span>}
                   {comm>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>Comm: {fmt(comm)}</span>}
                   {e.type==='vc'&&e.consultant_fee>0&&<span style={{fontSize:10,color:'#7c3aed'}}>Fee: {fmt(e.consultant_fee)}</span>}
@@ -1237,12 +1252,12 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
                 </div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-                <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
+                <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(totalAmt)}</span>
                 <button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
-                <DBtn onClick={()=>actions.delIncome(e.id)}></DBtn>
+                <DBtn onClick={()=>{if(allEntries.length>1?window.confirm('Delete all '+allEntries.length+' split entries?'):true)allEntries.forEach(x=>actions.delIncome(x.id))}}></DBtn>
               </div>
             </div>
-          )})}</Card>
+          )})})()}</Card>
         </div>)
       })}
     </div>
