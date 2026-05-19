@@ -62,9 +62,11 @@ const cleanNotes=n=>{
   return n.trim()
 }
 const PAY_STYLE={cash:{bg:'#dcfce7',color:'#16a34a',label:'Cash'},upi:{bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},card:{bg:'#f3e8ff',color:'#7c3aed',label:'Card'},bank:{bg:'#e0f2fe',color:'#0369a1',label:'Bank'},insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},credit:{bg:'#fed7aa',color:'#c2410c',label:'Credit'}}
+const PAY_ICON={cash:'💵',upi:'📱',card:'💳',bank:'🏦',insurance:'🛡',credit:'⏳',written_off:'✂️'}
 const PayBadges=({e,cr})=>{
-  if(cr)return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fed7aa',color:'#c2410c',fontWeight:700}}>⏳ Credit</span>
-  return(<span style={{display:'inline-flex',gap:4,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:PAY_STYLE[e.payment]?.bg||'#f0f0f0',color:PAY_STYLE[e.payment]?.color||'#555',fontWeight:700}}>{PAY_STYLE[e.payment]?.label||e.payment}</span></span>)
+  if(cr)return<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>⏳ Credit</span>
+  const st=PAY_STYLE[e.payment]||{bg:'#f0f0f0',color:'#555',label:e.payment||''}
+  return(<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:st.bg,color:st.color,fontWeight:700,display:'inline-block'}}>{PAY_ICON[e.payment]||'💰'} {st.label}</span>)
 }
 const Row=({left,sub,right,onClick})=>(
   <div onClick={onClick} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 0',borderBottom:'1px solid #f1f5f9',cursor:onClick?'pointer':'default'}}>
@@ -3775,6 +3777,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           const cashAmt=pat.entries.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
           const upiAmt=pat.entries.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
           const cardAmt=pat.entries.filter(e=>e.payment==='card').reduce((a,e)=>a+e.amount,0)
+          const bankAmt=pat.entries.filter(e=>e.payment==='bank').reduce((a,e)=>a+e.amount,0)
+          const insurAmt=pat.entries.filter(e=>e.payment==='insurance').reduce((a,e)=>a+e.amount,0)
           const creditAmt=pat.entries.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
           return(<div key={pat.name} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
@@ -3782,11 +3786,12 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                 {ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
                 {consFee>0&&<div style={{fontSize:11,color:'#7c3aed',marginTop:2}}>Cons fee: {fmt(consFee)}{consName?' ('+consName+')':''}</div>}
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
-                  {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
-                  {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
-                  {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
-                  {typeof bankAmt!=='undefined'&&bankAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>Bank {fmt(bankAmt)}</span>}
-                  {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
+                  {cashAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>💵 Cash {fmt(cashAmt)}</span>}
+                  {upiAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>📱 UPI {fmt(upiAmt)}</span>}
+                  {cardAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#f3e8ff',color:'#7c3aed',fontWeight:700}}>💳 Card {fmt(cardAmt)}</span>}
+                  {bankAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>🏦 Bank {fmt(bankAmt)}</span>}
+                  {insurAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fef9c3',color:'#854d0e',fontWeight:700}}>🛡 Ins {fmt(insurAmt)}</span>}
+                  {creditAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>⏳ Credit {fmt(creditAmt)}</span>}
                 </div>
               </div>
               <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(total)}</div><TypeTag t="op"/></div>
@@ -3837,11 +3842,12 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1}}><NameBtn name={pat.name} pid={pat.pid} isIP={false}/>{ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {ref}</div>}
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
-                  {cashAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700}}>Cash {fmt(cashAmt)}</span>}
-                  {upiAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#eff6ff',color:'#2563eb',fontWeight:700}}>UPI {fmt(upiAmt)}</span>}
-                  {cardAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>Card {fmt(cardAmt)}</span>}
-                  {typeof bankAmt!=='undefined'&&bankAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>Bank {fmt(bankAmt)}</span>}
-                  {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
+                  {cashAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dcfce7',color:'#16a34a',fontWeight:700}}>💵 Cash {fmt(cashAmt)}</span>}
+                  {upiAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>📱 UPI {fmt(upiAmt)}</span>}
+                  {cardAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#f3e8ff',color:'#7c3aed',fontWeight:700}}>💳 Card {fmt(cardAmt)}</span>}
+                  {bankAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#e0f2fe',color:'#0369a1',fontWeight:700}}>🏦 Bank {fmt(bankAmt)}</span>}
+                  {insurAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fef9c3',color:'#854d0e',fontWeight:700}}>🛡 Ins {fmt(insurAmt)}</span>}
+                  {creditAmt>0&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>⏳ Credit {fmt(creditAmt)}</span>}
                 </div>
               </div>
               <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(total)}</div><TypeTag t="op_r"/></div>
