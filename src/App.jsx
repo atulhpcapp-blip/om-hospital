@@ -1165,8 +1165,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
               </div>}
             </>}
           </>}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-          <FInp label="Amount (Rs )" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>{const newAmt=e.target.value;const newSplits=(iF.splits||[]).length<=1?[{amount:newAmt,mode:(iF.splits||[])[0]?.mode||iF.pay}]:iF.splits;setIF({...iF,amount:newAmt,splits:newSplits})}}/>
+        <FInp label="Amount (Rs )" type="number" inputMode="numeric" placeholder="0" value={iF.amount} onChange={e=>{const newAmt=e.target.value;const newSplits=(iF.splits||[]).length<=1?[{amount:newAmt,mode:(iF.splits||[])[0]?.mode||iF.pay}]:iF.splits;setIF({...iF,amount:newAmt,splits:newSplits})}}/>
         <div style={{marginBottom:12}}>
           <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:6}}>PAYMENT MODE</label>
           {(iF.splits||[{amount:iF.amount,mode:iF.pay}]).map((sp,si)=>{const multi=(iF.splits||[]).length>1;return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
@@ -1180,7 +1179,6 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
           {(iF.splits||[]).length>1&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 10px',background:'#f0fdf4',borderRadius:8,fontSize:13,fontWeight:700}}><span style={{color:'#16a34a'}}>Total</span><span style={{color:'#16a34a'}}>Rs {(iF.splits||[]).reduce((a,s)=>a+(parseFloat(s.amount)||0),0).toLocaleString('en-IN')}</span></div>}
         </div>
           <FInp label="Notes" type="text" placeholder="Optional" value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})}/>
-        </div>
             {['op','opd','op_r','op_l'].includes(itype)&&<div style={{marginBottom:8}}>
               <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Conditions / Comorbidities</label>
               <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
