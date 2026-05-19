@@ -1181,7 +1181,23 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
         </div>
           <FInp label="Notes" type="text" placeholder="Optional" value={iF.notes} onChange={e=>setIF({...iF,notes:e.target.value})}/>
         </div>
-        {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit - not yet collected</div>}
+            {['op','opd','op_r','op_l'].includes(itype)&&<div style={{marginBottom:8}}>
+              <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Conditions / Comorbidities</label>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
+                {['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease',...(db.income.flatMap(e=>(e.conditions||'').split(',').filter(x=>x&&!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(x)))).filter((v,i,a)=>a.indexOf(v)===i)].map(cond=>{
+                  const sel=(iF.conditions||[]).includes(cond)
+                  return(<button key={cond} type="button" onClick={()=>setIF(f=>({...f,conditions:sel?f.conditions.filter(c=>c!==cond):[...(f.conditions||[]),cond]}))} style={{padding:'4px 12px',borderRadius:20,border:sel?'none':'1.5px solid #e8e2d9',background:sel?'#1a1a2e':'#fff',color:sel?'#c9a84c':'#555',fontSize:12,fontWeight:sel?700:400,cursor:'pointer'}}>
+                    {sel?'✓ ':''}{cond}
+                  </button>)
+                })}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <input type="text" value={iF.newCondition||''} onChange={e=>setIF(f=>({...f,newCondition:e.target.value}))} placeholder="Add new condition..." style={{flex:1,fontSize:12,padding:'7px 10px',border:'1.5px solid #e8e2d9',borderRadius:8,outline:'none',background:'#fff'}}/>
+                <button type="button" onClick={()=>{if(iF.newCondition?.trim()){setIF(f=>({...f,conditions:[...(f.conditions||[]),f.newCondition.trim()],newCondition:''}));}}} style={{padding:'7px 14px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>+ Add</button>
+              </div>
+              {(iF.conditions||[]).length>0&&<div style={{marginTop:6,fontSize:11,color:'#7c3aed',fontWeight:600}}>Selected: {iF.conditions.join(', ')}</div>}
+            </div>}
+                {iF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit - not yet collected</div>}
         <PBtn onClick={go}>Save income entry</PBtn>
       </Card>
       {di.length>0&&(
@@ -1209,7 +1225,16 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF})=>{
                   <TypeTag t={t.key}/>{e.patient_name||'-'}
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Comm: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{e.notes?' - '+e.notes:''}</div>
+                <div style={{marginTop:3,display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
+                  <PayBadges e={e} cr={cr}/>
+                  {doc&&<span style={{fontSize:10,color:'#d97706'}}>Ref: {doc}</span>}
+                  {comm>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>Comm: {fmt(comm)}</span>}
+                  {e.type==='vc'&&e.consultant_fee>0&&<span style={{fontSize:10,color:'#7c3aed'}}>Fee: {fmt(e.consultant_fee)}</span>}
+                  {cleanNotes(e.notes)&&<span style={{fontSize:10,color:'#aaa'}}>{cleanNotes(e.notes)}</span>}
+                </div>
+                {e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:3}}>
+                  {e.conditions.split(',').filter(Boolean).map(cd=><span key={cd} style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>{cd.trim()}</span>)}
+                </div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -1633,7 +1658,11 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
               <span style={{float:'right',fontWeight:700,color:'#1d4ed8'}}>{fmt(db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0))}</span>
             </div>))}
             <Card>
-              {allEnts.map(e=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{e.notes}</div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&!isIP&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}{!isIP&&<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>}<span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
+              {allEnts.map(e=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}
+                {e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{cleanNotes(e.notes)}</div>}
+                {e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:3}}>
+                  {e.conditions.split(',').filter(Boolean).map(cd=><span key={cd} style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>{cd.trim()}</span>)}
+                </div>}</div><div style={{display:'flex',alignItems:'center',gap:6,marginLeft:8}}>{cr&&!isIP&&<button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>}{!isIP&&<button onClick={()=>setEditEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>}<span style={{fontSize:13,fontWeight:600,color:cr?'#c2410c':'#16a34a'}}>{fmt(e.amount)}</span></div></div></div>)})}
             </Card>
           </>)
         })()}
@@ -4178,6 +4207,7 @@ const PatientDataReport=({db})=>{
     if(!patMap[k].area&&p.patient_area)patMap[k].area=p.patient_area
     if(!patMap[k].ref_doctor&&p.ref_doctor)patMap[k].ref_doctor=p.ref_doctor
     if(!patMap[k].reg_no&&p.reg_no)patMap[k].reg_no=p.reg_no
+    ;(p.diagnosis||'').split(',').filter(Boolean).forEach(cd=>{const t=cd.trim();if(t&&!patMap[k].conditions.includes(t))patMap[k].conditions.push(t)})
   })
 
   let pats=Object.values(patMap).sort((a,b)=>(a.name||'').localeCompare(b.name||''))
@@ -4194,45 +4224,68 @@ const PatientDataReport=({db})=>{
 
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
-      <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:'1 1 160px',padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
-      <button onClick={()=>setShowFilters(f=>!f)} style={{padding:'9px 14px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',background:activeFilters>0?'#1a1a2e':'#fff',color:activeFilters>0?'#c9a84c':'#555',whiteSpace:'nowrap'}}>
+      <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)}
+        style={{flex:'1 1 160px',padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
+      <button onClick={()=>setShowFilters(f=>!f)} style={{padding:'9px 14px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',
+        background:activeFilters>0?'#1a1a2e':'#fff',color:activeFilters>0?'#c9a84c':'#555'}}>
         ⚙ Filters{activeFilters>0?` (${activeFilters})`:''}
       </button>
+      {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{padding:'9px 10px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕</button>}
     </div>
     {showFilters&&<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px',marginBottom:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-      <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-        <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
-      </select>
-      <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
-        <option value="">All Ref Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
-      </select>
-      <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff',gridColumn:'1/-1'}}>
-        <option value="">All Conditions</option>{allConds.map(cd=><option key={cd} value={cd}>{cd}</option>)}
-      </select>
-      {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{gridColumn:'1/-1',padding:'8px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear All Filters</button>}
+      <div>
+        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Area</div>
+        <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+          <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      <div>
+        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Ref Doctor</div>
+        <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+          <option value="">All Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+        </select>
+      </div>
+      <div style={{gridColumn:'1/-1'}}>
+        <div style={{fontSize:10,color:'#94a3b8',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Condition / Diagnosis</div>
+        <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
+          <option value="">All Conditions</option>{allConds.map(cd=><option key={cd} value={cd}>{cd}</option>)}
+        </select>
+      </div>
     </div>}
     <div style={{fontSize:12,color:'#64748b',marginBottom:8,fontWeight:600}}>{pats.length} patients found</div>
     <div style={{overflowX:'auto'}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <thead><tr style={{background:'#1a1a2e',color:'#fff'}}>
-          <th style={{padding:'8px 10px',textAlign:'left'}}>Name / Reg</th>
-          <th style={{padding:'8px 10px',textAlign:'left'}}>Phone</th>
-          <th style={{padding:'8px 10px',textAlign:'left'}}>Area</th>
-          <th style={{padding:'8px 10px',textAlign:'left'}}>Ref Doctor</th>
-          <th style={{padding:'8px 10px',textAlign:'left'}}>Conditions</th>
-          <th style={{padding:'8px 6px',textAlign:'center'}}>Visits</th>
-          <th style={{padding:'8px 10px',textAlign:'left'}}>Last Visit</th>
+          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,whiteSpace:'nowrap'}}>Name / Reg</th>
+          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Phone</th>
+          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Area</th>
+          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Ref Doctor</th>
+          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700}}>Conditions</th>
+          <th style={{padding:'8px 6px',textAlign:'center',fontWeight:700}}>Visits</th>
+          <th style={{padding:'8px 10px',textAlign:'left',fontWeight:700,whiteSpace:'nowrap'}}>Last Visit</th>
         </tr></thead>
         <tbody>
           {pats.map((p,i)=>(
             <tr key={i} style={{background:i%2===0?'#fff':'#f8fafc',borderBottom:'1px solid #f0f0f0'}}>
-              <td style={{padding:'8px 10px'}}><div style={{fontWeight:700,color:'#111'}}>{p.name}</div>{p.reg_no&&<div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no}</div>}</td>
+              <td style={{padding:'8px 10px'}}>
+                <div style={{fontWeight:700,color:'#111'}}>{p.name}</div>
+                {p.reg_no&&<div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no}</div>}
+              </td>
               <td style={{padding:'8px 10px',color:'#555'}}>{p.phone||'—'}</td>
               <td style={{padding:'8px 10px',color:'#555'}}>{p.area||'—'}</td>
-              <td style={{padding:'8px 10px',color:p.ref_doctor?'#d97706':'#ccc',fontWeight:p.ref_doctor?600:400}}>{p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}</td>
-              <td style={{padding:'8px 10px'}}>{(p.conditions||[]).length>0?(p.conditions||[]).map(cd=><span key={cd} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700,marginRight:3,display:'inline-block',marginBottom:2}}>{cd}</span>):<span style={{color:'#ccc',fontSize:12}}>—</span>}</td>
+              <td style={{padding:'8px 10px',color:p.ref_doctor?'#d97706':'#ccc',fontWeight:p.ref_doctor?600:400}}>
+                {p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}
+              </td>
+              <td style={{padding:'8px 10px'}}>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                  {(p.conditions||[]).length>0
+                    ?(p.conditions||[]).map(cd=><span key={cd} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700,display:'inline-block'}}>{cd}</span>)
+                    :<span style={{color:'#ccc',fontSize:12}}>—</span>
+                  }
+                </div>
+              </td>
               <td style={{padding:'8px 6px',textAlign:'center',fontWeight:700,color:'#1d4ed8'}}>{p.visits}</td>
-              <td style={{padding:'8px 10px',color:'#555',fontSize:12}}>{p.lastVisit?fmtD(p.lastVisit):'—'}</td>
+              <td style={{padding:'8px 10px',color:'#555',fontSize:12,whiteSpace:'nowrap'}}>{p.lastVisit?fmtD(p.lastVisit):'—'}</td>
             </tr>
           ))}
         </tbody>
@@ -4343,7 +4396,7 @@ export default function App(){
   const [tabInitialized,setTabInitialized]=useState(false)
   const [eDate,setEDate]=useState(todayStr())
   const [itype,setItype]=useState('op')
-  const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',splits:[{amount:'',mode:'cash'}]})
+  const [iF,setIF]=useState({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',conditions:[],newCondition:'',splits:[{amount:'',mode:'cash'}]})
   const [ipv,setIpv]=useState('list')
   const [ipid,setIpid]=useState(null)
   const [pF,setPF]=useState({name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:'',admit_type:'cash',insurance_type:'',insurance_policy_no:'',insurance_expected:''})
