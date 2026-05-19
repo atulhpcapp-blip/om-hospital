@@ -4153,40 +4153,64 @@ const PatientDataReport=({db})=>{
   const [search,setSearch]=useState('')
   const [filterArea,setFilterArea]=useState('')
   const [filterRef,setFilterRef]=useState('')
+  const [filterCond,setFilterCond]=useState('')
+  const [showFilters,setShowFilters]=useState(false)
 
   const patMap={}
   ;(db.income||[]).forEach(e=>{
     if(!e.patient_name)return
     const k=(e.patient_name||'').trim().toLowerCase()
     if(!k)return
-    if(!patMap[k])patMap[k]={name:(e.patient_name||'').trim(),phone:e.patient_phone||'',area:e.patient_area||'',ref_doctor:e.ref_doctor||'',reg_no:e.reg_no||'',visits:0,lastVisit:''}
+    if(!patMap[k])patMap[k]={name:(e.patient_name||'').trim(),phone:'',area:'',ref_doctor:'',reg_no:'',visits:0,lastVisit:'',conditions:[]}
     patMap[k].visits++
     if((e.date||'')>(patMap[k].lastVisit||''))patMap[k].lastVisit=e.date||''
     if(!patMap[k].phone&&e.patient_phone)patMap[k].phone=e.patient_phone
     if(!patMap[k].area&&e.patient_area)patMap[k].area=e.patient_area
     if(!patMap[k].ref_doctor&&e.ref_doctor)patMap[k].ref_doctor=e.ref_doctor
     if(!patMap[k].reg_no&&e.reg_no)patMap[k].reg_no=e.reg_no
+    ;(e.conditions||'').split(',').filter(Boolean).forEach(cd=>{if(!patMap[k].conditions.includes(cd.trim()))patMap[k].conditions.push(cd.trim())})
+  })
+  ;(db.ip_patients||[]).forEach(p=>{
+    const k=(p.name||'').trim().toLowerCase()
+    if(!k)return
+    if(!patMap[k])patMap[k]={name:(p.name||'').trim(),phone:'',area:'',ref_doctor:'',reg_no:'',visits:0,lastVisit:'',conditions:[]}
+    if(!patMap[k].phone&&p.phone)patMap[k].phone=p.phone
+    if(!patMap[k].area&&p.patient_area)patMap[k].area=p.patient_area
+    if(!patMap[k].ref_doctor&&p.ref_doctor)patMap[k].ref_doctor=p.ref_doctor
+    if(!patMap[k].reg_no&&p.reg_no)patMap[k].reg_no=p.reg_no
   })
 
   let pats=Object.values(patMap).sort((a,b)=>(a.name||'').localeCompare(b.name||''))
   const areas=[...new Set(pats.map(p=>p.area).filter(Boolean))].sort()
   const refs=[...new Set(pats.map(p=>p.ref_doctor).filter(Boolean))].sort()
+  const allConds=[...new Set(pats.flatMap(p=>p.conditions||[]))].sort()
 
   if(search.trim().length>1){const s=search.trim().toLowerCase();pats=pats.filter(p=>(p.name||'').toLowerCase().includes(s)||(p.phone||'').includes(s)||(p.reg_no||'').toLowerCase().includes(s))}
   if(filterArea)pats=pats.filter(p=>p.area===filterArea)
   if(filterRef)pats=pats.filter(p=>p.ref_doctor===filterRef)
+  if(filterCond)pats=pats.filter(p=>(p.conditions||[]).includes(filterCond))
+
+  const activeFilters=[filterArea,filterRef,filterCond].filter(Boolean).length
 
   return(<>
-    <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap'}}>
-      <input placeholder="Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:'1 1 160px',padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
-      <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'9px 10px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,background:'#fff'}}>
+    <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap',alignItems:'center'}}>
+      <input placeholder="🔍 Search name / phone / reg no" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:'1 1 160px',padding:'9px 12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
+      <button onClick={()=>setShowFilters(f=>!f)} style={{padding:'9px 14px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',background:activeFilters>0?'#1a1a2e':'#fff',color:activeFilters>0?'#c9a84c':'#555',whiteSpace:'nowrap'}}>
+        ⚙ Filters{activeFilters>0?` (${activeFilters})`:''}
+      </button>
+    </div>
+    {showFilters&&<div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px',marginBottom:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+      <select value={filterArea} onChange={e=>setFilterArea(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
         <option value="">All Areas</option>{areas.map(a=><option key={a} value={a}>{a}</option>)}
       </select>
-      <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'9px 10px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12,background:'#fff'}}>
+      <select value={filterRef} onChange={e=>setFilterRef(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff'}}>
         <option value="">All Ref Doctors</option>{refs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
       </select>
-      {(filterArea||filterRef)&&<button onClick={()=>{setFilterArea('');setFilterRef('')}} style={{padding:'9px 12px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕</button>}
-    </div>
+      <select value={filterCond} onChange={e=>setFilterCond(e.target.value)} style={{padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12,background:'#fff',gridColumn:'1/-1'}}>
+        <option value="">All Conditions</option>{allConds.map(cd=><option key={cd} value={cd}>{cd}</option>)}
+      </select>
+      {activeFilters>0&&<button onClick={()=>{setFilterArea('');setFilterRef('');setFilterCond('')}} style={{gridColumn:'1/-1',padding:'8px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Clear All Filters</button>}
+    </div>}
     <div style={{fontSize:12,color:'#64748b',marginBottom:8,fontWeight:600}}>{pats.length} patients found</div>
     <div style={{overflowX:'auto'}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
@@ -4195,16 +4219,18 @@ const PatientDataReport=({db})=>{
           <th style={{padding:'8px 10px',textAlign:'left'}}>Phone</th>
           <th style={{padding:'8px 10px',textAlign:'left'}}>Area</th>
           <th style={{padding:'8px 10px',textAlign:'left'}}>Ref Doctor</th>
+          <th style={{padding:'8px 10px',textAlign:'left'}}>Conditions</th>
           <th style={{padding:'8px 6px',textAlign:'center'}}>Visits</th>
           <th style={{padding:'8px 10px',textAlign:'left'}}>Last Visit</th>
         </tr></thead>
         <tbody>
           {pats.map((p,i)=>(
             <tr key={i} style={{background:i%2===0?'#fff':'#f8fafc',borderBottom:'1px solid #f0f0f0'}}>
-              <td style={{padding:'8px 10px'}}><div style={{fontWeight:700}}>{p.name}</div>{p.reg_no&&<div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no}</div>}</td>
+              <td style={{padding:'8px 10px'}}><div style={{fontWeight:700,color:'#111'}}>{p.name}</div>{p.reg_no&&<div style={{fontSize:10,color:'#94a3b8'}}>{p.reg_no}</div>}</td>
               <td style={{padding:'8px 10px',color:'#555'}}>{p.phone||'—'}</td>
               <td style={{padding:'8px 10px',color:'#555'}}>{p.area||'—'}</td>
               <td style={{padding:'8px 10px',color:p.ref_doctor?'#d97706':'#ccc',fontWeight:p.ref_doctor?600:400}}>{p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}</td>
+              <td style={{padding:'8px 10px'}}>{(p.conditions||[]).length>0?(p.conditions||[]).map(cd=><span key={cd} style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#f0fdf4',color:'#16a34a',fontWeight:700,marginRight:3,display:'inline-block',marginBottom:2}}>{cd}</span>):<span style={{color:'#ccc',fontSize:12}}>—</span>}</td>
               <td style={{padding:'8px 6px',textAlign:'center',fontWeight:700,color:'#1d4ed8'}}>{p.visits}</td>
               <td style={{padding:'8px 10px',color:'#555',fontSize:12}}>{p.lastVisit?fmtD(p.lastVisit):'—'}</td>
             </tr>
