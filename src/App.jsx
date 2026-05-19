@@ -5899,7 +5899,8 @@ export default function App(){
         patient_phone:row.patient_phone||'',
         speciality:row.speciality||'General Medicine',
         entered_by:row.entered_by||'',
-        conditions:row.conditions||''
+        conditions:row.conditions||'',
+        payment_splits:row.payment_splits||null
       }
       const {data,error}=await supabase.from('income').insert([insertRow]).select()
       if(error){alert('Save failed: '+error.message);return false}
