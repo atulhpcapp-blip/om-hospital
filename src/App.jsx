@@ -4184,7 +4184,7 @@ const PatientDataReport=({db})=>{
   // Build conditions from income entries
   pats.forEach(p=>{
     const patEnts=db.income.filter(e=>(e.patient_name||'').toLowerCase().trim()===(p.name||'').toLowerCase().trim()&&e.conditions)
-    const allConds=[...new Set(patEnts.flatMap(e=>e.conditions.split(',').filter(Boolean)))]
+    const allConds=[...new Set(patEnts.flatMap(e=>(e.conditions||'').split(',').filter(Boolean)))]
     p.conditions=allConds
   })
   const areas=[...new Set(pats.map(p=>p.area).filter(Boolean))].sort()
