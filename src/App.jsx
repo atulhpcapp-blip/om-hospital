@@ -153,18 +153,9 @@ const decodeSplits=notes=>{
 }
 const cleanNotes=n=>{
   if(!n)return ''
-  let s=n
-  // Strip SPL: encoding
-  const si=s.indexOf('SPL:')
-  if(si>=0)s=s.slice(0,si)
-  // Strip [splits:...] old encoding (find and remove all occurrences)
-  while(s.indexOf('[splits:')>=0){
-    const a=s.indexOf('[splits:')
-    const b=s.indexOf(']',a)
-    if(b<0)break
-    s=s.slice(0,a)+s.slice(b+1)
-  }
-  return s.trim()
+  if(n.indexOf('[splits:')>=0)return ''
+  if(n.indexOf('SPL:')>=0)return n.slice(0,n.indexOf('SPL:')).trim()
+  return n.trim()
 }
 
 const getPayModeAmt=(e,mode)=>{
@@ -935,6 +926,23 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
   const [logoUrl,setLogoUrl]=useState(hospital?.logo_url||'')
   const [logoUploading,setLogoUploading]=useState(false)
   const [logoMsg,setLogoMsg]=useState('')
+  const [resetUid,setResetUid]=useState(null)
+  const [resetPwd,setResetPwd]=useState('')
+  const [resetMsg,setResetMsg]=useState('')
+  const [myPwd,setMyPwd]=useState('')
+  const [myPwdMsg,setMyPwdMsg]=useState('')
+  const [showMyPwd,setShowMyPwd]=useState(false)
+  const resetUser=users.find(x=>x.id===resetUid)||null
+  const doSetPwd=()=>{
+    if(resetPwd.length<6){setResetMsg('Min 6 characters');return}
+    setResetMsg('Share → Login: '+resetUser.username+' | Password: '+resetPwd)
+  }
+  const doMyPwd=async()=>{
+    if(myPwd.length<6){setMyPwdMsg('Min 6 characters');return}
+    const{error}=await supabase.auth.updateUser({password:myPwd})
+    if(error)setMyPwdMsg('Error: '+error.message)
+    else{setMyPwdMsg('Password updated!');setMyPwd('');setShowMyPwd(false)}
+  }
   const uploadLogo=async(e)=>{
     const file=e.target.files?.[0];if(!file)return
     if(!file.type.startsWith('image/')){setLogoMsg('Please select an image file');return}
@@ -1005,6 +1013,16 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
         <div style={{fontSize:18,fontWeight:700}}>{currentUser.name||'Admin'}</div>
         <div style={{fontSize:12,color:'#9ca3af',marginTop:2}}>Administrator</div>
       </div>
+      <div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px',marginBottom:12}}>
+        <button onClick={()=>setShowMyPwd(p=>!p)} style={{fontSize:13,fontWeight:700,color:'#16a34a',background:'none',border:'none',cursor:'pointer',padding:0}}>🔑 Change My Password</button>
+        {showMyPwd&&<div style={{marginTop:8}}>
+          <div style={{display:'flex',gap:8,marginBottom:6}}>
+            <input type="password" value={myPwd} onChange={e=>setMyPwd(e.target.value)} placeholder="New password (min 6)" style={{flex:1,padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none'}}/>
+            <button onClick={doMyPwd} style={{padding:'9px 14px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Update</button>
+          </div>
+          {myPwdMsg&&<div style={{fontSize:12,fontWeight:600,color:'#16a34a'}}>{myPwdMsg}</div>}
+        </div>}
+      </div>
       <PBtn onClick={()=>setShowAdd(!showAdd)} style={{marginBottom:16,background:showAdd?'#6b7280':'#111'}}>{showAdd?'Cancel':'+ Add new staff account'}</PBtn>
       {showAdd&&(
         <Card>
@@ -1019,9 +1037,10 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
       )}
       <SecL>All staff ({users.length})</SecL>
       {loading?<div style={{textAlign:'center',padding:24,color:'#ccc'}}>Loading...</div>:(
-        <Card>{users.map(u=>{const [bg,tx]=(RC[u.role]||RC.staff);return(
+        <><Card>{users.map(u=>{const [bg,tx]=(RC[u.role]||RC.staff);return(
           <Row key={u.id} left={<span style={{fontSize:14,fontWeight:600}}>{u.name||'-'}</span>} sub={`@${u.username||'-'}`} right={<div style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{u.role||'staff'}</span>
+            <button onClick={()=>{setResetUid(u.id);setResetPwd('');setResetMsg('')}} style={{padding:'3px 10px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,color:'#1d4ed8',cursor:'pointer',fontWeight:700}}>🔑 Reset</button>
             {u.id!==currentUser?.id&&<button onClick={async()=>{
               if(!window.confirm('Delete user '+u.name+'? This removes their profile but NOT their login. They will need to be removed from Supabase Auth manually.'))return
               const {error}=await supabase.from('profiles').delete().eq('id',u.id)
@@ -1030,6 +1049,17 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
             }} style={{padding:'3px 10px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:700}}>✕ Remove</button>}
           </div>}/>
         )})}</Card>
+        {resetUser&&<div style={{marginTop:10,background:'#eff6ff',border:'1.5px solid #bfdbfe',borderRadius:12,padding:'14px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#1d4ed8',marginBottom:4}}>🔑 Reset: {resetUser.name}</div>
+          <div style={{fontSize:11,color:'#64748b',marginBottom:8}}>Set a temp password and share login details with this staff member.</div>
+          <div style={{display:'flex',gap:8,marginBottom:6}}>
+            <input type="text" value={resetPwd} onChange={e=>setResetPwd(e.target.value)} placeholder="New password (min 6)" style={{flex:1,padding:'9px 12px',border:'1.5px solid #bfdbfe',borderRadius:8,fontSize:13,outline:'none'}}/>
+            <button onClick={doSetPwd} style={{padding:'9px 14px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>Set</button>
+            <button onClick={()=>setResetUid(null)} style={{padding:'9px 12px',background:'#f0f0f0',border:'none',borderRadius:8,fontSize:12,cursor:'pointer'}}>✕</button>
+          </div>
+          {resetMsg&&<div style={{fontSize:12,fontWeight:700,padding:'8px 10px',background:'#dbeafe',borderRadius:8,color:'#1d4ed8'}}>{resetMsg}</div>}
+        </div>}
+        </>
       )}
     </div>
   )
@@ -1389,7 +1419,19 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
     let regNo=null;if(!isIP&&(itype==='op'||itype==='opd')){regNo=iF.linkedRegNo?.trim()||await genRegNo()}
-    const ok=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:(iF.splits&&iF.splits.filter(s=>parseFloat(s.amount)>0).length>1?cleanNotes(iF.notes)||'':iF.notes),patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(parseFloat(iF.amount||0)*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(','),payment_splits:(iF.splits||[]).filter(s=>parseFloat(s.amount)>0).length>1?(iF.splits||[]).filter(s=>parseFloat(s.amount)>0).map(s=>({amount:parseFloat(s.amount),mode:s.mode})):null})
+    const activeSplits=(iF.splits||[]).filter(s=>parseFloat(s.amount)>0)
+    const isMultiSplit=activeSplits.length>1
+    const baseRow={date:eDate,type:itype,patient_id:pid,patient_name:pname,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')}
+    let ok=true
+    if(isMultiSplit){
+      for(const sp of activeSplits){
+        const spAmt=parseFloat(sp.amount)||0
+        const r=await actions.addIncome({...baseRow,id:uid(),amount:spAmt,payment:sp.mode,consultant_fee:itype==='op'?Math.round(spAmt*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0)})
+        if(!r)ok=false
+      }
+    } else {
+      ok=await actions.addIncome({...baseRow,id:uid(),amount:amt,payment:iF.pay,consultant_fee:itype==='op'?Math.round(amt*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0)})
+    }
     if(ok!==false){const ks=iF.speciality||'General Medicine';setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedRegNo:'',speciality:ks,newSpec:'',conditions:[],newCondition:'',splits:[{amount:'',mode:'cash'}]})}
   }
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
@@ -1709,7 +1751,15 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
                   <TypeTag t={t.key}/>{e.patient_name||'-'}
                   {cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}
                 </div>
-                <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit (not collected)':e.payment}{e.type==='vc'&&e.ref_doctor?' - Consultant: '+e.ref_doctor:doc?' - Ref: '+doc:''}{comm?' - Ref: '+fmt(comm):''}{e.type==='vc'&&e.consultant_fee>0?' - Fee to consultant: '+fmt(e.consultant_fee)+' - Your income: '+fmt(e.amount-e.consultant_fee):''}{cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''}</div>
+                <div style={{marginTop:4}}>
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}>
+                    <PayBadges e={e} cr={cr}/>
+                    {e.type==='vc'&&e.ref_doctor&&<span style={{fontSize:10,color:'#7c3aed'}}>Consultant: {e.ref_doctor}</span>}
+                    {!e.type==='vc'&&doc&&<span style={{fontSize:10,color:'#d97706'}}>Ref: {doc}</span>}
+                    {comm>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>Comm: {fmt(comm)}</span>}
+                  </div>
+                  {cleanNotes(e.notes)&&<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cleanNotes(e.notes)}</div>}
+                </div>
                 {e.entered_by&&<div style={{fontSize:10,color:'#c9a84c',marginTop:1,fontWeight:600}}>✎ {e.entered_by}</div>}{e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{fontSize:10,color:'#7c3aed',marginTop:1}}>{e.conditions.split(',').filter(Boolean).join(' · ')}</div>}
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
