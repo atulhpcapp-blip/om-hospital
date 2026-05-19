@@ -1237,7 +1237,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         patient_area:patArea||'',
         ref_doctor:ref.trim(),
         payment:pay,
-        notes,
+        notes:splits.filter(s=>parseFloat(s.amount)>0).length>1?(notes?notes+' ':'')+encodeSplits(splits.filter(s=>parseFloat(s.amount)>0)):notes,
         date,
         op_type:opType,
         custom_commission:custComm!==''?parseFloat(custComm):null,
@@ -1272,9 +1272,31 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
         {!isIPtype&&<FInp label="Patient name" type="text" value={patName} onChange={e=>setPatName(e.target.value)} placeholder="Patient name"/>}
         {!isIPtype&&<FInp label="Patient phone (optional)" type="tel" value={patPhone} onChange={e=>setPatPhone(e.target.value)} placeholder="9999999999"/>}
         {!isIPtype&&<FInp label="Patient area (optional)" type="text" value={patArea} onChange={e=>setPatArea(e.target.value)} placeholder="e.g. Kukatpally, Miyapur"/>}
-        <FInp label="Amount (Rs)" type="number" inputMode="numeric" value={amount} onChange={e=>setAmount(e.target.value)}/>
+        <FInp label="Amount (Rs)" type="number" inputMode="numeric" value={amount} onChange={e=>{const newAmt=e.target.value;const newSplits=splits.length<=1?[{amount:newAmt,mode:splits[0]?.mode||pay}]:splits;setSplits(newSplits);setAmount(newAmt);}}/>
         {isOP&&<FSel label="OP type" value={opType} onChange={e=>setOpType(e.target.value)}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
-        <FSel label="Payment mode" value={pay} onChange={e=>setPay(e.target.value)}>{PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
+        <div style={{marginBottom:12}}>
+          <label style={{display:'block',fontSize:11,color:'#555',fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em',marginBottom:6}}>PAYMENT MODE</label>
+          {splits.map((sp,si)=>{
+            const multi=splits.length>1
+            return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
+              {multi&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount"
+                onChange={e=>{const s=[...splits];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}}
+                style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
+              <select value={sp.mode} onChange={e=>{const s=[...splits];s[si]={...s[si],mode:e.target.value};setSplits(s);setPay(s[0].mode)}}
+                style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
+                {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'Credit (Due)':m[0].toUpperCase()+m.slice(1)}</option>)}
+              </select>
+              {si>0
+                ?<button onClick={()=>{const s=splits.filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16}}>×</button>
+                :<div/>}
+            </div>)
+          })}
+          <button onClick={()=>setSplits([{amount:amount||'',mode:splits[0]?.mode||pay},{amount:'',mode:'cash'}])} style={{width:'100%',padding:'8px',background:'#f0f9ff',color:'#0369a1',border:'1.5px dashed #7dd3fc',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer',marginBottom:4}}>+ Split Payment (e.g. Cash + UPI)</button>
+          {splits.length>1&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 10px',background:'#f0fdf4',borderRadius:8,fontSize:13,fontWeight:700}}>
+            <span style={{color:'#16a34a'}}>Total</span>
+            <span style={{color:'#16a34a'}}>Rs {splits.reduce((a,s)=>a+(parseFloat(s.amount)||0),0).toLocaleString('en-IN')}</span>
+          </div>}
+        </div>
         {isVC&&<>
           <FSel label="Visiting consultant" value={vcConsultant} onChange={e=>setVcConsultant(e.target.value)}>
             <option value="">- Select consultant -</option>
