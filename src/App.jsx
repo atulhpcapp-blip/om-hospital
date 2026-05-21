@@ -1091,11 +1091,23 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   const go=async()=>{
     const amt=parseFloat(iF.amount);
-    if(isNaN(amt)||amt<0){alert('Enter a valid amount');return}
+    if(isNaN(amt)||amt<0){alert('Enter a valid amount (Rs 0 allowed for free consultation)');return}
     let pid=null,pname=''
     if(isIP){pid=iF.pid||null;if(pid){pname=db.ip_patients.find(p=>p.id===pid)?.name||''}}
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
-    let regNo=null;if(!isIP&&itype==='op'){regNo=await genRegNo()}
+    let regNo=null
+    if(!isIP&&['op','opd','op_p','op_r','op_l'].includes(itype)){
+      // First try to reuse existing reg_no for this patient name
+      const existingEntry=db.income.find(e=>e.patient_name&&e.patient_name.trim().toLowerCase()===pname.trim().toLowerCase()&&e.reg_no)
+      if(existingEntry){
+        regNo=existingEntry.reg_no
+      } else {
+        // Try IP patients table too
+        const ipMatch=(db.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===pname.trim().toLowerCase()&&p.reg_no)
+        if(ipMatch)regNo=ipMatch.reg_no
+        else regNo=await genRegNo()
+      }
+    }
     const activeSplits=(iF.splits||[]).filter(s=>parseFloat(s.amount)>0)
     const isMultiSplit=activeSplits.length>1
     let ok=true
@@ -1132,12 +1144,28 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
               <div style={{marginBottom:10}}>
                 <label style={{display:'block',fontSize:11,color:'#888',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:5,fontWeight:700}}>Patient name *</label>
                 <input list="op-patients-list" style={S.inp} placeholder="Type or select patient name" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})} autoCorrect="off" autoCapitalize="words"/>
+                {iF.pname?.trim().length>2&&(()=>{
+                  const ex=db.income.find(e=>e.patient_name&&e.patient_name.trim().toLowerCase()===iF.pname.trim().toLowerCase()&&e.reg_no)
+                  const ip=ex?null:(db.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===iF.pname.trim().toLowerCase()&&p.reg_no)
+                  const rn=ex?.reg_no||ip?.reg_no
+                  if(!rn)return null
+                  return(<div style={{marginTop:6,padding:'6px 10px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,color:'#16a34a',fontWeight:600}}>✓ Existing patient — Reg No: <strong>{rn}</strong></div>)
+                })()}
                 <datalist id="op-patients-list">
                   {[...new Set(db.income.filter(e=>e.type==='op'&&e.date===eDate&&e.patient_name).map(e=>e.patient_name))].map(n=><option key={n} value={n}/>)}
                 </datalist>
                 {iF.pname&&db.income.find(e=>e.type==='op'&&e.patient_name.toLowerCase()===iF.pname.toLowerCase())&&<div style={{fontSize:11,color:'#16a34a',marginTop:4,fontWeight:600}}>Patient matched - all entries will group together</div>}
               </div>
-            ):<FInp label="Patient name *" type="text" placeholder="Required" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>}
+            ):(<>
+              <FInp label="Patient name *" type="text" placeholder="Required" value={iF.pname} onChange={e=>setIF({...iF,pname:e.target.value})}/>
+              {iF.pname?.trim().length>2&&(()=>{
+                const ex=db.income.find(e=>e.patient_name&&e.patient_name.trim().toLowerCase()===iF.pname.trim().toLowerCase()&&e.reg_no)
+                const ip=ex?null:(db.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===iF.pname.trim().toLowerCase()&&p.reg_no)
+                const rn=ex?.reg_no||ip?.reg_no
+                if(!rn)return null
+                return(<div style={{margin:'-6px 0 10px 0',padding:'6px 10px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,color:'#16a34a',fontWeight:600}}>✓ Existing patient — Reg No: <strong>{rn}</strong></div>)
+              })()}
+            </>)}
             <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
             {!isIP&&<FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur, KPHB" value={iF.patient_area||''} onChange={e=>setIF({...iF,patient_area:e.target.value})}/>}
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
