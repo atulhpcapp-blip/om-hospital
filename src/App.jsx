@@ -4704,6 +4704,32 @@ export default function App(){
           if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}
           if(error){alert('Save failed: '+error.message);return}
           setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editIPPatient.id?{...p,...full}:p)}))
+          // Propagate ref_doctor to all existing entries for this patient
+          const newRefDoc=editIPPatient.ref||''
+          const entriesToUpdate=db.income.filter(e=>e.patient_id===editIPPatient.id&&(e.ref_doctor||'')!==newRefDoc&&e.type!=='vc')
+          if(entriesToUpdate.length>0){
+            const ipTypes=['ip','ip_r','ip_l','ip_p']
+            for(const e of entriesToUpdate){
+              if(!ipTypes.includes(e.type))continue
+              // Compute custom_commission from ref_doctor profile if available
+              const doc=db.ref_doctors.find(d=>d.name===newRefDoc)
+              const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[e.type]
+              let newCC=null
+              if(doc&&pctKey)newCC=doc[pctKey]
+              else if(editIPPatient.custom_commission!=null)newCC=editIPPatient.custom_commission
+              await supabase.from('income').update({ref_doctor:newRefDoc,custom_commission:newCC}).eq('id',e.id)
+            }
+            // Refresh income state
+            setDb(d=>({...d,income:d.income.map(e=>{
+              if(e.patient_id!==editIPPatient.id||!ipTypes.includes(e.type))return e
+              const doc=db.ref_doctors.find(d2=>d2.name===newRefDoc)
+              const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[e.type]
+              let newCC=null
+              if(doc&&pctKey)newCC=doc[pctKey]
+              else if(editIPPatient.custom_commission!=null)newCC=editIPPatient.custom_commission
+              return{...e,ref_doctor:newRefDoc,custom_commission:newCC}
+            })}))
+          }
           setEditIPPatient(null)
         }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
       </div>
