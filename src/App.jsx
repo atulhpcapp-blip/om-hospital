@@ -79,7 +79,8 @@ const cleanNotes=n=>{
   if(n.indexOf('SPL:')>=0)return n.slice(0,n.indexOf('SPL:')).trim()
   return n.trim()
 }
-const PAY_STYLE={cash:{bg:'#dcfce7',color:'#16a34a',label:'Cash'},upi:{bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},card:{bg:'#f3e8ff',color:'#7c3aed',label:'Card'},bank:{bg:'#e0f2fe',color:'#0369a1',label:'Bank'},insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},credit:{bg:'#fed7aa',color:'#c2410c',label:'Against IP'},discount:{bg:'#ede9fe',color:'#6d28d9',label:'Discount'},written_off:{bg:'#f3f4f6',color:'#6b7280',label:'Written Off'}}
+const IP_TYPES=['ip','ip_r','ip_l','ip_p','vc']
+const PAY_STYLE={cash:{bg:'#dcfce7',color:'#16a34a',label:'Cash'},upi:{bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},card:{bg:'#f3e8ff',color:'#7c3aed',label:'Card'},bank:{bg:'#e0f2fe',color:'#0369a1',label:'Bank'},insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},credit:{bg:'#fed7aa',color:'#c2410c',label:'Credit'},discount:{bg:'#ede9fe',color:'#6d28d9',label:'Discount'},written_off:{bg:'#f3f4f6',color:'#6b7280',label:'Written Off'}}
 const PayBadges=({e,cr})=>{
   if(cr)return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fed7aa',color:'#c2410c',fontWeight:700}}>⏳ Credit</span>
   return(<span style={{display:'inline-flex',gap:4,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:PAY_STYLE[e.payment]?.bg||'#f0f0f0',color:PAY_STYLE[e.payment]?.color||'#555',fontWeight:700}}>{PAY_STYLE[e.payment]?.label||e.payment}</span></span>)
@@ -909,7 +910,7 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
 /*  CREDIT TAB  */
 const CreditTab=({db,actions})=>{
   const [collectEntry,setCollectEntry]=useState(null)
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
   const allCredit=db.income.filter(e=>isCredit(e))
   const totalCred=allCredit.reduce((a,e)=>a+e.amount,0)
   const byPatient={}
@@ -924,7 +925,7 @@ const CreditTab=({db,actions})=>{
   return(
     <div>
       <div style={{background:'linear-gradient(135deg,#c2410c 0%,#9a3412 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
-        <div style={{fontSize:12,color:'#fed7aa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>Total credit outstanding</div>
+        <div style={{fontSize:12,color:'#fed7aa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>⏳ Total Against IP (Credit)</div>
         <div style={{fontSize:36,fontWeight:800}}>{fmt(totalCred)}</div>
         <div style={{fontSize:13,color:'#fed7aa',marginTop:6}}>{pts.length} patient{pts.length!==1?'s':''} - {allCredit.length} entr{allCredit.length!==1?'ies':'y'}</div>
       </div>
@@ -969,45 +970,64 @@ const CreditTab=({db,actions})=>{
 /*  DAILY ENTRY  */
 
 /*  COLLECT CREDIT PAYMENT FORM  */
-const CollectCreditForm=({entry,actions,onSave,onCancel})=>{
+const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
   const [date,setDate]=useState(todayStr())
   const [pay,setPay]=useState('cash')
-  const [collectAmt,setCollectAmt]=useState(String(entry.amount))
+  
+  // Find ALL credit entries for this patient (across all types)
+  const allCredits=(db?.income||[]).filter(e=>e.patient_id===entry.patient_id&&e.payment==='credit').sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+  const totalCredit=allCredits.reduce((a,e)=>a+e.amount,0)
+  const byType={}
+  allCredits.forEach(e=>{if(!byType[e.type])byType[e.type]=0;byType[e.type]+=e.amount})
+  
+  const [collectAmt,setCollectAmt]=useState(String(totalCredit))
   const [busy,setBusy]=useState(false)
-  const it=ITYPES.find(t=>t.key===entry.type)
-  const totalDue=parseFloat(entry.amount)
   const collected=parseFloat(collectAmt)||0
-  const remaining=totalDue-collected
-  const isPartial=collected>0&&collected<totalDue
-  const isFull=collected>=totalDue
-  const isInvalid=collected<=0||collected>totalDue
+  const remaining=totalCredit-collected
+  const isPartial=collected>0&&collected<totalCredit
+  const isFull=collected>=totalCredit
+  const isInvalid=collected<=0||collected>totalCredit
   
   const go=async()=>{
-    if(isInvalid){alert('Enter amount between Rs 1 and Rs '+fmt(totalDue));return}
+    if(isInvalid){alert('Enter amount between Rs 1 and Rs '+fmt(totalCredit));return}
     setBusy(true)
-    if(isFull){
-      // Full payment: just convert credit → paid
-      await onSave({...entry,payment:pay,date,amount:totalDue})
-    } else {
-      // Partial: reduce original credit amount + create new paid entry
-      await actions.editIncome({...entry,amount:remaining})
-      await actions.addIncome({id:uid(),date,type:entry.type,amount:collected,patient_id:entry.patient_id,patient_name:entry.patient_name,payment:pay,ref_doctor:entry.ref_doctor||'',notes:'Partial payment of Rs '+fmt(totalDue)+' credit',custom_commission:entry.custom_commission!=null?entry.custom_commission:null,reg_no:entry.reg_no||''})
-      onCancel()
+    // Distribute collection across credit entries (oldest first)
+    let remainingToCollect=collected
+    for(const ce of allCredits){
+      if(remainingToCollect<=0)break
+      const useAmt=Math.min(remainingToCollect,ce.amount)
+      if(useAmt>=ce.amount){
+        // Full entry payment: convert credit → paid
+        await actions.editIncome({...ce,payment:pay,date})
+      } else {
+        // Partial: reduce credit + add paid entry
+        await actions.editIncome({...ce,amount:ce.amount-useAmt})
+        await actions.addIncome({id:uid(),date,type:ce.type,amount:useAmt,patient_id:ce.patient_id,patient_name:ce.patient_name,payment:pay,ref_doctor:ce.ref_doctor||'',notes:'Partial payment',custom_commission:ce.custom_commission!=null?ce.custom_commission:null,reg_no:ce.reg_no||''})
+      }
+      remainingToCollect-=useAmt
     }
     setBusy(false)
+    onCancel()
   }
   
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520,maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <div style={{fontSize:15,fontWeight:700,color:'#16a34a'}}>💰 Collect payment</div>
+          <div style={{fontSize:15,fontWeight:700,color:'#16a34a'}}>💰 Collect Payment — {entry.patient_name}</div>
           <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer',color:'#555'}}>×</button>
         </div>
-        <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
-          <div style={{fontSize:11,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>⏳ Total credit due</div>
-          <div style={{fontSize:24,fontWeight:800,color:'#c2410c'}}>{fmt(totalDue)}</div>
-          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} — {entry.patient_name||'Patient'} — {fmtD(entry.date)}</div>
+        
+        <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:10,padding:'14px 16px',marginBottom:14}}>
+          <div style={{fontSize:11,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>⏳ Total Against IP (all due)</div>
+          <div style={{fontSize:28,fontWeight:800,color:'#c2410c',marginBottom:8}}>{fmt(totalCredit)}</div>
+          <div style={{borderTop:'1px dashed #fed7aa',paddingTop:8,marginTop:6}}>
+            {Object.entries(byType).map(([tk,amt])=>{const it=ITYPES.find(t=>t.key===tk);return(
+              <div key={tk} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#92400e',padding:'2px 0'}}>
+                <span>{it?.full||tk}</span><span style={{fontWeight:700}}>{fmt(amt)}</span>
+              </div>
+            )})}
+          </div>
         </div>
 
         <div style={{marginBottom:14}}>
@@ -1015,8 +1035,8 @@ const CollectCreditForm=({entry,actions,onSave,onCancel})=>{
           <input type="number" inputMode="numeric" value={collectAmt} onChange={e=>setCollectAmt(e.target.value)} 
             style={{width:'100%',padding:'12px 14px',border:'2px solid #16a34a',borderRadius:10,fontSize:18,fontWeight:700,color:'#16a34a',outline:'none',boxSizing:'border-box'}}/>
           <div style={{display:'flex',gap:6,marginTop:6}}>
-            <button onClick={()=>setCollectAmt(String(totalDue))} style={{flex:1,padding:'6px',background:'#f0fdf4',color:'#16a34a',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Full ({fmt(totalDue)})</button>
-            <button onClick={()=>setCollectAmt(String(Math.round(totalDue/2)))} style={{flex:1,padding:'6px',background:'#eff6ff',color:'#1d4ed8',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Half ({fmt(Math.round(totalDue/2))})</button>
+            <button onClick={()=>setCollectAmt(String(totalCredit))} style={{flex:1,padding:'6px',background:'#f0fdf4',color:'#16a34a',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Full ({fmt(totalCredit)})</button>
+            <button onClick={()=>setCollectAmt(String(Math.round(totalCredit/2)))} style={{flex:1,padding:'6px',background:'#eff6ff',color:'#1d4ed8',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Half ({fmt(Math.round(totalCredit/2))})</button>
           </div>
         </div>
 
@@ -1028,9 +1048,10 @@ const CollectCreditForm=({entry,actions,onSave,onCancel})=>{
           <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:600}}>
             <span style={{color:'#c2410c'}}>⏳ Remaining (Against IP)</span><span style={{color:'#c2410c'}}>{fmt(remaining)}</span>
           </div>
+          <div style={{fontSize:10,color:'#94a3b8',marginTop:4,fontStyle:'italic'}}>Auto-applied to oldest credit entries first</div>
         </div>}
-        {isFull&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:13,color:'#15803d',fontWeight:600}}>✅ Full credit will be cleared</div>}
-        {isInvalid&&collectAmt&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:12,color:'#dc2626',fontWeight:600}}>⚠️ Amount must be between Rs 1 and Rs {fmt(totalDue)}</div>}
+        {isFull&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:13,color:'#15803d',fontWeight:600}}>✅ All credit will be cleared</div>}
+        {isInvalid&&collectAmt&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:12,color:'#dc2626',fontWeight:600}}>⚠️ Amount must be between Rs 1 and Rs {fmt(totalCredit)}</div>}
 
         <FInp label="Collection date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
         <div style={{marginBottom:14}}>
@@ -1044,7 +1065,7 @@ const CollectCreditForm=({entry,actions,onSave,onCancel})=>{
           </div>
         </div>
         <PBtn onClick={go} disabled={busy||isInvalid} style={{background:isInvalid?'#ccc':'#16a34a'}}>
-          {busy?'Saving...':isFull?'Collect Full '+fmt(totalDue):'Collect '+fmt(collected||0)+' (Rs '+fmt(remaining)+' remains as credit)'}
+          {busy?'Saving...':isFull?'Collect Full '+fmt(totalCredit):'Collect '+fmt(collected||0)+' (Rs '+fmt(remaining)+' remains)'}
         </PBtn>
       </div>
     </div>
@@ -1098,7 +1119,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
           {splits.map((sp,si)=>{const multi=splits.length>1;return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             {multi&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount" onChange={e=>{const s=[...splits];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
             <select value={sp.mode} onChange={e=>{const s=[...splits];s[si]={...s[si],mode:e.target.value};setSplits(s);setPay(s[0].mode)}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </select>
             {si>0?<button onClick={()=>{const s=splits.filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16}}>×</button>:<div/>}
           </div>)})}
@@ -1250,7 +1271,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
           {(iF.splits||[{amount:iF.amount,mode:iF.pay}]).map((sp,si)=>{const multi=(iF.splits||[]).length>1;return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             {multi&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount" onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
             <select value={sp.mode} onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],mode:e.target.value};setIF({...iF,splits:s,pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </select>
             {si>0?<button onClick={()=>{const s=(iF.splits||[]).filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16}}>×</button>:<div/>}
           </div>)})}
@@ -1361,7 +1382,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const balance=pats?.is_package?0:credit
     return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
 
   if(billPatient)return(<IPBillingModule p={billPatient} db={db} onClose={()=>setBillPatient(null)} hospital={db.hospital}/>)
@@ -1443,7 +1464,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={cF.amt} onChange={e=>setCF({...cF,amt:e.target.value})}/>
             <FSel label="Payment" value={cF.pay} onChange={e=>setCF({...cF,pay:e.target.value})}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </FSel>
           </div>
           {cF.type==='vc'&&<FInp label="Visiting consultant name" type="text" placeholder="e.g. Dr. Rao (Cardiologist)" value={cF.vcName||''} onChange={e=>setCF({...cF,vcName:e.target.value})}/> }
@@ -1701,7 +1722,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
       if(byPat[k]){setSelPat(k);setFromReport(true)}
     }
   },[opSearch])
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   if(selPat){
     const pat=byPat[selPat?.trim().toLowerCase()]||byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
@@ -3667,7 +3688,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
             <FInp label="Date" type="date" value={newReceipt.date} onChange={e=>setNewReceipt({...newReceipt,date:e.target.value})}/>
           </div>
           <FSel label="Payment mode" value={newReceipt.mode} onChange={e=>setNewReceipt({...newReceipt,mode:e.target.value})}>
-            {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+            {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
           </FSel>
           <FInp label="Notes (optional)" type="text" value={newReceipt.notes} onChange={e=>setNewReceipt({...newReceipt,notes:e.target.value})} placeholder="e.g. Advance, Partial payment, Final"/>
           <GBtn onClick={addReceipt} disabled={savingReceipt}>{savingReceipt?'Saving...':'Generate Receipt'}</GBtn>
