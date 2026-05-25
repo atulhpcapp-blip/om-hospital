@@ -22,10 +22,10 @@ const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');retu
 const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
-const getComm=e=>(isExcluded(e)||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isCredit=e=>e.payment==='credit'
 const isExcluded=e=>e.payment==='credit'||e.payment==='written_off'||e.payment==='discount'
 const isPaid=e=>!isExcluded(e)
+const getComm=e=>{if(e.payment==='written_off'||e.payment==='discount')return 0;if(!e.ref_doctor||e.ref_doctor.trim()==='')return 0;const rate=e.custom_commission!=null?(parseFloat(e.custom_commission)/100):(COMM[e.type]||0);return e.amount*rate}
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=ECATS.filter(c=>c.key!=='ref_paid').reduce((a,c)=>a+(r[c.key]||0),0);return r}
 const totalRef=list=>list.reduce((a,e)=>a+getComm(e),0)
@@ -1372,16 +1372,21 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [ipShowFilters,setIpShowFilters]=useState(false)
   const getBill=pid=>{
     const en=db.income.filter(e=>e.patient_id===pid)
-    const total=en.reduce((a,e)=>a+e.amount,0)
-    const comm=en.reduce((a,e)=>a+getComm(e),0)
-    const credit=credTotal(en)
+    // Split entries by purpose
+    const chargeEnts=en.filter(e=>e.payment!=='discount'&&e.payment!=='written_off')
+    const discount=en.filter(e=>e.payment==='discount').reduce((a,e)=>a+e.amount,0)
+    const writtenOff=en.filter(e=>e.payment==='written_off').reduce((a,e)=>a+e.amount,0)
+    const billed=chargeEnts.reduce((a,e)=>a+e.amount,0)  // gross charges
+    const paid=cashTotal(chargeEnts)  // actually collected (cash/upi/card/bank/insurance)
+    const credit=credTotal(chargeEnts)  // still owed
+    const total=billed  // For backward compat — gross charges
+    const comm=en.reduce((a,e)=>a+getComm(e),0)  // commission (already excludes discount/writeoff)
     const pats=db.ip_patients.find(p=>p.id===pid)
     const payments=pats?.payments||[]
     const pkgPaid=payments.reduce((a,e)=>a+e.amount,0)
     const pkgComm=payments.reduce((a,py)=>a+(py.commission||0),0)
-    const paid=pats?.is_package?pkgPaid:cashTotal(en)
-    const balance=pats?.is_package?0:credit
-    return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
+    const balance=pats?.is_package?0:credit  // remaining credit IS the balance
+    return{total,billed,paid:pats?.is_package?pkgPaid:paid,balance,commission:comm+pkgComm,credit,pkgComm,discount,writtenOff}
   }
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
@@ -1450,8 +1455,33 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                 ))}
               </div>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total credit</span><span>{fmt(b.credit)}</span></div>
         {b.credit>0&&!p.discharge_date&&<div style={{display:'flex',gap:8,marginTop:10,paddingTop:10,borderTop:'1px dashed #fed7aa'}}>
-          <button onClick={()=>{const amt=prompt('Discount amount (Rs)? Will be deducted from balance, not counted as income.','0');const n=parseFloat(amt);if(!n||n<=0)return;if(n>b.credit){alert('Cannot exceed credit balance Rs '+fmt(b.credit));return};const note=prompt('Reason for discount (e.g. Senior citizen, repeat patient)','Discount');actions.addIncome({id:uid(),date:todayStr(),type:'ip',amount:n,patient_id:p.id,patient_name:p.name,payment:'discount',ref_doctor:p.ref_doctor||'',notes:note||'Discount applied',reg_no:p.reg_no||''})}} style={{flex:1,padding:'9px 12px',background:'#ede9fe',color:'#6d28d9',border:'1.5px solid #c4b5fd',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>🎟️ Apply Discount</button>
-          <button onClick={()=>{if(!window.confirm('Write off ENTIRE balance of Rs '+fmt(b.credit)+'?\n\nThis will be marked as bad debt and NOT counted as income.'))return;const note=prompt('Reason for write-off (e.g. Patient absconded, charity case)','Bad debt');actions.addIncome({id:uid(),date:todayStr(),type:'ip',amount:b.credit,patient_id:p.id,patient_name:p.name,payment:'written_off',ref_doctor:p.ref_doctor||'',notes:note||'Written off',reg_no:p.reg_no||''})}} style={{flex:1,padding:'9px 12px',background:'#f3f4f6',color:'#374151',border:'1.5px solid #d1d5db',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off Balance</button>
+          <button onClick={async()=>{
+            const amt=prompt('Discount amount (Rs)?\n\nThis will reduce the outstanding credit balance.\nNot counted as income.','0')
+            const n=parseFloat(amt);if(!n||n<=0)return
+            if(n>b.credit){alert('Cannot exceed credit balance Rs '+fmt(b.credit));return}
+            const note=prompt('Reason for discount (e.g. Senior citizen, repeat patient)','Discount')||'Discount applied'
+            // Create discount entry for audit trail
+            await actions.addIncome({id:uid(),date:todayStr(),type:'ip',amount:n,patient_id:p.id,patient_name:p.name,payment:'discount',ref_doctor:p.ref_doctor||'',notes:note,reg_no:p.reg_no||''})
+            // Reduce credit entries (oldest first) by discount amount
+            const creditEnts=db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit').sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+            let remaining=n
+            for(const ce of creditEnts){
+              if(remaining<=0)break
+              const reduce=Math.min(remaining,ce.amount)
+              if(reduce>=ce.amount){await actions.delIncome(ce.id)}
+              else{await actions.editIncome({...ce,amount:ce.amount-reduce})}
+              remaining-=reduce
+            }
+          }} style={{flex:1,padding:'9px 12px',background:'#ede9fe',color:'#6d28d9',border:'1.5px solid #c4b5fd',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>🎟️ Apply Discount</button>
+          <button onClick={async()=>{
+            if(!window.confirm('Write off ENTIRE balance of Rs '+fmt(b.credit)+'?\n\nThis will be marked as bad debt and NOT counted as income.'))return
+            const note=prompt('Reason for write-off (e.g. Patient absconded, charity case)','Bad debt')||'Written off'
+            // Create write-off entry for audit
+            await actions.addIncome({id:uid(),date:todayStr(),type:'ip',amount:b.credit,patient_id:p.id,patient_name:p.name,payment:'written_off',ref_doctor:p.ref_doctor||'',notes:note,reg_no:p.reg_no||''})
+            // Remove all credit entries for this patient
+            const creditEnts=db.income.filter(e=>e.patient_id===p.id&&e.payment==='credit')
+            for(const ce of creditEnts){await actions.delIncome(ce.id)}
+          }} style={{flex:1,padding:'9px 12px',background:'#f3f4f6',color:'#374151',border:'1.5px solid #d1d5db',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off Balance</button>
         </div>}
         </Card></>)}
         {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div></Card></>)}
@@ -4704,14 +4734,18 @@ export default function App(){
           if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}
           if(error){alert('Save failed: '+error.message);return}
           setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editIPPatient.id?{...p,...full}:p)}))
-          // Propagate ref_doctor to all entries for this patient (match by id OR name)
+          // PROPAGATE: update ref_doctor + commission rate to ALL of this patient's IP-type entries
           const newRefDoc=editIPPatient.ref||''
           const ipTypes=['ip','ip_r','ip_l','ip_p']
           const pname=(editIPPatient.name||'').trim().toLowerCase()
+          // Match by patient_id OR patient_name (handles legacy entries without patient_id)
           const entriesToUpdate=db.income.filter(e=>{
-            const matchesPat=e.patient_id===editIPPatient.id||(e.patient_name&&e.patient_name.trim().toLowerCase()===pname)
-            return matchesPat&&ipTypes.includes(e.type)
+            if(!ipTypes.includes(e.type))return false
+            if(e.patient_id===editIPPatient.id)return true
+            if(e.patient_name&&e.patient_name.trim().toLowerCase()===pname)return true
+            return false
           })
+          console.log('PROPAGATION:',{patient:editIPPatient.name,newRefDoc,foundEntries:entriesToUpdate.length,entries:entriesToUpdate.map(e=>({id:e.id,type:e.type,amount:e.amount,oldRef:e.ref_doctor}))})
           console.log('PROPAGATION: found',entriesToUpdate.length,'entries to update for',editIPPatient.name,'with ref:',newRefDoc)
           if(entriesToUpdate.length>0){
             let updateCount=0,errors=[]
@@ -4737,7 +4771,7 @@ export default function App(){
               else if(editIPPatient.custom_commission!=null&&editIPPatient.custom_commission!=='')newCC=parseFloat(editIPPatient.custom_commission)
               return{...e,ref_doctor:newRefDoc,custom_commission:newCC,patient_id:editIPPatient.id}
             })}))
-            alert('Updated '+updateCount+' charges with Dr. '+newRefDoc+'. Commission will recalculate.')
+            if(updateCount>0){alert('✅ Updated '+updateCount+' charges with '+(newRefDoc?'Dr. '+newRefDoc:'no referring doctor')+'.\n\nCommission will recalculate immediately.')} else if(entriesToUpdate.length===0){alert('No IP charges found for this patient to update commission on.')}
           }
           setEditIPPatient(null)
         }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
