@@ -1371,7 +1371,21 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [ipRefFilter,setIpRefFilter]=useState('')
   const [ipShowFilters,setIpShowFilters]=useState(false)
   const getBill=pid=>{
-    const en=db.income.filter(e=>e.patient_id===pid)
+    const pat=db.ip_patients.find(x=>x.id===pid)
+    const rawEn=db.income.filter(e=>e.patient_id===pid||(pat&&e.patient_name&&e.patient_name.trim().toLowerCase()===(pat.name||'').trim().toLowerCase()))
+    // Enrich entries: use patient's ref_doctor + commission rate if entry lacks them
+    const en=rawEn.map(e=>{
+      if(e.ref_doctor&&e.ref_doctor.trim())return e
+      if(!pat?.ref_doctor)return e
+      const doc=db.ref_doctors.find(d=>d.name===pat.ref_doctor)
+      const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[e.type]
+      let cc=e.custom_commission
+      if(cc==null){
+        if(doc&&pctKey&&doc[pctKey]!=null)cc=doc[pctKey]
+        else if(pat.custom_commission!=null&&pat.custom_commission!=='')cc=parseFloat(pat.custom_commission)
+      }
+      return{...e,ref_doctor:pat.ref_doctor,custom_commission:cc}
+    })
     // Split entries by purpose
     const chargeEnts=en.filter(e=>e.payment!=='discount'&&e.payment!=='written_off')
     const discount=en.filter(e=>e.payment==='discount').reduce((a,e)=>a+e.amount,0)
@@ -1395,7 +1409,20 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   if(ipv==='detail'&&ipid){
     const p=db.ip_patients.find(p=>p.id===ipid)
     if(!p)return<button onClick={()=>setIpv('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
-    const b=getBill(p.id);const ents=db.income.filter(e=>e.patient_id===p.id)
+    const b=getBill(p.id)
+    const rawEnts=db.income.filter(e=>e.patient_id===p.id||(e.patient_name&&e.patient_name.trim().toLowerCase()===(p.name||'').trim().toLowerCase()))
+    const ents=rawEnts.map(e=>{
+      if(e.ref_doctor&&e.ref_doctor.trim())return e
+      if(!p.ref_doctor)return e
+      const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor)
+      const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[e.type]
+      let cc=e.custom_commission
+      if(cc==null){
+        if(doc&&pctKey&&doc[pctKey]!=null)cc=doc[pctKey]
+        else if(p.custom_commission!=null&&p.custom_commission!=='')cc=parseFloat(p.custom_commission)
+      }
+      return{...e,ref_doctor:p.ref_doctor,custom_commission:cc}
+    })
     const patType=p.patient_type||'Regular'
     return(
       <div>
@@ -2214,7 +2241,15 @@ const PatientListReport=({db,gotoTimeline})=>{
           if(ipSearch.trim()&&ipView!=='ref')pool=pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch))
         }
         if(!pool.length)return null
-        return(<><SecL>IP patients ({pool.length})</SecL>{pool.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id);const total=ents.reduce((a,e)=>a+e.amount,0);const cash=cashTotal(ents);const credit=credTotal(ents);const pkgPd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0)+(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<Card key={p.id} style={{marginBottom:10}}>
+        return(<><SecL>IP patients ({pool.length})</SecL>{pool.map(p=>{const ents=db.income.filter(e=>e.patient_id===p.id||(e.patient_name&&e.patient_name.trim().toLowerCase()===(p.name||'').trim().toLowerCase())).map(e=>{
+          if(e.ref_doctor&&e.ref_doctor.trim())return e
+          if(!p.ref_doctor)return e
+          const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor)
+          const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[e.type]
+          let cc=e.custom_commission
+          if(cc==null){if(doc&&pctKey&&doc[pctKey]!=null)cc=doc[pctKey];else if(p.custom_commission!=null&&p.custom_commission!=='')cc=parseFloat(p.custom_commission)}
+          return{...e,ref_doctor:p.ref_doctor,custom_commission:cc}
+        });const total=ents.reduce((a,e)=>a+e.amount,0);const cash=cashTotal(ents);const credit=credTotal(ents);const pkgPd=(p.payments||[]).reduce((a,e)=>a+e.amount,0);const comm=ents.reduce((a,e)=>a+getComm(e),0)+(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<Card key={p.id} style={{marginBottom:10}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
         <div><button onClick={()=>gotoTimeline(p.id)} style={{fontSize:14,fontWeight:700,color:'#1d4ed8',background:'none',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>{p.name}</button>{p.phone&&<div style={{fontSize:11,color:'#aaa'}}>Ph: {p.phone}</div>}{p.reg_no&&<div style={{fontSize:11,color:'#1d4ed8',fontWeight:600}}>Reg: {p.reg_no}</div>}<div style={{fontSize:11,color:'#aaa',marginTop:2}}>{fmtD(p.admission_date)}{p.discharge_date?' to '+fmtD(p.discharge_date):<Pill label="Active" bg="#dcfce7" tx="#16a34a"/>}</div>{p.ref_doctor&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,marginTop:2}}>Ref: {p.ref_doctor}</div>}</div>
         <div style={{textAlign:'right'}}>{p.patient_type&&p.patient_type!=='Regular'&&<div style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#dbeafe',color:'#1d4ed8',fontWeight:700,marginBottom:4}}>{p.patient_type}</div>}<div style={{fontSize:14,fontWeight:700}}>{fmt(total)}</div></div>
