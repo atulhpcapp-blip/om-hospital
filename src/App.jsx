@@ -1119,7 +1119,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
           {splits.map((sp,si)=>{const multi=splits.length>1;return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             {multi&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount" onChange={e=>{const s=[...splits];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
             <select value={sp.mode} onChange={e=>{const s=[...splits];s[si]={...s[si],mode:e.target.value};setSplits(s);setPay(s[0].mode)}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </select>
             {si>0?<button onClick={()=>{const s=splits.filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16}}>×</button>:<div/>}
           </div>)})}
@@ -1271,7 +1271,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
           {(iF.splits||[{amount:iF.amount,mode:iF.pay}]).map((sp,si)=>{const multi=(iF.splits||[]).length>1;return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             {multi&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount" onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
             <select value={sp.mode} onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],mode:e.target.value};setIF({...iF,splits:s,pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </select>
             {si>0?<button onClick={()=>{const s=(iF.splits||[]).filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16}}>×</button>:<div/>}
           </div>)})}
@@ -1464,7 +1464,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={cF.amt} onChange={e=>setCF({...cF,amt:e.target.value})}/>
             <FSel label="Payment" value={cF.pay} onChange={e=>setCF({...cF,pay:e.target.value})}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </FSel>
           </div>
           {cF.type==='vc'&&<FInp label="Visiting consultant name" type="text" placeholder="e.g. Dr. Rao (Cardiologist)" value={cF.vcName||''} onChange={e=>setCF({...cF,vcName:e.target.value})}/> }
@@ -3688,7 +3688,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
             <FInp label="Date" type="date" value={newReceipt.date} onChange={e=>setNewReceipt({...newReceipt,date:e.target.value})}/>
           </div>
           <FSel label="Payment mode" value={newReceipt.mode} onChange={e=>setNewReceipt({...newReceipt,mode:e.target.value})}>
-            {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes(itype)?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+            {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
           </FSel>
           <FInp label="Notes (optional)" type="text" value={newReceipt.notes} onChange={e=>setNewReceipt({...newReceipt,notes:e.target.value})} placeholder="e.g. Advance, Partial payment, Final"/>
           <GBtn onClick={addReceipt} disabled={savingReceipt}>{savingReceipt?'Saving...':'Generate Receipt'}</GBtn>
