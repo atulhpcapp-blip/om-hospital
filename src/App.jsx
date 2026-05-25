@@ -909,7 +909,7 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
 /*  CREDIT TAB  */
 const CreditTab=({db,actions})=>{
   const [collectEntry,setCollectEntry]=useState(null)
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   const allCredit=db.income.filter(e=>isCredit(e))
   const totalCred=allCredit.reduce((a,e)=>a+e.amount,0)
   const byPatient={}
@@ -969,64 +969,45 @@ const CreditTab=({db,actions})=>{
 /*  DAILY ENTRY  */
 
 /*  COLLECT CREDIT PAYMENT FORM  */
-const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
+const CollectCreditForm=({entry,actions,onSave,onCancel})=>{
   const [date,setDate]=useState(todayStr())
   const [pay,setPay]=useState('cash')
-  
-  // Find ALL credit entries for this patient (across all types)
-  const allCredits=(db?.income||[]).filter(e=>e.patient_id===entry.patient_id&&e.payment==='credit').sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-  const totalCredit=allCredits.reduce((a,e)=>a+e.amount,0)
-  const byType={}
-  allCredits.forEach(e=>{if(!byType[e.type])byType[e.type]=0;byType[e.type]+=e.amount})
-  
-  const [collectAmt,setCollectAmt]=useState(String(totalCredit))
+  const [collectAmt,setCollectAmt]=useState(String(entry.amount))
   const [busy,setBusy]=useState(false)
+  const it=ITYPES.find(t=>t.key===entry.type)
+  const totalDue=parseFloat(entry.amount)
   const collected=parseFloat(collectAmt)||0
-  const remaining=totalCredit-collected
-  const isPartial=collected>0&&collected<totalCredit
-  const isFull=collected>=totalCredit
-  const isInvalid=collected<=0||collected>totalCredit
+  const remaining=totalDue-collected
+  const isPartial=collected>0&&collected<totalDue
+  const isFull=collected>=totalDue
+  const isInvalid=collected<=0||collected>totalDue
   
   const go=async()=>{
-    if(isInvalid){alert('Enter amount between Rs 1 and Rs '+fmt(totalCredit));return}
+    if(isInvalid){alert('Enter amount between Rs 1 and Rs '+fmt(totalDue));return}
     setBusy(true)
-    // Distribute collection across credit entries (oldest first)
-    let remainingToCollect=collected
-    for(const ce of allCredits){
-      if(remainingToCollect<=0)break
-      const useAmt=Math.min(remainingToCollect,ce.amount)
-      if(useAmt>=ce.amount){
-        // Full entry payment: convert credit → paid
-        await actions.editIncome({...ce,payment:pay,date})
-      } else {
-        // Partial: reduce credit + add paid entry
-        await actions.editIncome({...ce,amount:ce.amount-useAmt})
-        await actions.addIncome({id:uid(),date,type:ce.type,amount:useAmt,patient_id:ce.patient_id,patient_name:ce.patient_name,payment:pay,ref_doctor:ce.ref_doctor||'',notes:'Partial payment',custom_commission:ce.custom_commission!=null?ce.custom_commission:null,reg_no:ce.reg_no||''})
-      }
-      remainingToCollect-=useAmt
+    if(isFull){
+      // Full payment: just convert credit → paid
+      await onSave({...entry,payment:pay,date,amount:totalDue})
+    } else {
+      // Partial: reduce original credit amount + create new paid entry
+      await actions.editIncome({...entry,amount:remaining})
+      await actions.addIncome({id:uid(),date,type:entry.type,amount:collected,patient_id:entry.patient_id,patient_name:entry.patient_name,payment:pay,ref_doctor:entry.ref_doctor||'',notes:'Partial payment of Rs '+fmt(totalDue)+' credit',custom_commission:entry.custom_commission!=null?entry.custom_commission:null,reg_no:entry.reg_no||''})
+      onCancel()
     }
     setBusy(false)
-    onCancel()
   }
   
   return(
     <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:'20px 16px 40px',width:'100%',maxWidth:520,maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-          <div style={{fontSize:15,fontWeight:700,color:'#16a34a'}}>💰 Collect Payment — {entry.patient_name}</div>
+          <div style={{fontSize:15,fontWeight:700,color:'#16a34a'}}>💰 Collect payment</div>
           <button onClick={onCancel} style={{background:'#f0f0f0',border:'none',borderRadius:20,width:32,height:32,fontSize:16,cursor:'pointer',color:'#555'}}>×</button>
         </div>
-        
-        <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:10,padding:'14px 16px',marginBottom:14}}>
-          <div style={{fontSize:11,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>⏳ Total Against IP (all due)</div>
-          <div style={{fontSize:28,fontWeight:800,color:'#c2410c',marginBottom:8}}>{fmt(totalCredit)}</div>
-          <div style={{borderTop:'1px dashed #fed7aa',paddingTop:8,marginTop:6}}>
-            {Object.entries(byType).map(([tk,amt])=>{const it=ITYPES.find(t=>t.key===tk);return(
-              <div key={tk} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#92400e',padding:'2px 0'}}>
-                <span>{it?.full||tk}</span><span style={{fontWeight:700}}>{fmt(amt)}</span>
-              </div>
-            )})}
-          </div>
+        <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:10,padding:'12px 14px',marginBottom:14}}>
+          <div style={{fontSize:11,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>⏳ Total credit due</div>
+          <div style={{fontSize:24,fontWeight:800,color:'#c2410c'}}>{fmt(totalDue)}</div>
+          <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{it?.full||entry.type} — {entry.patient_name||'Patient'} — {fmtD(entry.date)}</div>
         </div>
 
         <div style={{marginBottom:14}}>
@@ -1034,8 +1015,8 @@ const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
           <input type="number" inputMode="numeric" value={collectAmt} onChange={e=>setCollectAmt(e.target.value)} 
             style={{width:'100%',padding:'12px 14px',border:'2px solid #16a34a',borderRadius:10,fontSize:18,fontWeight:700,color:'#16a34a',outline:'none',boxSizing:'border-box'}}/>
           <div style={{display:'flex',gap:6,marginTop:6}}>
-            <button onClick={()=>setCollectAmt(String(totalCredit))} style={{flex:1,padding:'6px',background:'#f0fdf4',color:'#16a34a',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Full ({fmt(totalCredit)})</button>
-            <button onClick={()=>setCollectAmt(String(Math.round(totalCredit/2)))} style={{flex:1,padding:'6px',background:'#eff6ff',color:'#1d4ed8',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Half ({fmt(Math.round(totalCredit/2))})</button>
+            <button onClick={()=>setCollectAmt(String(totalDue))} style={{flex:1,padding:'6px',background:'#f0fdf4',color:'#16a34a',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Full ({fmt(totalDue)})</button>
+            <button onClick={()=>setCollectAmt(String(Math.round(totalDue/2)))} style={{flex:1,padding:'6px',background:'#eff6ff',color:'#1d4ed8',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>Half ({fmt(Math.round(totalDue/2))})</button>
           </div>
         </div>
 
@@ -1047,10 +1028,9 @@ const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
           <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:600}}>
             <span style={{color:'#c2410c'}}>⏳ Remaining (Against IP)</span><span style={{color:'#c2410c'}}>{fmt(remaining)}</span>
           </div>
-          <div style={{fontSize:10,color:'#94a3b8',marginTop:4,fontStyle:'italic'}}>Auto-applied to oldest credit entries first</div>
         </div>}
-        {isFull&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:13,color:'#15803d',fontWeight:600}}>✅ All credit will be cleared</div>}
-        {isInvalid&&collectAmt&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:12,color:'#dc2626',fontWeight:600}}>⚠️ Amount must be between Rs 1 and Rs {fmt(totalCredit)}</div>}
+        {isFull&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:13,color:'#15803d',fontWeight:600}}>✅ Full credit will be cleared</div>}
+        {isInvalid&&collectAmt&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:12,color:'#dc2626',fontWeight:600}}>⚠️ Amount must be between Rs 1 and Rs {fmt(totalDue)}</div>}
 
         <FInp label="Collection date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
         <div style={{marginBottom:14}}>
@@ -1064,7 +1044,7 @@ const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
           </div>
         </div>
         <PBtn onClick={go} disabled={busy||isInvalid} style={{background:isInvalid?'#ccc':'#16a34a'}}>
-          {busy?'Saving...':isFull?'Collect Full '+fmt(totalCredit):'Collect '+fmt(collected||0)+' (Rs '+fmt(remaining)+' remains)'}
+          {busy?'Saving...':isFull?'Collect Full '+fmt(totalDue):'Collect '+fmt(collected||0)+' (Rs '+fmt(remaining)+' remains as credit)'}
         </PBtn>
       </div>
     </div>
@@ -1381,7 +1361,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     const balance=pats?.is_package?0:credit
     return{total,paid,balance,commission:comm+pkgComm,credit,pkgComm}
   }
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
 
   if(billPatient)return(<IPBillingModule p={billPatient} db={db} onClose={()=>setBillPatient(null)} hospital={db.hospital}/>)
@@ -1721,7 +1701,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
       if(byPat[k]){setSelPat(k);setFromReport(true)}
     }
   },[opSearch])
-  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
+  if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setCollectEntry(null)}} onCancel={()=>setCollectEntry(null)}/>)
   if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   if(selPat){
     const pat=byPat[selPat?.trim().toLowerCase()]||byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
