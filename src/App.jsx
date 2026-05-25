@@ -4704,31 +4704,40 @@ export default function App(){
           if(error){const r2=await supabase.from('ip_patients').update(safe).eq('id',editIPPatient.id);error=r2.error}
           if(error){alert('Save failed: '+error.message);return}
           setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===editIPPatient.id?{...p,...full}:p)}))
-          // Propagate ref_doctor to all existing entries for this patient
+          // Propagate ref_doctor to all entries for this patient (match by id OR name)
           const newRefDoc=editIPPatient.ref||''
-          const entriesToUpdate=db.income.filter(e=>e.patient_id===editIPPatient.id&&(e.ref_doctor||'')!==newRefDoc&&e.type!=='vc')
+          const ipTypes=['ip','ip_r','ip_l','ip_p']
+          const pname=(editIPPatient.name||'').trim().toLowerCase()
+          const entriesToUpdate=db.income.filter(e=>{
+            const matchesPat=e.patient_id===editIPPatient.id||(e.patient_name&&e.patient_name.trim().toLowerCase()===pname)
+            return matchesPat&&ipTypes.includes(e.type)
+          })
+          console.log('PROPAGATION: found',entriesToUpdate.length,'entries to update for',editIPPatient.name,'with ref:',newRefDoc)
           if(entriesToUpdate.length>0){
-            const ipTypes=['ip','ip_r','ip_l','ip_p']
+            let updateCount=0,errors=[]
             for(const e of entriesToUpdate){
-              if(!ipTypes.includes(e.type))continue
-              // Compute custom_commission from ref_doctor profile if available
               const doc=db.ref_doctors.find(d=>d.name===newRefDoc)
               const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[e.type]
               let newCC=null
-              if(doc&&pctKey)newCC=doc[pctKey]
-              else if(editIPPatient.custom_commission!=null)newCC=editIPPatient.custom_commission
-              await supabase.from('income').update({ref_doctor:newRefDoc,custom_commission:newCC}).eq('id',e.id)
+              if(doc&&pctKey&&doc[pctKey]!=null)newCC=doc[pctKey]
+              else if(editIPPatient.custom_commission!=null&&editIPPatient.custom_commission!=='')newCC=parseFloat(editIPPatient.custom_commission)
+              const {error:upErr}=await supabase.from('income').update({ref_doctor:newRefDoc,custom_commission:newCC,patient_id:editIPPatient.id}).eq('id',e.id)
+              if(upErr){errors.push(e.id+': '+upErr.message)}else{updateCount++}
             }
-            // Refresh income state
+            console.log('PROPAGATION: updated',updateCount,'of',entriesToUpdate.length,'entries. Errors:',errors)
+            if(errors.length>0)alert('Some entries failed to update:\n'+errors.slice(0,3).join('\n'))
+            // Refresh local state
             setDb(d=>({...d,income:d.income.map(e=>{
-              if(e.patient_id!==editIPPatient.id||!ipTypes.includes(e.type))return e
+              const matchesPat=e.patient_id===editIPPatient.id||(e.patient_name&&e.patient_name.trim().toLowerCase()===pname)
+              if(!matchesPat||!ipTypes.includes(e.type))return e
               const doc=db.ref_doctors.find(d2=>d2.name===newRefDoc)
               const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[e.type]
               let newCC=null
-              if(doc&&pctKey)newCC=doc[pctKey]
-              else if(editIPPatient.custom_commission!=null)newCC=editIPPatient.custom_commission
-              return{...e,ref_doctor:newRefDoc,custom_commission:newCC}
+              if(doc&&pctKey&&doc[pctKey]!=null)newCC=doc[pctKey]
+              else if(editIPPatient.custom_commission!=null&&editIPPatient.custom_commission!=='')newCC=parseFloat(editIPPatient.custom_commission)
+              return{...e,ref_doctor:newRefDoc,custom_commission:newCC,patient_id:editIPPatient.id}
             })}))
+            alert('Updated '+updateCount+' charges with Dr. '+newRefDoc+'. Commission will recalculate.')
           }
           setEditIPPatient(null)
         }} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer'}}>Save</button>
