@@ -22,9 +22,9 @@ const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');retu
 const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
 const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
+const getComm=e=>(isExcluded(e)||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isCredit=e=>e.payment==='credit'
 const isExcluded=e=>e.payment==='credit'||e.payment==='written_off'||e.payment==='discount'
-const getComm=e=>(isExcluded(e)||!e.ref_doctor||e.ref_doctor.trim()==='')?0:e.amount*(e.custom_commission!=null?(e.custom_commission/100):(COMM[e.type]||0))
 const isPaid=e=>!isExcluded(e)
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
 const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=ECATS.filter(c=>c.key!=='ref_paid').reduce((a,c)=>a+(r[c.key]||0),0);return r}
@@ -79,8 +79,7 @@ const cleanNotes=n=>{
   if(n.indexOf('SPL:')>=0)return n.slice(0,n.indexOf('SPL:')).trim()
   return n.trim()
 }
-const IP_TYPES=['ip','ip_r','ip_l','ip_p','vc']
-const PAY_STYLE={cash:{bg:'#dcfce7',color:'#16a34a',label:'Cash'},upi:{bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},card:{bg:'#f3e8ff',color:'#7c3aed',label:'Card'},bank:{bg:'#e0f2fe',color:'#0369a1',label:'Bank'},insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},credit:{bg:'#fed7aa',color:'#c2410c',label:'Credit'},discount:{bg:'#ede9fe',color:'#6d28d9',label:'Discount'},written_off:{bg:'#f3f4f6',color:'#6b7280',label:'Written Off'}}
+const PAY_STYLE={cash:{bg:'#dcfce7',color:'#16a34a',label:'Cash'},upi:{bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},card:{bg:'#f3e8ff',color:'#7c3aed',label:'Card'},bank:{bg:'#e0f2fe',color:'#0369a1',label:'Bank'},insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},credit:{bg:'#fed7aa',color:'#c2410c',label:'Against IP'},discount:{bg:'#ede9fe',color:'#6d28d9',label:'Discount'},written_off:{bg:'#f3f4f6',color:'#6b7280',label:'Written Off'}}
 const PayBadges=({e,cr})=>{
   if(cr)return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fed7aa',color:'#c2410c',fontWeight:700}}>⏳ Credit</span>
   return(<span style={{display:'inline-flex',gap:4,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:PAY_STYLE[e.payment]?.bg||'#f0f0f0',color:PAY_STYLE[e.payment]?.color||'#555',fontWeight:700}}>{PAY_STYLE[e.payment]?.label||e.payment}</span></span>)
@@ -925,7 +924,7 @@ const CreditTab=({db,actions})=>{
   return(
     <div>
       <div style={{background:'linear-gradient(135deg,#c2410c 0%,#9a3412 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
-        <div style={{fontSize:12,color:'#fed7aa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>⏳ Total Against IP (Credit)</div>
+        <div style={{fontSize:12,color:'#fed7aa',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',marginBottom:6}}>Total credit outstanding</div>
         <div style={{fontSize:36,fontWeight:800}}>{fmt(totalCred)}</div>
         <div style={{fontSize:13,color:'#fed7aa',marginTop:6}}>{pts.length} patient{pts.length!==1?'s':''} - {allCredit.length} entr{allCredit.length!==1?'ies':'y'}</div>
       </div>
@@ -1119,7 +1118,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
           {splits.map((sp,si)=>{const multi=splits.length>1;return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             {multi&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount" onChange={e=>{const s=[...splits];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
             <select value={sp.mode} onChange={e=>{const s=[...splits];s[si]={...s[si],mode:e.target.value};setSplits(s);setPay(s[0].mode)}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </select>
             {si>0?<button onClick={()=>{const s=splits.filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setSplits(s);setAmount(String(tot));setPay(s[0].mode)}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16}}>×</button>:<div/>}
           </div>)})}
@@ -1271,7 +1270,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
           {(iF.splits||[{amount:iF.amount,mode:iF.pay}]).map((sp,si)=>{const multi=(iF.splits||[]).length>1;return(<div key={si} style={{display:'grid',gridTemplateColumns:multi?'1fr 1fr auto':'1fr auto',gap:6,marginBottom:6,alignItems:'center'}}>
             {multi&&<input type="number" inputMode="numeric" value={sp.amount} placeholder="Amount" onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],amount:e.target.value};const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}}/>}
             <select value={sp.mode} onChange={e=>{const s=[...(iF.splits||[])];s[si]={...s[si],mode:e.target.value};setIF({...iF,splits:s,pay:s[0].mode})}} style={{padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none',background:'#fff',boxSizing:'border-box'}}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </select>
             {si>0?<button onClick={()=>{const s=(iF.splits||[]).filter((_,i)=>i!==si);const tot=s.reduce((a,x)=>a+(parseFloat(x.amount)||0),0);setIF({...iF,splits:s,amount:String(tot),pay:s[0].mode})}} style={{padding:'8px 12px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:10,cursor:'pointer',fontWeight:800,fontSize:16}}>×</button>:<div/>}
           </div>)})}
@@ -1464,7 +1463,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={cF.amt} onChange={e=>setCF({...cF,amt:e.target.value})}/>
             <FSel label="Payment" value={cF.pay} onChange={e=>setCF({...cF,pay:e.target.value})}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
             </FSel>
           </div>
           {cF.type==='vc'&&<FInp label="Visiting consultant name" type="text" placeholder="e.g. Dr. Rao (Cardiologist)" value={cF.vcName||''} onChange={e=>setCF({...cF,vcName:e.target.value})}/> }
@@ -3688,7 +3687,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
             <FInp label="Date" type="date" value={newReceipt.date} onChange={e=>setNewReceipt({...newReceipt,date:e.target.value})}/>
           </div>
           <FSel label="Payment mode" value={newReceipt.mode} onChange={e=>setNewReceipt({...newReceipt,mode:e.target.value})}>
-            {PMODES.map(m=><option key={m} value={m}>{m==='credit'?(['ip','ip_r','ip_l','ip_p','vc'].includes((typeof itype!=='undefined'?itype:(entry?.type||'')))?'⏳ Against IP (Credit)':'⏳ Credit (Due)'):m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+            {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Against IP (Credit)':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
           </FSel>
           <FInp label="Notes (optional)" type="text" value={newReceipt.notes} onChange={e=>setNewReceipt({...newReceipt,notes:e.target.value})} placeholder="e.g. Advance, Partial payment, Final"/>
           <GBtn onClick={addReceipt} disabled={savingReceipt}>{savingReceipt?'Saving...':'Generate Receipt'}</GBtn>
