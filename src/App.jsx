@@ -1367,7 +1367,9 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('all')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
+  const [ipSort,setIpSort]=useState('newest')
   const [ipRefFilter,setIpRefFilter]=useState('')
+  const [ipShowFilters,setIpShowFilters]=useState(false)
   const getBill=pid=>{
     const en=db.income.filter(e=>e.patient_id===pid)
     const total=en.reduce((a,e)=>a+e.amount,0)
@@ -1629,14 +1631,40 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
       </div>
 
       {(ipView==='all'||ipView==='active'||ipView==='discharged')&&(<>
+        <div style={{display:'flex',gap:6,marginBottom:10,alignItems:'center'}}>
+          <select value={ipSort} onChange={e=>setIpSort(e.target.value)} style={{flex:'1 1 auto',padding:'8px 10px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:12,background:'#fff',fontWeight:600,color:'#0f172a'}}>
+            <option value="newest">📅 Newest First</option>
+            <option value="oldest">📆 Oldest First</option>
+            <option value="name">🔤 Name (A-Z)</option>
+            <option value="credit">💰 Highest Credit First</option>
+          </select>
+          <select value={ipRefFilter} onChange={e=>setIpRefFilter(e.target.value)} style={{flex:'1 1 auto',padding:'8px 10px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:12,background:'#fff',fontWeight:600,color:'#0f172a'}}>
+            <option value="">👨‍⚕️ All Doctors</option>
+            <option value="__self__">Self (no referral)</option>
+            {ipRefDocs.map(r=><option key={r} value={r}>Dr. {r}</option>)}
+          </select>
+          {(ipRefFilter||ipSort!=='newest')&&<button onClick={()=>{setIpRefFilter('');setIpSort('newest')}} style={{padding:'8px 10px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>✕</button>}
+        </div>
         <div style={{position:'relative',marginBottom:12}}>
           <input style={{...S.inp,paddingLeft:36}} placeholder="Search by name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/>
           <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>
           {ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}
         </div>
         {(()=>{
-          const pool=ipSearch.trim()?allIP:ipView==='active'?active:ipView==='discharged'?disc.slice().reverse():allIP
-          const filtered=ipSearch.trim()?pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch)):pool
+          let pool=ipSearch.trim()?allIP:ipView==='active'?active:ipView==='discharged'?disc.slice().reverse():allIP
+          if(ipSearch.trim()){pool=pool.filter(p=>p.name.toLowerCase().includes(ipSearch.toLowerCase())||p.reg_no?.toLowerCase().includes(ipSearch.toLowerCase())||p.phone?.includes(ipSearch))}
+          // Apply ref doctor filter
+          if(ipRefFilter==='__self__'){pool=pool.filter(p=>!p.ref_doctor||!p.ref_doctor.trim())}
+          else if(ipRefFilter){pool=pool.filter(p=>p.ref_doctor===ipRefFilter)}
+          // Apply sort
+          pool=[...pool].sort((a,b)=>{
+            const ad=a.admission_date||'',bd=b.admission_date||''
+            if(ipSort==='oldest')return ad.localeCompare(bd)
+            if(ipSort==='name')return (a.name||'').localeCompare(b.name||'')
+            if(ipSort==='credit'){const ac=qb(a.id).credit,bc=qb(b.id).credit;return bc-ac}
+            return bd.localeCompare(ad) // newest default
+          })
+          const filtered=pool
           if(!filtered.length)return <div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:13}}>{ipSearch?'No results for "'+ipSearch+'"':'No patients yet'}</div>
           return(<>
             {ipSearch&&<div style={{fontSize:12,color:'#888',marginBottom:8}}>{filtered.length} result{filtered.length!==1?'s':''} for "{ipSearch}"</div>}
