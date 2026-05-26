@@ -1168,31 +1168,35 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [notes,setNotes]=useState(entry.notes||'')
   const [date,setDate]=useState(entry.date||todayStr())
   const [opType,setOpType]=useState(entry.op_type||'New OP')
+  const [type,setType]=useState(entry.type)
   const [vcConsultant,setVcConsultant]=useState(entry.consultant_name||'')
   const [vcFee,setVcFee]=useState(entry.consultant_fee!=null?String(entry.consultant_fee):'')
   const [busy,setBusy]=useState(false)
-  const isOP=entry.type==='op'
-  const isVC=entry.type==='vc'
-  const isIPtype=['ip','ip_r','ip_l','ip_p'].includes(entry.type)
+  const isOP=type==='op'
+  const isVC=type==='vc'
+  const isIPtype=['ip','ip_r','ip_l','ip_p'].includes(type)
   const showRefField=!isIPtype&&!isVC
-  const defaultCommPct=COMM[entry.type]!=null?Math.round(COMM[entry.type]*100):0
+  const defaultCommPct=COMM[type]!=null?Math.round(COMM[type]*100):0
   const commPct=custComm!==''?parseFloat(custComm)||0:defaultCommPct
   const comm=ref.trim()&&commPct>0?parseFloat(amount||0)*commPct/100:0
   const go=async()=>{
     const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter valid amount');return}
     setBusy(true)
-    await onSave({...entry,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
+    await onSave({...entry,type,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
     setBusy(false)
   }
   return(
     <div style={{position:'fixed',inset:0,background:'#f8fafc',zIndex:9999,overflowY:'auto'}}>
       <div style={{background:'#fff',borderBottom:'1px solid #f0f0f0',padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10}}>
         <button onClick={onCancel} style={{background:'none',border:'none',color:'#3b82f6',fontSize:14,fontWeight:600,cursor:'pointer',padding:'4px 0'}}>Cancel</button>
-        <div style={{display:'flex',alignItems:'center',gap:8}}><TypeTag t={entry.type}/><span style={{fontSize:14,fontWeight:700}}>Edit entry</span></div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}><TypeTag t={type}/><span style={{fontSize:14,fontWeight:700}}>Edit entry</span></div>
         <button onClick={go} disabled={busy} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.6:1}}>{busy?'Saving...':'Save'}</button>
       </div>
       <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
         <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        <FSel label="Type" value={type} onChange={e=>setType(e.target.value)}>
+          {ITYPES.map(t=><option key={t.key} value={t.key}>{t.label} - {t.full}</option>)}
+        </FSel>
         {!isIPtype&&<FInp label="Patient name" type="text" value={patName} onChange={e=>setPatName(e.target.value)} placeholder="Patient name"/>}
         {!isIPtype&&<FInp label="Patient phone (optional)" type="tel" value={patPhone} onChange={e=>setPatPhone(e.target.value)} placeholder="9999999999"/>}
         {!isIPtype&&<FInp label="Patient area (optional)" type="text" value={patArea} onChange={e=>setPatArea(e.target.value)} placeholder="e.g. Kukatpally, Miyapur"/>}
