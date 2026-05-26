@@ -4738,6 +4738,211 @@ const SlowLoadWarning=()=>{
   return null
 }
 
+
+const REF_COLORS={ip:{bg:'#dbeafe',border:'#3b82f6',color:'#1d4ed8',name:'IP Charges'},ip_r:{bg:'#dcfce7',border:'#16a34a',color:'#15803d',name:'IP Pharmacy'},ip_l:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'IP Lab'},ip_p:{bg:'#f3e8ff',border:'#8b5cf6',color:'#6d28d9',name:'IP Package'},op:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP Consultation'},op_r:{bg:'#d1fae5',border:'#10b981',color:'#047857',name:'OP Pharmacy'},op_l:{bg:'#fed7aa',border:'#ea580c',color:'#9a3412',name:'OP Lab'},op_p:{bg:'#fef3c7',border:'#eab308',color:'#854d0e',name:'OP Procedure'},custom:{bg:'#e5e7eb',border:'#6b7280',color:'#374151',name:'Other'}}
+
+const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
+  const initial=entries.map((e,i)=>({
+    id:'e'+i,
+    type:e.type||'custom',
+    desc:(e.patient_name||'')+(e.type?' — '+(ITYPES.find(t=>t.key===e.type)?.full||e.type):''),
+    date:e.date||todayStr(),
+    amount:e.amount||0,
+    commPct:e.custom_commission!=null?parseFloat(e.custom_commission):(COMM[e.type]||0)*100,
+    payment:e.payment||'cash',
+    isCustom:false
+  }))
+  const [items,setItems]=useState(initial)
+  const [refDocName,setRefDocName]=useState(docName||'')
+  const [reportDate,setReportDate]=useState(todayStr())
+  const [notes,setNotes]=useState('')
+  
+  const addCustomItem=()=>{setItems([...items,{id:'c'+Date.now(),type:'custom',desc:'',date:todayStr(),amount:0,commPct:0,payment:'cash',isCustom:true}])}
+  const updateItem=(id,field,value)=>{setItems(items.map(it=>it.id===id?{...it,[field]:value}:it))}
+  const removeItem=id=>{if(window.confirm('Remove this line item?'))setItems(items.filter(it=>it.id!==id))}
+  
+  const calc=it=>{const amt=parseFloat(it.amount)||0;const pct=parseFloat(it.commPct)||0;return Math.round(amt*pct/100)}
+  const totalRef=items.reduce((a,it)=>a+calc(it),0)
+  const totalBill=items.reduce((a,it)=>a+(parseFloat(it.amount)||0),0)
+  
+  const generatePDF=()=>{
+    const html=`<!DOCTYPE html><html><head><title>Referral Payment - ${refDocName}</title><meta charset="utf-8"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+body{background:#fff;padding:30px;color:#1f2937;font-size:13px}
+.letterhead{text-align:center;border-bottom:4px double #1a1a2e;padding-bottom:20px;margin-bottom:25px}
+.hospital-name{font-size:32px;font-weight:900;color:#1a1a2e;letter-spacing:2px;margin-bottom:5px}
+.hospital-sub{font-size:13px;color:#64748b;letter-spacing:1px;font-weight:600}
+.hospital-contact{font-size:11px;color:#94a3b8;margin-top:8px;font-weight:500}
+.gold-bar{height:3px;background:linear-gradient(90deg,#c9a84c,#f0d068,#c9a84c);margin:10px auto;width:60%}
+.title-section{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;padding:18px 24px;border-radius:10px;margin-bottom:20px;position:relative;overflow:hidden}
+.title-section::before{content:'';position:absolute;top:0;right:0;width:100px;height:100%;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.2))}
+.title-section h1{font-size:22px;color:#c9a84c;letter-spacing:1px;margin-bottom:4px}
+.title-section .sub{font-size:12px;color:#cbd5e1;font-weight:500}
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px}
+.meta-card{background:#f8fafc;border-left:4px solid #1d4ed8;padding:12px 16px;border-radius:6px}
+.meta-card label{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.meta-card .v{font-size:16px;font-weight:700;color:#1a1a2e;margin-top:3px}
+table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:12px}
+thead{background:#1a1a2e;color:#c9a84c}
+th{padding:11px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+th.right{text-align:right}
+td{padding:10px;border-bottom:1px solid #e5e7eb;background:#fff}
+td.right{text-align:right;font-weight:600}
+tr.type-pill td:first-child{padding-left:14px}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
+.row-amt{font-weight:700;color:#1d4ed8}
+.row-comm{font-weight:800;color:#15803d}
+tfoot td{background:#f0fdf4;font-weight:800;font-size:14px;padding:14px 10px;color:#15803d;border-top:3px double #16a34a}
+tfoot td.label{color:#1a1a2e}
+.notes-box{background:#fffbeb;border:2px solid #fde68a;border-radius:10px;padding:14px 18px;margin-top:18px}
+.notes-box .label{font-size:11px;color:#a16207;font-weight:700;text-transform:uppercase;margin-bottom:6px;letter-spacing:.5px}
+.notes-box .text{color:#451a03;font-size:13px;line-height:1.5}
+.summary-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0}
+.summary-card{padding:14px;border-radius:10px;text-align:center}
+.summary-card.blue{background:#dbeafe;color:#1d4ed8}
+.summary-card.green{background:#dcfce7;color:#15803d;border:2px solid #16a34a}
+.summary-card label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.7}
+.summary-card .val{font-size:22px;font-weight:900;margin-top:5px}
+.signature{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:50px;padding-top:30px}
+.sig-block{text-align:center}
+.sig-line{border-top:1.5px solid #1a1a2e;padding-top:6px;font-size:11px;color:#64748b;font-weight:600}
+.footer{margin-top:30px;padding-top:15px;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#94a3b8}
+@media print{body{padding:15px}.no-print{display:none!important}}
+</style></head><body>
+<div class="letterhead">
+<div class="hospital-name">${(hospital?.name||'HOSPITAL').toUpperCase()}</div>
+<div class="hospital-sub">MULTI-SPECIALITY MEDICAL CENTRE</div>
+<div class="gold-bar"></div>
+<div class="hospital-contact">📍 ${hospital?.city||''} ${hospital?.phone?'  ☎ '+hospital.phone:''}</div>
+</div>
+
+<div class="title-section">
+<h1>💰 REFERRAL PAYMENT VOUCHER</h1>
+<div class="sub">For services rendered to referred patient</div>
+</div>
+
+<div class="meta-grid">
+<div class="meta-card" style="border-left-color:#1d4ed8">
+<label>👨‍⚕️ Paid to (Referring Doctor)</label>
+<div class="v">Dr. ${refDocName||'—'}</div>
+</div>
+<div class="meta-card" style="border-left-color:#16a34a">
+<label>📅 Date</label>
+<div class="v">${new Date(reportDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</div>
+</div>
+${patientName?`<div class="meta-card" style="border-left-color:#7c3aed;grid-column:1/-1"><label>🏥 Patient</label><div class="v">${patientName}</div></div>`:''}
+</div>
+
+<table>
+<thead><tr><th>#</th><th>Date</th><th>Service Description</th><th>Type</th><th class="right">Bill Amount</th><th class="right">Rate %</th><th class="right">Referral</th></tr></thead>
+<tbody>
+${items.map((it,i)=>{const c=REF_COLORS[it.type]||REF_COLORS.custom;const amt=parseFloat(it.amount)||0;const cm=calc(it);return`
+<tr class="type-pill" style="background:${c.bg}33">
+<td style="font-weight:700;color:#6b7280">${i+1}</td>
+<td style="font-size:11px;color:#6b7280">${new Date(it.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</td>
+<td style="font-weight:600;color:#1a1a2e">${it.desc||'—'}</td>
+<td><span class="pill" style="background:${c.bg};color:${c.color};border:1px solid ${c.border}">${c.name}</span></td>
+<td class="right row-amt">Rs ${amt.toLocaleString('en-IN')}</td>
+<td class="right" style="color:#64748b">${parseFloat(it.commPct)||0}%</td>
+<td class="right row-comm">Rs ${cm.toLocaleString('en-IN')}</td>
+</tr>`}).join('')}
+</tbody>
+<tfoot>
+<tr><td colspan="4" class="label">TOTAL REFERRAL PAYABLE</td><td class="right">Rs ${totalBill.toLocaleString('en-IN')}</td><td class="right">—</td><td class="right" style="font-size:18px">Rs ${totalRef.toLocaleString('en-IN')}</td></tr>
+</tfoot>
+</table>
+
+<div class="summary-cards">
+<div class="summary-card blue"><label>Total Billed to Patient</label><div class="val">Rs ${totalBill.toLocaleString('en-IN')}</div></div>
+<div class="summary-card green"><label>Total Referral to Dr. ${refDocName}</label><div class="val">Rs ${totalRef.toLocaleString('en-IN')}</div></div>
+</div>
+
+${notes?`<div class="notes-box"><div class="label">📝 Additional Notes</div><div class="text">${notes.replace(/\n/g,'<br/>')}</div></div>`:''}
+
+<div class="signature">
+<div class="sig-block"><div style="height:40px"></div><div class="sig-line">Authorised Signatory<br/><span style="color:#1a1a2e;font-weight:800">${hospital?.name||'Hospital'}</span></div></div>
+<div class="sig-block"><div style="height:40px"></div><div class="sig-line">Received by<br/><span style="color:#1a1a2e;font-weight:800">Dr. ${refDocName||'—'}</span></div></div>
+</div>
+
+<div class="footer">This is a computer-generated voucher. ${new Date().toLocaleString('en-IN')}</div>
+<div class="no-print" style="text-align:center;margin-top:30px"><button onclick="window.print()" style="padding:14px 40px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(22,163,74,0.3)">🖨️ Print / Save as PDF</button> <button onclick="window.close()" style="padding:14px 30px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-size:14px;cursor:pointer;margin-left:10px">Close</button></div>
+</body></html>`
+    const w=window.open('','_blank','width=900,height=1200')
+    w.document.write(html)
+    w.document.close()
+  }
+  
+  return(
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:8}}>
+      <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:680,maxHeight:'95vh',overflowY:'auto',padding:'20px 18px',boxShadow:'0 25px 50px rgba(0,0,0,.25)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,paddingBottom:12,borderBottom:'2px solid #f1f5f9'}}>
+          <div>
+            <div style={{fontSize:17,fontWeight:800,color:'#1a1a2e'}}>💰 Referral Payment</div>
+            <div style={{fontSize:11,color:'#64748b',marginTop:2}}>Edit values, add items, then generate PDF</div>
+          </div>
+          <button onClick={onClose} style={{background:'#f3f4f6',border:'none',borderRadius:20,width:34,height:34,fontSize:18,cursor:'pointer'}}>×</button>
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+          <div><label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em',display:'block',marginBottom:4}}>👨‍⚕️ Referring Doctor</label>
+            <input type="text" value={refDocName} onChange={e=>setRefDocName(e.target.value)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          </div>
+          <div><label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em',display:'block',marginBottom:4}}>📅 Date</label>
+            <input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          </div>
+        </div>
+
+        <div style={{marginBottom:10,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em'}}>📋 Line Items ({items.length})</div>
+        
+        {items.map((it,i)=>{const c=REF_COLORS[it.type]||REF_COLORS.custom;const cm=calc(it);return(
+          <div key={it.id} style={{background:c.bg+'66',border:'1.5px solid '+c.border,borderRadius:10,padding:10,marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fff',color:c.color,fontWeight:700,border:'1px solid '+c.border}}>{c.name}</span>
+              <button onClick={()=>removeItem(it.id)} style={{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:6,width:24,height:24,cursor:'pointer',fontWeight:700,fontSize:14}}>×</button>
+            </div>
+            <input type="text" value={it.desc} onChange={e=>updateItem(it.id,'desc',e.target.value)} placeholder="Description (e.g. Outside scan, Top-up)" style={{width:'100%',padding:'6px 10px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12,marginBottom:6,boxSizing:'border-box',background:'#fff'}}/>
+            {it.isCustom&&<select value={it.type} onChange={e=>updateItem(it.id,'type',e.target.value)} style={{width:'100%',padding:'6px 10px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12,marginBottom:6,boxSizing:'border-box',background:'#fff'}}>
+              {Object.entries(REF_COLORS).map(([k,v])=><option key={k} value={k}>{v.name}</option>)}
+            </select>}
+            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1.5fr',gap:6,alignItems:'center'}}>
+              <div><label style={{fontSize:9,color:'#64748b',fontWeight:600,display:'block'}}>Amount (Rs)</label>
+                <input type="number" value={it.amount} onChange={e=>updateItem(it.id,'amount',e.target.value)} style={{width:'100%',padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:13,fontWeight:700,boxSizing:'border-box'}}/>
+              </div>
+              <div><label style={{fontSize:9,color:'#64748b',fontWeight:600,display:'block'}}>Rate %</label>
+                <input type="number" value={it.commPct} onChange={e=>updateItem(it.id,'commPct',e.target.value)} style={{width:'100%',padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:13,fontWeight:700,boxSizing:'border-box'}}/>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <label style={{fontSize:9,color:'#64748b',fontWeight:600,display:'block'}}>Referral</label>
+                <div style={{padding:'6px 8px',background:'#fff',border:'1px solid '+c.border,borderRadius:6,fontSize:14,fontWeight:800,color:c.color}}>Rs {cm.toLocaleString('en-IN')}</div>
+              </div>
+            </div>
+          </div>
+        )})}
+
+        <button onClick={addCustomItem} style={{width:'100%',padding:'10px',background:'#f9fafb',border:'2px dashed #d1d5db',borderRadius:10,fontSize:13,fontWeight:700,color:'#374151',cursor:'pointer',marginBottom:10}}>+ Add Custom Item (e.g., Outside Scan, Top-up)</button>
+
+        <div>
+          <label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em',display:'block',marginBottom:4}}>📝 Additional Notes</label>
+          <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Optional notes (e.g., special arrangements, payment terms)" rows={2} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:12,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
+        </div>
+
+        <div style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'2px solid #16a34a',borderRadius:10,padding:'12px 16px',margin:'14px 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Total Referral Payable</div>
+            <div style={{fontSize:24,color:'#15803d',fontWeight:900}}>Rs {totalRef.toLocaleString('en-IN')}</div>
+          </div>
+          <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase'}}>Bill Total</div>
+            <div style={{fontSize:16,color:'#1d4ed8',fontWeight:700}}>Rs {totalBill.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <button onClick={generatePDF} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:12,fontSize:15,fontWeight:800,cursor:'pointer',letterSpacing:'.5px',boxShadow:'0 4px 12px rgba(0,0,0,.15)'}}>📄 Generate Colorful PDF</button>
+      </div>
+    </div>
+  )
+}
+
+
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -5913,207 +6118,4 @@ const AnalyticsDash=({db})=>{
 }
 
 import{createRoot}from'react-dom/client';createRoot(document.getElementById('root')).render(<App/>)
-const REF_COLORS={ip:{bg:'#dbeafe',border:'#3b82f6',color:'#1d4ed8',name:'IP Charges'},ip_r:{bg:'#dcfce7',border:'#16a34a',color:'#15803d',name:'IP Pharmacy'},ip_l:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'IP Lab'},ip_p:{bg:'#f3e8ff',border:'#8b5cf6',color:'#6d28d9',name:'IP Package'},op:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP Consultation'},op_r:{bg:'#d1fae5',border:'#10b981',color:'#047857',name:'OP Pharmacy'},op_l:{bg:'#fed7aa',border:'#ea580c',color:'#9a3412',name:'OP Lab'},op_p:{bg:'#fef3c7',border:'#eab308',color:'#854d0e',name:'OP Procedure'},custom:{bg:'#e5e7eb',border:'#6b7280',color:'#374151',name:'Other'}}
-
-const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
-  const initial=entries.map((e,i)=>({
-    id:'e'+i,
-    type:e.type||'custom',
-    desc:(e.patient_name||'')+(e.type?' — '+(ITYPES.find(t=>t.key===e.type)?.full||e.type):''),
-    date:e.date||todayStr(),
-    amount:e.amount||0,
-    commPct:e.custom_commission!=null?parseFloat(e.custom_commission):(COMM[e.type]||0)*100,
-    payment:e.payment||'cash',
-    isCustom:false
-  }))
-  const [items,setItems]=useState(initial)
-  const [refDocName,setRefDocName]=useState(docName||'')
-  const [reportDate,setReportDate]=useState(todayStr())
-  const [notes,setNotes]=useState('')
-  
-  const addCustomItem=()=>{setItems([...items,{id:'c'+Date.now(),type:'custom',desc:'',date:todayStr(),amount:0,commPct:0,payment:'cash',isCustom:true}])}
-  const updateItem=(id,field,value)=>{setItems(items.map(it=>it.id===id?{...it,[field]:value}:it))}
-  const removeItem=id=>{if(window.confirm('Remove this line item?'))setItems(items.filter(it=>it.id!==id))}
-  
-  const calc=it=>{const amt=parseFloat(it.amount)||0;const pct=parseFloat(it.commPct)||0;return Math.round(amt*pct/100)}
-  const totalRef=items.reduce((a,it)=>a+calc(it),0)
-  const totalBill=items.reduce((a,it)=>a+(parseFloat(it.amount)||0),0)
-  
-  const generatePDF=()=>{
-    const html=`<!DOCTYPE html><html><head><title>Referral Payment - ${refDocName}</title><meta charset="utf-8"/>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
-body{background:#fff;padding:30px;color:#1f2937;font-size:13px}
-.letterhead{text-align:center;border-bottom:4px double #1a1a2e;padding-bottom:20px;margin-bottom:25px}
-.hospital-name{font-size:32px;font-weight:900;color:#1a1a2e;letter-spacing:2px;margin-bottom:5px}
-.hospital-sub{font-size:13px;color:#64748b;letter-spacing:1px;font-weight:600}
-.hospital-contact{font-size:11px;color:#94a3b8;margin-top:8px;font-weight:500}
-.gold-bar{height:3px;background:linear-gradient(90deg,#c9a84c,#f0d068,#c9a84c);margin:10px auto;width:60%}
-.title-section{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;padding:18px 24px;border-radius:10px;margin-bottom:20px;position:relative;overflow:hidden}
-.title-section::before{content:'';position:absolute;top:0;right:0;width:100px;height:100%;background:linear-gradient(90deg,transparent,rgba(201,168,76,0.2))}
-.title-section h1{font-size:22px;color:#c9a84c;letter-spacing:1px;margin-bottom:4px}
-.title-section .sub{font-size:12px;color:#cbd5e1;font-weight:500}
-.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px}
-.meta-card{background:#f8fafc;border-left:4px solid #1d4ed8;padding:12px 16px;border-radius:6px}
-.meta-card label{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px}
-.meta-card .v{font-size:16px;font-weight:700;color:#1a1a2e;margin-top:3px}
-table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:12px}
-thead{background:#1a1a2e;color:#c9a84c}
-th{padding:11px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
-th.right{text-align:right}
-td{padding:10px;border-bottom:1px solid #e5e7eb;background:#fff}
-td.right{text-align:right;font-weight:600}
-tr.type-pill td:first-child{padding-left:14px}
-.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
-.row-amt{font-weight:700;color:#1d4ed8}
-.row-comm{font-weight:800;color:#15803d}
-tfoot td{background:#f0fdf4;font-weight:800;font-size:14px;padding:14px 10px;color:#15803d;border-top:3px double #16a34a}
-tfoot td.label{color:#1a1a2e}
-.notes-box{background:#fffbeb;border:2px solid #fde68a;border-radius:10px;padding:14px 18px;margin-top:18px}
-.notes-box .label{font-size:11px;color:#a16207;font-weight:700;text-transform:uppercase;margin-bottom:6px;letter-spacing:.5px}
-.notes-box .text{color:#451a03;font-size:13px;line-height:1.5}
-.summary-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0}
-.summary-card{padding:14px;border-radius:10px;text-align:center}
-.summary-card.blue{background:#dbeafe;color:#1d4ed8}
-.summary-card.green{background:#dcfce7;color:#15803d;border:2px solid #16a34a}
-.summary-card label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.7}
-.summary-card .val{font-size:22px;font-weight:900;margin-top:5px}
-.signature{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:50px;padding-top:30px}
-.sig-block{text-align:center}
-.sig-line{border-top:1.5px solid #1a1a2e;padding-top:6px;font-size:11px;color:#64748b;font-weight:600}
-.footer{margin-top:30px;padding-top:15px;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#94a3b8}
-@media print{body{padding:15px}.no-print{display:none!important}}
-</style></head><body>
-<div class="letterhead">
-<div class="hospital-name">${(hospital?.name||'HOSPITAL').toUpperCase()}</div>
-<div class="hospital-sub">MULTI-SPECIALITY MEDICAL CENTRE</div>
-<div class="gold-bar"></div>
-<div class="hospital-contact">📍 ${hospital?.city||''} ${hospital?.phone?'  ☎ '+hospital.phone:''}</div>
-</div>
-
-<div class="title-section">
-<h1>💰 REFERRAL PAYMENT VOUCHER</h1>
-<div class="sub">For services rendered to referred patient</div>
-</div>
-
-<div class="meta-grid">
-<div class="meta-card" style="border-left-color:#1d4ed8">
-<label>👨‍⚕️ Paid to (Referring Doctor)</label>
-<div class="v">Dr. ${refDocName||'—'}</div>
-</div>
-<div class="meta-card" style="border-left-color:#16a34a">
-<label>📅 Date</label>
-<div class="v">${new Date(reportDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</div>
-</div>
-${patientName?`<div class="meta-card" style="border-left-color:#7c3aed;grid-column:1/-1"><label>🏥 Patient</label><div class="v">${patientName}</div></div>`:''}
-</div>
-
-<table>
-<thead><tr><th>#</th><th>Date</th><th>Service Description</th><th>Type</th><th class="right">Bill Amount</th><th class="right">Rate %</th><th class="right">Referral</th></tr></thead>
-<tbody>
-${items.map((it,i)=>{const c=REF_COLORS[it.type]||REF_COLORS.custom;const amt=parseFloat(it.amount)||0;const cm=calc(it);return`
-<tr class="type-pill" style="background:${c.bg}33">
-<td style="font-weight:700;color:#6b7280">${i+1}</td>
-<td style="font-size:11px;color:#6b7280">${new Date(it.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</td>
-<td style="font-weight:600;color:#1a1a2e">${it.desc||'—'}</td>
-<td><span class="pill" style="background:${c.bg};color:${c.color};border:1px solid ${c.border}">${c.name}</span></td>
-<td class="right row-amt">Rs ${amt.toLocaleString('en-IN')}</td>
-<td class="right" style="color:#64748b">${parseFloat(it.commPct)||0}%</td>
-<td class="right row-comm">Rs ${cm.toLocaleString('en-IN')}</td>
-</tr>`}).join('')}
-</tbody>
-<tfoot>
-<tr><td colspan="4" class="label">TOTAL REFERRAL PAYABLE</td><td class="right">Rs ${totalBill.toLocaleString('en-IN')}</td><td class="right">—</td><td class="right" style="font-size:18px">Rs ${totalRef.toLocaleString('en-IN')}</td></tr>
-</tfoot>
-</table>
-
-<div class="summary-cards">
-<div class="summary-card blue"><label>Total Billed to Patient</label><div class="val">Rs ${totalBill.toLocaleString('en-IN')}</div></div>
-<div class="summary-card green"><label>Total Referral to Dr. ${refDocName}</label><div class="val">Rs ${totalRef.toLocaleString('en-IN')}</div></div>
-</div>
-
-${notes?`<div class="notes-box"><div class="label">📝 Additional Notes</div><div class="text">${notes.replace(/\n/g,'<br/>')}</div></div>`:''}
-
-<div class="signature">
-<div class="sig-block"><div style="height:40px"></div><div class="sig-line">Authorised Signatory<br/><span style="color:#1a1a2e;font-weight:800">${hospital?.name||'Hospital'}</span></div></div>
-<div class="sig-block"><div style="height:40px"></div><div class="sig-line">Received by<br/><span style="color:#1a1a2e;font-weight:800">Dr. ${refDocName||'—'}</span></div></div>
-</div>
-
-<div class="footer">This is a computer-generated voucher. ${new Date().toLocaleString('en-IN')}</div>
-<div class="no-print" style="text-align:center;margin-top:30px"><button onclick="window.print()" style="padding:14px 40px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(22,163,74,0.3)">🖨️ Print / Save as PDF</button> <button onclick="window.close()" style="padding:14px 30px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-size:14px;cursor:pointer;margin-left:10px">Close</button></div>
-</body></html>`
-    const w=window.open('','_blank','width=900,height=1200')
-    w.document.write(html)
-    w.document.close()
-  }
-  
-  return(
-    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:8}}>
-      <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:680,maxHeight:'95vh',overflowY:'auto',padding:'20px 18px',boxShadow:'0 25px 50px rgba(0,0,0,.25)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,paddingBottom:12,borderBottom:'2px solid #f1f5f9'}}>
-          <div>
-            <div style={{fontSize:17,fontWeight:800,color:'#1a1a2e'}}>💰 Referral Payment</div>
-            <div style={{fontSize:11,color:'#64748b',marginTop:2}}>Edit values, add items, then generate PDF</div>
-          </div>
-          <button onClick={onClose} style={{background:'#f3f4f6',border:'none',borderRadius:20,width:34,height:34,fontSize:18,cursor:'pointer'}}>×</button>
-        </div>
-
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-          <div><label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em',display:'block',marginBottom:4}}>👨‍⚕️ Referring Doctor</label>
-            <input type="text" value={refDocName} onChange={e=>setRefDocName(e.target.value)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
-          </div>
-          <div><label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em',display:'block',marginBottom:4}}>📅 Date</label>
-            <input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
-          </div>
-        </div>
-
-        <div style={{marginBottom:10,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em'}}>📋 Line Items ({items.length})</div>
-        
-        {items.map((it,i)=>{const c=REF_COLORS[it.type]||REF_COLORS.custom;const cm=calc(it);return(
-          <div key={it.id} style={{background:c.bg+'66',border:'1.5px solid '+c.border,borderRadius:10,padding:10,marginBottom:8}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-              <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fff',color:c.color,fontWeight:700,border:'1px solid '+c.border}}>{c.name}</span>
-              <button onClick={()=>removeItem(it.id)} style={{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:6,width:24,height:24,cursor:'pointer',fontWeight:700,fontSize:14}}>×</button>
-            </div>
-            <input type="text" value={it.desc} onChange={e=>updateItem(it.id,'desc',e.target.value)} placeholder="Description (e.g. Outside scan, Top-up)" style={{width:'100%',padding:'6px 10px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12,marginBottom:6,boxSizing:'border-box',background:'#fff'}}/>
-            {it.isCustom&&<select value={it.type} onChange={e=>updateItem(it.id,'type',e.target.value)} style={{width:'100%',padding:'6px 10px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12,marginBottom:6,boxSizing:'border-box',background:'#fff'}}>
-              {Object.entries(REF_COLORS).map(([k,v])=><option key={k} value={k}>{v.name}</option>)}
-            </select>}
-            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1.5fr',gap:6,alignItems:'center'}}>
-              <div><label style={{fontSize:9,color:'#64748b',fontWeight:600,display:'block'}}>Amount (Rs)</label>
-                <input type="number" value={it.amount} onChange={e=>updateItem(it.id,'amount',e.target.value)} style={{width:'100%',padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:13,fontWeight:700,boxSizing:'border-box'}}/>
-              </div>
-              <div><label style={{fontSize:9,color:'#64748b',fontWeight:600,display:'block'}}>Rate %</label>
-                <input type="number" value={it.commPct} onChange={e=>updateItem(it.id,'commPct',e.target.value)} style={{width:'100%',padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:13,fontWeight:700,boxSizing:'border-box'}}/>
-              </div>
-              <div style={{textAlign:'right'}}>
-                <label style={{fontSize:9,color:'#64748b',fontWeight:600,display:'block'}}>Referral</label>
-                <div style={{padding:'6px 8px',background:'#fff',border:'1px solid '+c.border,borderRadius:6,fontSize:14,fontWeight:800,color:c.color}}>Rs {cm.toLocaleString('en-IN')}</div>
-              </div>
-            </div>
-          </div>
-        )})}
-
-        <button onClick={addCustomItem} style={{width:'100%',padding:'10px',background:'#f9fafb',border:'2px dashed #d1d5db',borderRadius:10,fontSize:13,fontWeight:700,color:'#374151',cursor:'pointer',marginBottom:10}}>+ Add Custom Item (e.g., Outside Scan, Top-up)</button>
-
-        <div>
-          <label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.05em',display:'block',marginBottom:4}}>📝 Additional Notes</label>
-          <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Optional notes (e.g., special arrangements, payment terms)" rows={2} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:12,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
-        </div>
-
-        <div style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'2px solid #16a34a',borderRadius:10,padding:'12px 16px',margin:'14px 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Total Referral Payable</div>
-            <div style={{fontSize:24,color:'#15803d',fontWeight:900}}>Rs {totalRef.toLocaleString('en-IN')}</div>
-          </div>
-          <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase'}}>Bill Total</div>
-            <div style={{fontSize:16,color:'#1d4ed8',fontWeight:700}}>Rs {totalBill.toLocaleString('en-IN')}</div>
-          </div>
-        </div>
-
-        <button onClick={generatePDF} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:12,fontSize:15,fontWeight:800,cursor:'pointer',letterSpacing:'.5px',boxShadow:'0 4px 12px rgba(0,0,0,.15)'}}>📄 Generate Colorful PDF</button>
-      </div>
-    </div>
-  )
-}
-
 
