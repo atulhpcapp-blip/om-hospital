@@ -1182,7 +1182,17 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const go=async()=>{
     const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter valid amount');return}
     setBusy(true)
-    await onSave({...entry,type,amount:amt,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
+    // If changing to IP type and not yet linked to IP patient, try to link by name
+    let linkedPatientId=entry.patient_id
+    if(isIPtype&&!linkedPatientId&&patName){
+      const ipPat=(db?.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===patName.trim().toLowerCase())
+      if(ipPat){
+        linkedPatientId=ipPat.id
+        // Also inherit ref_doctor from IP patient if entry doesn't have one
+        if(!ref.trim()&&ipPat.ref_doctor){setRef(ipPat.ref_doctor)}
+      }
+    }
+    await onSave({...entry,type,amount:amt,patient_id:linkedPatientId,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
     setBusy(false)
   }
   return(
@@ -1194,7 +1204,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
       </div>
       <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
         <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
-        <FSel label="Type" value={type} onChange={e=>setType(e.target.value)}>
+        <FSel label="Type" value={type} onChange={e=>{setType(e.target.value);setCustComm('')}}>
           {ITYPES.map(t=><option key={t.key} value={t.key}>{t.label} - {t.full}</option>)}
         </FSel>
         {!isIPtype&&<FInp label="Patient name" type="text" value={patName} onChange={e=>setPatName(e.target.value)} placeholder="Patient name"/>}
@@ -1222,7 +1232,7 @@ const EditEntryForm=({entry,db,onSave,onCancel})=>{
           <FInp label="Consultant fee paid (Rs)" type="number" inputMode="numeric" value={vcFee} onChange={e=>setVcFee(e.target.value)} placeholder="0"/>
           {vcFee&&parseFloat(vcFee)>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Hospital profit: {fmt(parseFloat(amount||0)-parseFloat(vcFee||0))}</div>}
         </>}
-        {showRefField&&<FSel label="Referring doctor" value={ref} onChange={e=>{const sel=(db?.ref_doctors||[]).find(d=>d.name===e.target.value);const pctKey={op_r:'op_r_pct',op_l:'op_l_pct'}[entry.type]||'op_r_pct';const pct=sel?sel[pctKey]:null;setRef(e.target.value);if(pct!=null&&custComm==='')setCustComm(String(pct))}}>
+        {showRefField&&<FSel label="Referring doctor" value={ref} onChange={e=>{const sel=(db?.ref_doctors||[]).find(d=>d.name===e.target.value);const pctKey={op_r:'op_r_pct',op_l:'op_l_pct',op:'op_pct',ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[type]||'op_pct';const pct=sel?sel[pctKey]:null;setRef(e.target.value);if(pct!=null&&custComm==='')setCustComm(String(pct))}}>
           <option value="">- No referral / Self -</option>
           {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
         </FSel>}
