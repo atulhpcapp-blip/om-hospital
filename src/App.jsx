@@ -1464,6 +1464,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [billPatient,setBillPatient]=useState(null)
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
+  const [showReferralModal,setShowReferralModal]=useState(false)
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('all')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
