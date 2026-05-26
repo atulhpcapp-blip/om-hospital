@@ -1459,10 +1459,11 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
   )
 }
 
-const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab,setEditIPPatient})=>{
+const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab,setEditIPPatient,hospital})=>{
   const [billPatient,setBillPatient]=useState(null)
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
+  const [showRefModal,setShowRefModal]=useState(false)
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('all')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
@@ -1611,10 +1612,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         </div>}
         </Card></>)}
         {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
-        <button onClick={()=>{
-          const txt=buildCommReport(ents.filter(e=>['ip','ip_r','ip_l','ip_p'].includes(e.type)),'IP Commission Report - '+(p.name||''),p.name)
-          downloadText('commission_'+(p.name||'patient').replace(/\s+/g,'_')+'_'+todayStr()+'.txt',txt)
-        }} style={{marginTop:10,width:'100%',padding:'8px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 Export as Notepad (.txt)</button>
+        <button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>
+        {showRefModal&&<ReferralReportModal entries={ents.filter(e=>['ip','ip_r','ip_l','ip_p'].includes(e.type))} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
         </Card></>)}
         {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -4738,6 +4737,104 @@ const SlowLoadWarning=()=>{
   return null
 }
 
+
+const REF_COLORS={ip:{bg:'#dbeafe',border:'#3b82f6',color:'#1d4ed8',name:'IP Charges'},ip_r:{bg:'#dcfce7',border:'#16a34a',color:'#15803d',name:'IP Pharmacy'},ip_l:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'IP Lab'},ip_p:{bg:'#f3e8ff',border:'#8b5cf6',color:'#6d28d9',name:'IP Package'},op:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP'},op_r:{bg:'#d1fae5',border:'#10b981',color:'#047857',name:'OP Pharmacy'},op_l:{bg:'#fed7aa',border:'#ea580c',color:'#9a3412',name:'OP Lab'},op_p:{bg:'#fef3c7',border:'#eab308',color:'#854d0e',name:'OP Procedure'},vc:{bg:'#e0e7ff',border:'#4f46e5',color:'#3730a3',name:'VC'},custom:{bg:'#e5e7eb',border:'#6b7280',color:'#374151',name:'Other'}}
+
+const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
+  const [items,setItems]=useState(()=>(entries||[]).map((e,i)=>({
+    id:'e'+i,
+    type:e.type||'custom',
+    desc:(e.patient_name||'')+(e.type?' - '+(ITYPES.find(t=>t.key===e.type)?.full||e.type):''),
+    date:e.date||todayStr(),
+    amount:e.amount||0,
+    commPct:e.custom_commission!=null?parseFloat(e.custom_commission):((COMM[e.type]||0)*100),
+    isCustom:false
+  })))
+  const [refDocName,setRefDocName]=useState(docName||'')
+  const [reportDate,setReportDate]=useState(todayStr())
+  const [notes,setNotes]=useState('')
+  const addItem=()=>setItems([...items,{id:'c'+Date.now(),type:'custom',desc:'',date:todayStr(),amount:0,commPct:0,isCustom:true}])
+  const updItem=(id,f,v)=>setItems(items.map(it=>it.id===id?{...it,[f]:v}:it))
+  const rmItem=id=>{if(window.confirm('Remove this line item?'))setItems(items.filter(it=>it.id!==id))}
+  const calc=it=>Math.round((parseFloat(it.amount)||0)*(parseFloat(it.commPct)||0)/100)
+  const totalRef=items.reduce((a,it)=>a+calc(it),0)
+  const totalBill=items.reduce((a,it)=>a+(parseFloat(it.amount)||0),0)
+  
+  const genPDF=()=>{
+    const rows=items.map((it,i)=>{
+      const col=REF_COLORS[it.type]||REF_COLORS.custom
+      const amt=parseFloat(it.amount)||0
+      const cm=calc(it)
+      return '<tr style="background:'+col.bg+'33"><td style="padding:10px;border-bottom:1px solid #e5e7eb;font-weight:700;color:#6b7280">'+(i+1)+'</td><td style="padding:10px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#6b7280">'+new Date(it.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+'</td><td style="padding:10px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#1a1a2e">'+(it.desc||'-')+'</td><td style="padding:10px;border-bottom:1px solid #e5e7eb"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;background:'+col.bg+';color:'+col.color+';border:1px solid '+col.border+'">'+col.name+'</span></td><td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:#1d4ed8">Rs '+amt.toLocaleString('en-IN')+'</td><td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;color:#64748b">'+(parseFloat(it.commPct)||0)+'%</td><td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:800;color:#15803d">Rs '+cm.toLocaleString('en-IN')+'</td></tr>'
+    }).join('')
+    const html='<!DOCTYPE html><html><head><title>Referral - '+refDocName+'</title><meta charset="utf-8"/><style>*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}body{background:#fff;padding:30px;color:#1f2937;font-size:13px}@media print{body{padding:15px}.no-print{display:none!important}}</style></head><body><div style="text-align:center;border-bottom:4px double #1a1a2e;padding-bottom:20px;margin-bottom:25px"><div style="font-size:32px;font-weight:900;color:#1a1a2e;letter-spacing:2px;margin-bottom:5px">'+((hospital&&hospital.name)||'HOSPITAL').toUpperCase()+'</div><div style="font-size:13px;color:#64748b;letter-spacing:1px;font-weight:600">MULTI-SPECIALITY MEDICAL CENTRE</div><div style="height:3px;background:linear-gradient(90deg,#c9a84c,#f0d068,#c9a84c);margin:10px auto;width:60%"></div><div style="font-size:11px;color:#94a3b8;margin-top:8px;font-weight:500">'+((hospital&&hospital.city)||'')+(hospital&&hospital.phone?'  Ph: '+hospital.phone:'')+'</div></div><div style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 24px;border-radius:10px;margin-bottom:20px"><h1 style="font-size:22px;color:#c9a84c;letter-spacing:1px;margin-bottom:4px">REFERRAL PAYMENT VOUCHER</h1><div style="font-size:12px;color:#cbd5e1;font-weight:500">For services rendered to referred patient</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px"><div style="background:#f8fafc;border-left:4px solid #1d4ed8;padding:12px 16px;border-radius:6px"><div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px">Paid to (Referring Doctor)</div><div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-top:3px">Dr. '+(refDocName||'-')+'</div></div><div style="background:#f8fafc;border-left:4px solid #16a34a;padding:12px 16px;border-radius:6px"><div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px">Date</div><div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-top:3px">'+new Date(reportDate).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})+'</div></div>'+(patientName?'<div style="background:#f8fafc;border-left:4px solid #7c3aed;padding:12px 16px;border-radius:6px;grid-column:1/-1"><div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px">Patient</div><div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-top:3px">'+patientName+'</div></div>':'')+'</div><table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:12px"><thead style="background:#1a1a2e;color:#c9a84c"><tr><th style="padding:11px 10px;text-align:left;font-size:11px;font-weight:700">#</th><th style="padding:11px 10px;text-align:left;font-size:11px;font-weight:700">Date</th><th style="padding:11px 10px;text-align:left;font-size:11px;font-weight:700">Description</th><th style="padding:11px 10px;text-align:left;font-size:11px;font-weight:700">Type</th><th style="padding:11px 10px;text-align:right;font-size:11px;font-weight:700">Amount</th><th style="padding:11px 10px;text-align:right;font-size:11px;font-weight:700">Rate</th><th style="padding:11px 10px;text-align:right;font-size:11px;font-weight:700">Referral</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td colspan="4" style="background:#f0fdf4;font-weight:800;font-size:14px;padding:14px 10px;color:#1a1a2e;border-top:3px double #16a34a">TOTAL</td><td style="background:#f0fdf4;font-weight:800;font-size:14px;padding:14px 10px;color:#1d4ed8;text-align:right;border-top:3px double #16a34a">Rs '+totalBill.toLocaleString('en-IN')+'</td><td style="background:#f0fdf4;font-weight:800;font-size:14px;padding:14px 10px;border-top:3px double #16a34a">-</td><td style="background:#f0fdf4;font-weight:800;font-size:18px;padding:14px 10px;color:#15803d;text-align:right;border-top:3px double #16a34a">Rs '+totalRef.toLocaleString('en-IN')+'</td></tr></tfoot></table>'+(notes?'<div style="background:#fffbeb;border:2px solid #fde68a;border-radius:10px;padding:14px 18px;margin-top:18px"><div style="font-size:11px;color:#a16207;font-weight:700;text-transform:uppercase;margin-bottom:6px">Notes</div><div style="color:#451a03;font-size:13px;line-height:1.5">'+notes.replace(/\n/g,'<br/>')+'</div></div>':'')+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:50px;padding-top:30px"><div style="text-align:center"><div style="height:40px"></div><div style="border-top:1.5px solid #1a1a2e;padding-top:6px;font-size:11px;color:#64748b;font-weight:600">Authorised Signatory<br/><span style="color:#1a1a2e;font-weight:800">'+((hospital&&hospital.name)||'Hospital')+'</span></div></div><div style="text-align:center"><div style="height:40px"></div><div style="border-top:1.5px solid #1a1a2e;padding-top:6px;font-size:11px;color:#64748b;font-weight:600">Received by<br/><span style="color:#1a1a2e;font-weight:800">Dr. '+(refDocName||'-')+'</span></div></div></div><div style="margin-top:30px;padding-top:15px;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#94a3b8">Computer-generated voucher. '+new Date().toLocaleString('en-IN')+'</div><div class="no-print" style="text-align:center;margin-top:30px"><button onclick="window.print()" style="padding:14px 40px;background:#16a34a;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">Print / Save as PDF</button></div></body></html>'
+    const w=window.open('','_blank','width=900,height=1200')
+    if(!w){alert('Please allow popups to view PDF');return}
+    w.document.write(html)
+    w.document.close()
+  }
+  
+  return(
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:8}}>
+      <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:680,maxHeight:'95vh',overflowY:'auto',padding:'20px 18px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,paddingBottom:12,borderBottom:'2px solid #f1f5f9'}}>
+          <div>
+            <div style={{fontSize:17,fontWeight:800,color:'#1a1a2e'}}>Referral Payment</div>
+            <div style={{fontSize:11,color:'#64748b'}}>Edit values, add items, then generate PDF</div>
+          </div>
+          <button onClick={onClose} style={{background:'#f3f4f6',border:'none',borderRadius:20,width:34,height:34,fontSize:18,cursor:'pointer'}}>×</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+          <div><label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',display:'block',marginBottom:4}}>Referring Doctor</label>
+            <input type="text" value={refDocName} onChange={e=>setRefDocName(e.target.value)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          </div>
+          <div><label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',display:'block',marginBottom:4}}>Date</label>
+            <input type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          </div>
+        </div>
+        <div style={{marginBottom:10,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Line Items ({items.length})</div>
+        {items.map(it=>{const col=REF_COLORS[it.type]||REF_COLORS.custom;return(
+          <div key={it.id} style={{background:col.bg+'66',border:'1.5px solid '+col.border,borderRadius:10,padding:10,marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fff',color:col.color,fontWeight:700,border:'1px solid '+col.border}}>{col.name}</span>
+              <button onClick={()=>rmItem(it.id)} style={{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:6,width:24,height:24,cursor:'pointer',fontWeight:700,fontSize:14}}>×</button>
+            </div>
+            <input type="text" value={it.desc} onChange={e=>updItem(it.id,'desc',e.target.value)} placeholder="Description" style={{width:'100%',padding:'6px 10px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12,marginBottom:6,boxSizing:'border-box',background:'#fff'}}/>
+            {it.isCustom&&<select value={it.type} onChange={e=>updItem(it.id,'type',e.target.value)} style={{width:'100%',padding:'6px 10px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12,marginBottom:6,boxSizing:'border-box',background:'#fff'}}>
+              {Object.entries(REF_COLORS).map(([k,v])=><option key={k} value={k}>{v.name}</option>)}
+            </select>}
+            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1.5fr',gap:6}}>
+              <div><label style={{fontSize:9,color:'#64748b',fontWeight:600}}>Amount (Rs)</label>
+                <input type="number" value={it.amount} onChange={e=>updItem(it.id,'amount',e.target.value)} style={{width:'100%',padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:13,fontWeight:700,boxSizing:'border-box'}}/>
+              </div>
+              <div><label style={{fontSize:9,color:'#64748b',fontWeight:600}}>Rate %</label>
+                <input type="number" value={it.commPct} onChange={e=>updItem(it.id,'commPct',e.target.value)} style={{width:'100%',padding:'6px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:13,fontWeight:700,boxSizing:'border-box'}}/>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <label style={{fontSize:9,color:'#64748b',fontWeight:600}}>Referral</label>
+                <div style={{padding:'6px 8px',background:'#fff',border:'1px solid '+col.border,borderRadius:6,fontSize:14,fontWeight:800,color:col.color}}>Rs {calc(it).toLocaleString('en-IN')}</div>
+              </div>
+            </div>
+          </div>
+        )})}
+        <button onClick={addItem} style={{width:'100%',padding:'10px',background:'#f9fafb',border:'2px dashed #d1d5db',borderRadius:10,fontSize:13,fontWeight:700,color:'#374151',cursor:'pointer',marginBottom:10}}>+ Add Custom Item</button>
+        <div><label style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',display:'block',marginBottom:4}}>Notes</label>
+          <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Optional notes" rows={2} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:12,resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
+        </div>
+        <div style={{background:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'2px solid #16a34a',borderRadius:10,padding:'12px 16px',margin:'14px 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Total Referral</div>
+            <div style={{fontSize:24,color:'#15803d',fontWeight:900}}>Rs {totalRef.toLocaleString('en-IN')}</div>
+          </div>
+          <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase'}}>Bill Total</div>
+            <div style={{fontSize:16,color:'#1d4ed8',fontWeight:700}}>Rs {totalBill.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+        <button onClick={genPDF} style={{width:'100%',padding:'14px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:12,fontSize:15,fontWeight:800,cursor:'pointer'}}>Generate Colorful PDF</button>
+      </div>
+    </div>
+  )
+}
+
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
@@ -5012,7 +5109,7 @@ export default function App(){
       <div className="app-main-content" style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF} profile={profile}/></div>
-        <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
+        <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
         {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
         {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions}/>}
