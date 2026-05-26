@@ -20,6 +20,53 @@ const todayStr=()=>new Date().toISOString().split('T')[0]
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');return data||('REG'+Date.now().toString().slice(-5))}catch(e){return 'REG'+Date.now().toString().slice(-5)}}
 const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
+
+const downloadText=(filename,text)=>{
+  const blob=new Blob([text],{type:'text/plain;charset=utf-8'})
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a')
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click()
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url)},100)
+}
+const buildCommReport=(ents,title,patientName)=>{
+  const lines=[]
+  lines.push('='.repeat(50))
+  lines.push(title)
+  lines.push('='.repeat(50))
+  if(patientName)lines.push('Patient: '+patientName)
+  lines.push('Generated: '+new Date().toLocaleString('en-IN'))
+  lines.push('')
+  const byDoc={}
+  ents.forEach(e=>{
+    const doc=e.ref_doctor||'(no referring doctor)'
+    if(!byDoc[doc])byDoc[doc]={entries:[],totalAmt:0,totalComm:0}
+    const cm=getComm(e)
+    byDoc[doc].entries.push(e)
+    byDoc[doc].totalAmt+=e.amount
+    byDoc[doc].totalComm+=cm
+  })
+  let grandTotal=0
+  Object.entries(byDoc).forEach(([doc,data])=>{
+    lines.push('-'.repeat(50))
+    lines.push('Dr. '+doc)
+    lines.push('-'.repeat(50))
+    data.entries.forEach(e=>{
+      const dt=e.date?new Date(e.date).toLocaleDateString('en-IN'):''
+      const cm=getComm(e)
+      const it=ITYPES.find(t=>t.key===e.type)
+      const pay=e.payment||'cash'
+      lines.push(`${dt}  ${it?.full||e.type}  ${e.patient_name||''}`)
+      lines.push(`  Amount: Rs ${e.amount.toLocaleString('en-IN')}  Payment: ${pay}  Commission: Rs ${cm.toFixed(0)}`)
+    })
+    lines.push(`  SUBTOTAL: Bill Rs ${data.totalAmt.toLocaleString('en-IN')}  Commission Rs ${Math.round(data.totalComm).toLocaleString('en-IN')}`)
+    lines.push('')
+    grandTotal+=data.totalComm
+  })
+  lines.push('='.repeat(50))
+  lines.push('GRAND TOTAL COMMISSION: Rs '+Math.round(grandTotal).toLocaleString('en-IN'))
+  lines.push('='.repeat(50))
+  return lines.join('\n')
+}
 const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
 const isCredit=e=>e.payment==='credit'
@@ -1511,7 +1558,12 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           }} style={{flex:1,padding:'9px 12px',background:'#f3f4f6',color:'#374151',border:'1.5px solid #d1d5db',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off Balance</button>
         </div>}
         </Card></>)}
-        {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div></Card></>)}
+        {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p'].map(tk=>{const te=ents.filter(e=>e.type===tk);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
+        <button onClick={()=>{
+          const txt=buildCommReport(ents.filter(e=>['ip','ip_r','ip_l','ip_p'].includes(e.type)),'IP Commission Report - '+(p.name||''),p.name)
+          downloadText('commission_'+(p.name||'patient').replace(/\s+/g,'_')+'_'+todayStr()+'.txt',txt)
+        }} style={{marginTop:10,width:'100%',padding:'8px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 Export as Notepad (.txt)</button>
+        </Card></>)}
         {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Date" type="date" value={cF.date} onChange={e=>setCF({...cF,date:e.target.value})}/>
@@ -4216,27 +4268,43 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           {opInc>0&&<>
             <R l="OP Consultation" v={fmt(opInc)} green/>
-            {dI.filter(e=>e.type==='op'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''} <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='op'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+              <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
+                <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''}</div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+              </div>
+              <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {opdInc>0&&<>
             <R l="OPD Services" v={fmt(opdInc)} green/>
-            {dI.filter(e=>e.type==='opd'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/> <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='opd'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+              <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
+                <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+              </div>
+              <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {oppInc>0&&<>
             <R l="OP Procedures" v={fmt(oppInc)} green/>
-            {dI.filter(e=>e.type==='op_p'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/> <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='op_p'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+              <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
+                <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+              </div>
+              <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
           {oprInc>0&&<>
             <R l="OP Pharmacy" v={fmt(oprInc)} green/>
-            {dI.filter(e=>e.type==='op_r'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/> <PayBadges e={e} cr={false}/></span><span style={{fontWeight:600}}>{fmt(e.amount)}</span>
+            {dI.filter(e=>e.type==='op_r'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+              <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
+                <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+              </div>
+              <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {ipInc>0&&<>
@@ -4743,7 +4811,7 @@ export default function App(){
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
-  const TABS=[{k:'dash',l:'Dashboard'},{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'rep',l:'Reports'},{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[{k:'dash',l:'Dashboard'},...(canSeeReports?[{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
