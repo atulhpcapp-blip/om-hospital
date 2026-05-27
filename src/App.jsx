@@ -1156,7 +1156,7 @@ const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
   )
 }
 
-const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
+const EditEntryForm=({entry,db,onSave,onCancel})=>{
   const [amount,setAmount]=useState(String(entry.amount))
   const [patName,setPatName]=useState(entry.patient_name||'')
   const [patPhone,setPatPhone]=useState(entry.patient_phone||'')
@@ -1232,10 +1232,10 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
           <FInp label="Consultant fee paid (Rs)" type="number" inputMode="numeric" value={vcFee} onChange={e=>setVcFee(e.target.value)} placeholder="0"/>
           {vcFee&&parseFloat(vcFee)>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Hospital profit: {fmt(parseFloat(amount||0)-parseFloat(vcFee||0))}</div>}
         </>}
-        {showRefField&&canSeeReports&&(<FSel label="Referring doctor" value={ref} onChange={e=>{const sel=(db?.ref_doctors||[]).find(d=>d.name===e.target.value);const pctKey={op_r:'op_r_pct',op_l:'op_l_pct',op:'op_pct',ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[type]||'op_pct';const pct=sel?sel[pctKey]:null;setRef(e.target.value);if(pct!=null&&custComm==='')setCustComm(String(pct))}}>
+        {showRefField&&<FSel label="Referring doctor" value={ref} onChange={e=>{const sel=(db?.ref_doctors||[]).find(d=>d.name===e.target.value);const pctKey={op_r:'op_r_pct',op_l:'op_l_pct',op:'op_pct',ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[type]||'op_pct';const pct=sel?sel[pctKey]:null;setRef(e.target.value);if(pct!=null&&custComm==='')setCustComm(String(pct))}}>
           <option value="">- No referral / Self -</option>
           {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
-        </FSel>)}
+        </FSel>}
         {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%)`} type="number" inputMode="numeric" value={custComm} onChange={e=>setCustComm(e.target.value)} placeholder={String(defaultCommPct)}/>}
         {comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {ref}: {fmt(comm)} ({commPct}%)</div>}
         <FInp label="Notes (optional)" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
@@ -1246,7 +1246,7 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
   )
 }
 
-const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSeeReports})=>{
+const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
   const [editEntry,setEditEntry]=useState(null)
   const di=db.income.filter(e=>e.date===eDate)
   const tots={};ITYPES.forEach(t=>{tots[t.key]=di.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)})
@@ -1256,7 +1256,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
   const custCommPct=iF.custom_commission!==''?parseFloat(iF.custom_commission)/100:(COMM[itype]||0)
   const prev=iF.amount&&iF.ref&&iF.ref.trim()&&(custCommPct>0||iF.custom_commission!=='')?parseFloat(iF.amount||0)*(iF.custom_commission!==''?parseFloat(iF.custom_commission)/100:(COMM[itype]||0)):0
   const todayCash=cashTotal(di);const todayCredit=credTotal(di)
-  if(editEntry)return(<EditEntryForm entry={editEntry} db={db} canSeeReports={canSeeReports} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
+  if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   const go=async()=>{
     const amt=parseFloat(iF.amount);
     if(isNaN(amt)||amt<0){alert('Enter a valid amount (Rs 0 allowed for free consultation)');return}
@@ -1325,7 +1325,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
         )})}
       </div>
       <Card>
-        {canSeeReports&&prev>0&&iF.ref&&itype!=='op'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
+        {prev>0&&iF.ref&&itype!=='op'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 12px',marginBottom:10,fontSize:13,color:'#92400e'}}>Commission to Dr. <strong>{iF.ref}</strong>: <strong style={{color:'#c2410c'}}>{fmt(prev)}</strong> <span style={{fontSize:11,opacity:.8}}>({iF.custom_commission!==''?iF.custom_commission+'%':'auto'} of {fmt(parseFloat(iF.amount||0))})</span></div>}
         {isIP?<FSel label="IP Patient" value={iF.pid} onChange={e=>setIF({...iF,pid:e.target.value})}><option value="">- select admitted patient -</option>{aps.map(p=><option key={p.id} value={p.id}>{p.name}{p.ref_doctor?' (Ref: '+p.ref_doctor+')':''}</option>)}</FSel>
           :<>
             {(itype==='op_r'||itype==='op_l')?(
@@ -1363,16 +1363,16 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
                 {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name}</option>)}
               </FSel>
               {iF.consultant_name&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
-              {canSeeReports&&(<FSel label="Referring doctor (optional)" value={iF.ref} onChange={e=>{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?sel.op_pct:null;setIF({...iF,ref:e.target.value,custom_commission:pct!=null?String(pct):''})}}>
+              <FSel label="Referring doctor (optional)" value={iF.ref} onChange={e=>{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?sel.op_pct:null;setIF({...iF,ref:e.target.value,custom_commission:pct!=null?String(pct):''})}}>
                 <option value="">- No referral / Self patient -</option>
                 {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
-              </FSel>)}
+              </FSel>
               {iF.ref&&(()=>{const doc=db.ref_doctors.find(d=>d.name===iF.ref);if(!doc)return null;return(<div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
                 {doc.area&&<span style={{background:'#eff6ff',border:'1px solid #bfdbfe',color:'#1d4ed8',fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:100}}>Area: {doc.area}</span>}
                 {iF.amount&&doc.op_pct>0&&<span style={{background:'#fff7ed',border:'1px solid #fed7aa',color:'#92400e',fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:100}}>Commission: {fmt(parseFloat(iF.amount||0)*(doc.op_pct/100))} ({doc.op_pct}%)</span>}
               </div>)})()}
             </>)}
-            {!isIP&&(itype==='op_r'||itype==='op_l')&&iF.pname.trim()&&(()=>{const opEntry=db.income.find(e=>e.type==='op'&&e.patient_name===iF.pname.trim()&&e.ref_doctor);if(!opEntry)return null;const doc=db.ref_doctors.find(d=>d.name===opEntry.ref_doctor);const pctKey=itype==='op_r'?'op_r_pct':'op_l_pct';const pct=doc?doc[pctKey]:null;if(iF.ref!==opEntry.ref_doctor){setIF({...iF,ref:opEntry.ref_doctor,custom_commission:pct!=null?String(pct):''})}return canSeeReports?(<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Ref doctor auto-filled: <strong>Dr. {opEntry.ref_doctor}</strong>{pct!=null?' ('+pct+'%)':''}</div>):null})()}
+            {!isIP&&(itype==='op_r'||itype==='op_l')&&iF.pname.trim()&&(()=>{const opEntry=db.income.find(e=>e.type==='op'&&e.patient_name===iF.pname.trim()&&e.ref_doctor);if(!opEntry)return null;const doc=db.ref_doctors.find(d=>d.name===opEntry.ref_doctor);const pctKey=itype==='op_r'?'op_r_pct':'op_l_pct';const pct=doc?doc[pctKey]:null;if(iF.ref!==opEntry.ref_doctor){setIF({...iF,ref:opEntry.ref_doctor,custom_commission:pct!=null?String(pct):''})}return(<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Ref doctor auto-filled: <strong>Dr. {opEntry.ref_doctor}</strong>{pct!=null?' ('+pct+'%)':''}</div>)})()}
             {itype==='vc'&&<>
               <FInp label="Consultant name" type="text" placeholder="e.g. Dr. Sharma (Neurologist)" value={iF.ref} onChange={e=>setIF({...iF,ref:e.target.value})}/>
               <FInp label="Consultant fee to pay (Rs )" type="number" inputMode="numeric" placeholder="Amount you give to consultant" value={iF.consultant_fee||''} onChange={e=>setIF({...iF,consultant_fee:e.target.value})}/>
@@ -1450,7 +1450,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
       {ITYPES.map(t=>{
         const ents=di.filter(e=>e.type===t.key);if(!ents.length)return null
         return(<div key={t.key}>
-          {canSeeReports&&(<><SecL>{t.full} - {fmt(tots[t.key])}</SecL>
+          <SecL>{t.full} - {fmt(tots[t.key])}</SecL>
           <Card>{(()=>{
             const grouped={}
             ents.forEach(e=>{
@@ -1489,7 +1489,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
                 <DBtn confirmText={allEntries.length>1?'Delete all '+allEntries.length+' split entries for '+(e.patient_name||'this patient')+'?\n\nTotal: Rs '+totalAmt+'\n\nThis cannot be undone.':'Delete entry for '+(e.patient_name||'this patient')+'?\n\nAmount: Rs '+e.amount+'\nType: '+(ITYPES.find(t=>t.key===e.type)?.full||e.type)+'\n\nThis cannot be undone.'} onClick={()=>allEntries.forEach(x=>actions.delIncome(x.id))}></DBtn>
               </div>
             </div>
-          )})})()}</Card></>)}
+          )})})()}</Card>
         </div>)
       })}
     </div>
@@ -1540,7 +1540,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
     return{total,billed,paid:pats?.is_package?pkgPaid:paid,balance,commission:comm+pkgComm,credit,pkgComm,discount,writtenOff}
   }
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
-  if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} canSeeReports={canSeeReports} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
+  if(editIPEntry)return(<EditEntryForm entry={editIPEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditIPEntry(null)}} onCancel={()=>setEditIPEntry(null)}/>)
 
   if(billPatient)return(<IPBillingModule p={billPatient} db={db} onClose={()=>setBillPatient(null)} hospital={db.hospital}/>)
   if(ipv==='detail'&&ipid){
@@ -1592,7 +1592,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         </Card>
         <MetGrid items={[{label:'Total billed',value:fmt(b.total)},{label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},{label:'Credit (due)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},{label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'}]}/>
         {/* Charges breakdown */}
-        {canSeeReports&&<Card style={{marginBottom:12}}>
+        <Card style={{marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Charges breakdown</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,marginBottom:8,paddingBottom:6,borderBottom:'1px solid #f0f0f0'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Type</div>
@@ -1603,7 +1603,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {ITYPES.map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{cm>0?'-'+fmt(cm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(inc-cm)}</span></div>)})}
           {p.is_package&&(p.payments||[]).length>0&&(()=>{const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const pkgCm=(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{fontSize:12,color:'#1d4ed8'}}>Package received</span><span style={{fontSize:12,textAlign:'right',color:'#1d4ed8',minWidth:60}}>{fmt(pkgPd)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{pkgCm>0?'-'+fmt(pkgCm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(pkgPd-pkgCm)}</span></div>)})()}
           {(()=>{const allInc=ents.reduce((a,e)=>a+e.amount,0);const allComm=ents.reduce((a,e)=>a+getComm(e),0);const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const totDeduct=allComm+b.pkgComm;return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 2px',marginTop:2,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(allInc+pkgPd)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totDeduct>0?'-'+fmt(totDeduct):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(allInc+pkgPd-totDeduct)}</span></div>)})()}
-        </Card>}
+        </Card>
         {b.credit>0&&(<><SecL>Credit by type</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(<div key={tk} style={{padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>
@@ -1744,7 +1744,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const allIP=[...active,...disc.slice().reverse()]
   const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const p=db.ip_patients.find(pt=>pt.id===pid);const cr=credTotal(en);const balance=p?.is_package?0:cr;return{total:t,balance,credit:cr}}
   const ipRefDocs=[...new Set(db.ip_patients.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort()
-  const IPRow=({p})=>{const b=qb(p.id);const pt=p.patient_type||'Regular';const disc2=!!p.discharge_date;return(<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{disc2&&<Pill label="Discharged"/>}{canSeeReports&&p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(disc2?' to '+fmtD(p.discharge_date):' Active')+(p.reg_no?' - Reg: '+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>)}
+  const IPRow=({p})=>{const b=qb(p.id);const pt=p.patient_type||'Regular';const disc2=!!p.discharge_date;return(<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{disc2&&<Pill label="Discharged"/>}{p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(disc2?' to '+fmtD(p.discharge_date):' Active')+(p.reg_no?' - Reg: '+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>)}
   const IPVIEWS=[{k:'active',l:'Active'},{k:'all',l:'All'},{k:'discharged',l:'Discharged'},{k:'date',l:'By Month'},{k:'ref',l:'By Ref Doctor'}]
   if(ipv==='add')return(
     <div>
@@ -1947,7 +1947,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab})=>{
     }
   },[opSearch])
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
-  if(editEntry)return(<EditEntryForm entry={editEntry} db={db} canSeeReports={canSeeReports} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
+  if(editEntry)return(<EditEntryForm entry={editEntry} db={db} onSave={async row=>{const ok=await actions.editIncome(row);if(ok!==false)setEditEntry(null)}} onCancel={()=>setEditEntry(null)}/>)
   if(selPat){
     const pat=byPat[selPat?.trim().toLowerCase()]||byPat[selPat];if(!pat)return<button onClick={()=>setSelPat(null)} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer'}}>Back</button>
     const ents=pat.entries
@@ -4583,7 +4583,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
 }
 
 
-const PatientDataReport=({db,canSeeReports})=>{
+const PatientDataReport=({db})=>{
   const [search,setSearch]=useState('')
   const [filterArea,setFilterArea]=useState('')
   const [filterRef,setFilterRef]=useState('')
@@ -4679,7 +4679,7 @@ const PatientDataReport=({db,canSeeReports})=>{
               <td style={{padding:'8px 10px',color:'#555'}}>{p.phone||'—'}</td>
               <td style={{padding:'8px 10px',color:'#555'}}>{p.area||'—'}</td>
               <td style={{padding:'8px 10px',color:p.ref_doctor?'#d97706':'#ccc',fontWeight:p.ref_doctor?600:400}}>
-                {canSeeReports?(p.ref_doctor?'Dr. '+p.ref_doctor:'Self'):''}
+                {p.ref_doctor?'Dr. '+p.ref_doctor:'Self'}
               </td>
               <td style={{padding:'8px 10px'}}>
                 <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
@@ -4737,7 +4737,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>}
-      {rv==='patdata'&&<PatientDataReport db={db} canSeeReports={canSeeReports}/>}
+      {rv==='patdata'&&<PatientDataReport db={db}/>}
       {rv==='patlist'&&(timelinePid?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>:<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>)}
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>{setTimelineSelPid('');setTimelineSearch('')}}/>:
           <TimelinePatientList db={db} onSelect={pid=>setTimelineSelPid(pid)} search={timelineSearch} setSearch={setTimelineSearch}/>
@@ -5075,7 +5075,7 @@ export default function App(){
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
-  const TABS=[...(canSeeReports?[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'refdrs',l:'Ref Doctors'}]:[]),{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[{k:'dash',l:'Dashboard'},...(canSeeReports?[{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'refdrs',l:'Ref Doctors'}]:[]),{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
@@ -5223,7 +5223,7 @@ export default function App(){
       </div>
       <div className="app-main-content" style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
-        <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF} profile={profile} canSeeReports={canSeeReports}/></div>
+        <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF} profile={profile}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} canSeeReports={canSeeReports} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
         {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
