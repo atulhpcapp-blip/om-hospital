@@ -21,87 +21,6 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');return data||('REG'+Date.now().toString().slice(-5))}catch(e){return 'REG'+Date.now().toString().slice(-5)}}
 const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
 
-const downloadText=(filename,text)=>{
-  const blob=new Blob([text],{type:'text/plain;charset=utf-8'})
-  const url=URL.createObjectURL(blob)
-  const a=document.createElement('a')
-  a.href=url;a.download=filename;document.body.appendChild(a);a.click()
-  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url)},100)
-}
-const buildCommReport=(ents,title,patientName)=>{
-  const pad=(s,w,r=false)=>{const str=String(s||'');if(str.length>=w)return str.slice(0,w);return r?str+' '.repeat(w-str.length):' '.repeat(w-str.length)+str}
-  const padL=(s,w)=>pad(s,w,true)
-  const W=130
-  const lines=[]
-  const sep='='.repeat(W)
-  const dash='-'.repeat(W)
-  // Title block
-  lines.push(sep)
-  lines.push(pad(title.toUpperCase(),W,false).split('').map((c,i,a)=>{const pre=Math.floor((W-title.length)/2);return i===pre?title.toUpperCase()+' '.repeat(W-pre-title.length):c}).slice(0,W).join('').slice(0,W))
-  // Simpler centered title
-  lines[lines.length-1]=' '.repeat(Math.max(0,Math.floor((W-title.length)/2)))+title.toUpperCase()
-  lines.push(sep)
-  const now=new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
-  if(patientName)lines.push('PATIENT: '+patientName.toUpperCase()+' '.repeat(Math.max(1,W-9-patientName.length-13-now.length))+'GENERATED: '+now)
-  else lines.push('GENERATED: '+now)
-  lines.push('')
-  
-  // Group by doctor
-  const byDoc={}
-  ents.forEach(e=>{
-    const doc=e.ref_doctor||'(no referring doctor)'
-    if(!byDoc[doc])byDoc[doc]={entries:[],totalAmt:0,totalComm:0,collected:0,credit:0}
-    const cm=getComm(e)
-    byDoc[doc].entries.push(e)
-    byDoc[doc].totalAmt+=e.amount
-    byDoc[doc].totalComm+=cm
-    if(e.payment==='credit')byDoc[doc].credit+=e.amount
-    else if(e.payment!=='discount'&&e.payment!=='written_off')byDoc[doc].collected+=e.amount
-  })
-  
-  let grandAmt=0,grandComm=0,grandCollected=0,grandCredit=0
-  Object.entries(byDoc).forEach(([doc,data])=>{
-    lines.push(sep)
-    lines.push(' '.repeat(Math.max(0,Math.floor((W-(doc.length+4))/2)))+'DR. '+doc.toUpperCase())
-    lines.push(sep)
-    lines.push('')
-    // Column headers (widths: 12, 22, 28, 18, 12, 16 = 108 + separators)
-    lines.push(' '+pad('DATE',12,true)+' | '+pad('TYPE',22,true)+' | '+pad('PATIENT',28,true)+' | '+padL('AMOUNT',18)+' | '+pad('PAYMENT',12,true)+' | '+padL('COMMISSION',16))
-    lines.push(dash)
-    data.entries.forEach(e=>{
-      const dt=e.date?new Date(e.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'}):''
-      const it=ITYPES.find(t=>t.key===e.type)
-      const cm=getComm(e)
-      const pay=(e.payment||'cash').toUpperCase().replace('_',' ')
-      lines.push(' '+pad(dt,12,true)+' | '+pad(it?.full||e.type,22,true)+' | '+pad(e.patient_name||'-',28,true)+' | '+padL('Rs '+e.amount.toLocaleString('en-IN'),18)+' | '+pad(pay,12,true)+' | '+padL('Rs '+Math.round(cm).toLocaleString('en-IN'),16))
-    })
-    lines.push(dash)
-    // Subtotal row
-    lines.push(' '+pad('',12,true)+' | '+pad('',22,true)+' | '+pad('** SUBTOTAL **',28,true)+' | '+padL('Rs '+data.totalAmt.toLocaleString('en-IN'),18)+' | '+pad('',12,true)+' | '+padL('Rs '+Math.round(data.totalComm).toLocaleString('en-IN'),16))
-    lines.push('')
-    // Payment summary
-    if(data.collected>0||data.credit>0){
-      lines.push('   COLLECTED:  Rs '+data.collected.toLocaleString('en-IN')+'      OUTSTANDING CREDIT:  Rs '+data.credit.toLocaleString('en-IN'))
-      lines.push('')
-    }
-    grandAmt+=data.totalAmt
-    grandComm+=data.totalComm
-    grandCollected+=data.collected
-    grandCredit+=data.credit
-  })
-  
-  // Grand total
-  lines.push(sep)
-  lines.push(sep)
-  const gt='*** GRAND TOTAL COMMISSION: RS '+Math.round(grandComm).toLocaleString('en-IN')+' ***'
-  lines.push(' '.repeat(Math.max(0,Math.floor((W-gt.length)/2)))+gt)
-  lines.push(sep)
-  lines.push('Total Billed:        Rs '+grandAmt.toLocaleString('en-IN'))
-  lines.push('Total Collected:     Rs '+grandCollected.toLocaleString('en-IN'))
-  lines.push('Outstanding Credit:  Rs '+grandCredit.toLocaleString('en-IN'))
-  lines.push(sep)
-  return lines.join('\n')
-}
 const fmtD=d=>{if(!d)return'-';const x=new Date(d+'T00:00:00');return`${x.getDate()} ${MOS[x.getMonth()]} ${x.getFullYear()}`}
 const getRefDoc=(e,pats)=>e.ref_doctor||(pats||[]).find(p=>p.id===e.patient_id)?.ref_doctor||null
 const isCredit=e=>e.payment==='credit'
@@ -1284,18 +1203,10 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
     }
     const activeSplits=(iF.splits||[]).filter(s=>parseFloat(s.amount)>0)
     const isMultiSplit=activeSplits.length>1
-    console.log('=== SAVE DEBUG ===')
-    console.log('Patient:',pname,'Type:',itype)
-    console.log('iF.amount:',iF.amount,'iF.pay:',iF.pay)
-    console.log('iF.splits (raw):',JSON.stringify(iF.splits))
-    console.log('activeSplits (filtered):',JSON.stringify(activeSplits))
-    console.log('isMultiSplit:',isMultiSplit,'Total expected:',amt)
-    console.log('Will save',isMultiSplit?activeSplits.length+' SPLIT entries':'1 SINGLE entry')
     let ok=true
     if(isMultiSplit){
       const summary=activeSplits.map(s=>'Rs '+s.amount+' '+s.mode).join(' + ')
       const totalCheck=activeSplits.reduce((a,s)=>a+(parseFloat(s.amount)||0),0)
-      console.log('SPLIT SAVE: '+summary+' = Total Rs '+totalCheck)
       if(Math.abs(totalCheck-amt)>0.01){
         const proceed=window.confirm('⚠️ Amount mismatch:\n\nMain amount: Rs '+amt+'\nSplits sum: Rs '+totalCheck+'\n\nProceed with splits ('+summary+')?')
         if(!proceed)return
@@ -1785,7 +1696,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {pF.patient_type==='Package'&&<div style={{fontSize:11,color:'#1d4ed8',marginTop:6}}>Package - only package payment recorded, 40% commission auto-applied</div>}
           {pF.patient_type==='VC'&&<div style={{fontSize:11,color:'#065f46',marginTop:6}}>Visiting Consultant - collect from patient, pay consultant their share</div>}
         </div>
-        <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
+        {canSeeReports&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px',marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,color:'#92400e',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:8}}>Referral details</div>
           <FSel label="Referring doctor (select from Ref Doctors)" value={pF.ref} onChange={e=>{setPF({...pF,ref:e.target.value,custom_commission:''})}}>
             <option value="">- No referral / Self patient -</option>
@@ -1799,7 +1710,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               <strong>Dr. {doc.name}</strong> commission rates: IP {doc.ip_pct}%  IP-Pharmacy {doc.ip_r_pct}%  IP-Lab {doc.ip_l_pct}%{pF.patient_type==='Package'?'  Package '+doc.ip_pct+'%':''}
             </div>
           </div>)})()}
-        </div>
+        </div>}
+        {!canSeeReports&&<div style={{background:'#f9fafb',border:'1px dashed #d1d5db',borderRadius:10,padding:'10px 14px',marginBottom:8,fontSize:12,color:'#94a3b8',fontStyle:'italic',textAlign:'center'}}>Referral can be added by admin/management after admission</div>}
         {/* ADMIT TYPE SELECTION */}
         <div style={{marginBottom:12}}>
           <div style={{fontSize:12,fontWeight:700,color:'#374151',marginBottom:8}}>Admission type</div>
@@ -5112,8 +5024,6 @@ export default function App(){
             if(e.patient_name&&e.patient_name.trim().toLowerCase()===pname)return true
             return false
           })
-          console.log('PROPAGATION:',{patient:editIPPatient.name,newRefDoc,foundEntries:entriesToUpdate.length,entries:entriesToUpdate.map(e=>({id:e.id,type:e.type,amount:e.amount,oldRef:e.ref_doctor}))})
-          console.log('PROPAGATION: found',entriesToUpdate.length,'entries to update for',editIPPatient.name,'with ref:',newRefDoc)
           if(entriesToUpdate.length>0){
             let updateCount=0,errors=[]
             for(const e of entriesToUpdate){
@@ -5125,7 +5035,6 @@ export default function App(){
               const {error:upErr}=await supabase.from('income').update({ref_doctor:newRefDoc,custom_commission:newCC,patient_id:editIPPatient.id}).eq('id',e.id)
               if(upErr){errors.push(e.id+': '+upErr.message)}else{updateCount++}
             }
-            console.log('PROPAGATION: updated',updateCount,'of',entriesToUpdate.length,'entries. Errors:',errors)
             if(errors.length>0)alert('Some entries failed to update:\n'+errors.slice(0,3).join('\n'))
             // Refresh local state
             setDb(d=>({...d,income:d.income.map(e=>{
