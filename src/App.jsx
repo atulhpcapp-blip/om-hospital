@@ -366,7 +366,7 @@ const PreviewApp=({db,hospital,onExit})=>{
   const gotoOP=useCallback((name,from=null)=>{if(from)setOpPrevTab(from);setOpNavSearch(name||'');setTab('op')},[])
   const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const allPaidComm=useMemo(()=>(db.expenses||[]).filter(e=>e.category==='ref_paid'),[db.expenses])
-  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')}}
+  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},undoDischarge:async()=>{alert('Read-only preview')},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')}}
   const PTABS=[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'}]
   return(
     <div style={{background:'#f8fafc',minHeight:'100vh'}}>
@@ -1496,7 +1496,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               </div>
             </div>
             <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>
-            {!p.discharge_date&&canSeeReports&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}
+            {!p.discharge_date&&canSeeReports&&<GBtn onClick={()=>{if(window.confirm('Discharge '+(p.name||'this patient')+'?\n\nDischarge date will be set to today.\n\nThis can be undone later.'))actions.dischargePatient(p.id)}}>Discharge</GBtn>}
+            {p.discharge_date&&canSeeReports&&<button onClick={async()=>{if(window.confirm('Undo discharge for '+(p.name||'this patient')+'?\n\nPatient was discharged on '+fmtD(p.discharge_date)+'.\n\nThis will reactivate the patient (discharge date cleared).'))await actions.undoDischarge(p.id)}} style={{padding:'8px 14px',background:'#fff7ed',border:'1.5px solid #fb923c',borderRadius:8,color:'#c2410c',fontSize:12,fontWeight:700,cursor:'pointer'}}>↻ Undo Discharge</button>}
             <button onClick={()=>setEditIPPatient&&setEditIPPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date||'',dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||'',patient_area:p.patient_area||'',insurance_type:p.insurance_type||'',insurance_policy_no:p.insurance_policy_no||'',insurance_expected:p.insurance_expected||0,insurance_status:p.insurance_status||'pending'})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button>
             <button onClick={()=>setBillPatient(p)} style={{padding:'6px 12px',background:'#fefce8',border:'1.5px solid #d97706',borderRadius:8,fontSize:12,color:'#d97706',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>🧾 Generate Bill</button>
           </div>
@@ -1657,7 +1658,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const qb=pid=>{const en=db.income.filter(e=>e.patient_id===pid);const t=en.reduce((a,e)=>a+e.amount,0);const p=db.ip_patients.find(pt=>pt.id===pid);const cr=credTotal(en);const balance=p?.is_package?0:cr;return{total:t,balance,credit:cr}}
   const ipRefDocs=[...new Set(db.ip_patients.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort()
   const IPRow=({p})=>{const b=qb(p.id);const pt=p.patient_type||'Regular';const disc2=!!p.discharge_date;return(<Row key={p.id} onClick={()=>{setIpid(p.id);setIpv('detail')}} left={<span style={{fontSize:14}}>{p.name}{pt==='Package'&&<Pill label="Pkg" bg="#dbeafe" tx="#1d4ed8"/>}{disc2&&<Pill label="Discharged"/>}{canSeeReports&&p.ref_doctor&&<Pill label={'Ref: '+p.ref_doctor} bg="#fff7ed" tx="#b45309"/>}</span>} sub={fmtD(p.admission_date)+(disc2?' to '+fmtD(p.discharge_date):' Active')+(p.reg_no?' - Reg: '+p.reg_no:'')+(p.phone?' - '+p.phone:'')} right={<div style={{textAlign:'right'}}><div style={{fontWeight:600}}>{fmt(b.total)}</div>{b.credit>0&&<div style={{fontSize:11,color:'#c2410c'}}>credit: {fmt(b.credit)}</div>}</div>}/>)}
-  const IPVIEWS=[{k:'active',l:'Active'},{k:'all',l:'All'},{k:'discharged',l:'Discharged'},{k:'date',l:'By Month'},{k:'ref',l:'By Ref Doctor'}]
+  const IPVIEWS=[{k:'active',l:'Active'},{k:'all',l:'All'},{k:'discharged',l:'Discharged'},{k:'date',l:'By Month'},...(canSeeReports?[{k:'ref',l:'By Ref Doctor'}]:[])]
   if(ipv==='add')return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
@@ -2281,7 +2282,7 @@ const PatientListReport=({db,gotoTimeline})=>{
     </div>
     {(showType==='all'||showType==='ip')&&(<>
       {showType==='ip'&&<>
-        <div style={{display:'flex',gap:6,marginBottom:10,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},{k:'ref',l:'By Ref Doctor'}].map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
+        <div style={{display:'flex',gap:6,marginBottom:10,overflowX:'auto'}}>{[{k:'all',l:'All'},{k:'active',l:'Active'},{k:'discharged',l:'Discharged'},...(canSeeReports?[{k:'ref',l:'By Ref Doctor'}]:[])].map(v=>(<button key={v.k} onClick={()=>setIpView(v.k)} style={{flexShrink:0,padding:'6px 12px',borderRadius:20,border:ipView===v.k?'none':'1px solid #e5e7eb',background:ipView===v.k?'#16a34a':'none',color:ipView===v.k?'#fff':'#888',fontSize:11,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}</div>
         {ipView!=='ref'&&<div style={{position:'relative',marginBottom:10}}><input style={{...S.inp,paddingLeft:36}} placeholder="Search name, reg no, phone..." value={ipSearch} onChange={e=>setIpSearch(e.target.value)} autoCorrect="off" autoCapitalize="none"/><span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:'#aaa'}}></span>{ipSearch&&<button onClick={()=>setIpSearch('')} style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',fontSize:16,color:'#aaa',cursor:'pointer'}}></button>}</div>}
         {ipView==='ref'&&<FSel label="Select referral doctor" value={ipRefFilter2} onChange={e=>setIpRefFilter2(e.target.value)}><option value="">- Select doctor -</option>{[...new Set(ipPats.filter(p=>p.ref_doctor).map(p=>p.ref_doctor))].sort().map(d=><option key={d} value={d}>Dr. {d}</option>)}</FSel>}
       </>}
@@ -4968,7 +4969,7 @@ export default function App(){
       if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))
       return true
     },
-    dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},
+    dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},undoDischarge:async id=>{const {data,error}=await supabase.from('ip_patients').update({discharge_date:null}).eq('id',id).select();if(error){alert('Failed to undo discharge: '+error.message);return false}if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}));return true},
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePatient:async id=>{await supabase.from('income').delete().eq('patient_id',id);await supabase.from('ip_patients').delete().eq('id',id);setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))},
