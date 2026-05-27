@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase.js'
 
-const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'op_p',label:'OP-P',full:'OP Procedures'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
+const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'op_p',label:'OP-P',full:'OP Procedures'},{key:'op_dm',label:'OP-DM',full:'OP Discharge Medicine'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
 const ECATS=[{key:'ref_paid',label:'Referral commission paid'},{key:'rent',label:'Hospital rent'},{key:'electricity',label:'Electricity'},{key:'water',label:'Water'},{key:'salary',label:'Staff salary'},{key:'supplies',label:'Medical supplies'},{key:'lab_to_lab',label:'Lab to lab expenses'},{key:'consultant_fee',label:'Consultant fee paid'},{key:'municipality',label:'Municipality'},{key:'biomedical_bags',label:'Biomedical waste bags'},{key:'stationary',label:'Stationary'},{key:'washroom_cleaner',label:'Washroom cleaner'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)'},{key:'misc',label:'Miscellaneous'}]
 const PMODES=['cash','upi','card','bank','credit','insurance','discount','written_off']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
-const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,ip_p:0.30,vc:0}
+const COMM={op:0,ip:0.40,op_r:0.40,ip_r:0.40,op_l:0.50,ip_l:0.50,ip_p:0.30,vc:0,op_dm:0.40,opd:0,op_p:0}
 const CLBL={op:'None',ip:'40%',op_r:'40%',ip_r:'40%',op_l:'50%',ip_l:'50%',ip_p:'30%',vc:'None'}
-const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],ip_p:['#ecfdf5','#065f46'],vc:['#f0fdf4','#065f46'],opd:['#f0fdf4','#15803d'],op_p:['#fef3c7','#a16207']}
+const TC={op:['#dbeafe','#1d4ed8'],ip:['#dcfce7','#16a34a'],op_r:['#fef3c7','#b45309'],ip_r:['#ffedd5','#c2410c'],op_l:['#fce7f3','#9d174d'],ip_l:['#f3e8ff','#7e22ce'],ip_p:['#ecfdf5','#065f46'],vc:['#f0fdf4','#065f46'],opd:['#f0fdf4','#15803d'],op_p:['#fef3c7','#a16207'],op_dm:['#fce7f3','#be185d']}
 
 const ROLES=['admin','management','accounts','staff']
 const OP_TYPES=['New OP','Review OP']
@@ -1625,7 +1625,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           }} style={{flex:1,padding:'9px 12px',background:'#f3f4f6',color:'#374151',border:'1.5px solid #d1d5db',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off Balance</button>
         </div>}
         </Card></>)}
-        {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
+        {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
         <button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>
         {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
         </Card></>)}
@@ -4094,6 +4094,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   // Totals
   const opInc=dI.filter(e=>e.type==='op').reduce((a,e)=>a+e.amount,0)
   const opdInc=dI.filter(e=>e.type==='opd').reduce((a,e)=>a+e.amount,0)
+  const opdmInc=dI.filter(e=>e.type==='op_dm').reduce((a,e)=>a+e.amount,0)
   const oppInc=dI.filter(e=>e.type==='op_p').reduce((a,e)=>a+e.amount,0)
   const opComm=dI.filter(e=>e.type==='op').reduce((a,e)=>a+getComm(e),0)
   const vcInc=dI.filter(e=>e.type==='vc').reduce((a,e)=>a+e.amount,0)
@@ -4354,6 +4355,16 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {oppInc>0&&<>
             <R l="OP Procedures" v={fmt(oppInc)} green/>
             {dI.filter(e=>e.type==='op_p'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+              <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
+                <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+              </div>
+              <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
+            </div>)}
+          </>}
+          {opdmInc>0&&<>
+            <R l="OP Discharge Medicine" v={fmt(opdmInc)} green/>
+            {dI.filter(e=>e.type==='op_dm'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #f9a8d4',gap:8}}>
               <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
                 <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
                 <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
@@ -4752,7 +4763,7 @@ const SlowLoadWarning=()=>{
 }
 
 
-const REF_COLORS={ip:{bg:'#dbeafe',border:'#3b82f6',color:'#1d4ed8',name:'IP Charges'},ip_r:{bg:'#dcfce7',border:'#16a34a',color:'#15803d',name:'IP Pharmacy'},ip_l:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'IP Lab'},ip_p:{bg:'#f3e8ff',border:'#8b5cf6',color:'#6d28d9',name:'IP Package'},op:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP'},op_r:{bg:'#d1fae5',border:'#10b981',color:'#047857',name:'OP Pharmacy'},op_l:{bg:'#fed7aa',border:'#ea580c',color:'#9a3412',name:'OP Lab'},op_p:{bg:'#fef3c7',border:'#eab308',color:'#854d0e',name:'OP Procedure'},vc:{bg:'#e0e7ff',border:'#4f46e5',color:'#3730a3',name:'VC'},custom:{bg:'#e5e7eb',border:'#6b7280',color:'#374151',name:'Other'}}
+const REF_COLORS={ip:{bg:'#dbeafe',border:'#3b82f6',color:'#1d4ed8',name:'IP Charges'},ip_r:{bg:'#dcfce7',border:'#16a34a',color:'#15803d',name:'IP Pharmacy'},ip_l:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'IP Lab'},ip_p:{bg:'#f3e8ff',border:'#8b5cf6',color:'#6d28d9',name:'IP Package'},op:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP'},op_r:{bg:'#d1fae5',border:'#10b981',color:'#047857',name:'OP Pharmacy'},op_l:{bg:'#fed7aa',border:'#ea580c',color:'#9a3412',name:'OP Lab'},op_p:{bg:'#fef3c7',border:'#eab308',color:'#854d0e',name:'OP Procedure'},op_dm:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP Discharge Med'},vc:{bg:'#e0e7ff',border:'#4f46e5',color:'#3730a3',name:'VC'},custom:{bg:'#e5e7eb',border:'#6b7280',color:'#374151',name:'Other'}}
 
 const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
   const [items,setItems]=useState(()=>(entries||[]).map((e,i)=>({
@@ -4775,21 +4786,34 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
   const totalBill=items.reduce((a,it)=>a+(parseFloat(it.amount)||0),0)
   
   const genPDF=()=>{
-    const cards=items.map((it,i)=>{
-      const col=REF_COLORS[it.type]||REF_COLORS.custom
-      const amt=parseFloat(it.amount)||0
-      const cm=calc(it)
-      return '<div style="background:#fff;border:2px solid '+col.border+';border-radius:14px;margin-bottom:16px;overflow:hidden;page-break-inside:avoid">'
-        + '<div style="background:'+col.bg+';padding:12px 20px;border-bottom:2px solid '+col.border+';display:flex;justify-content:space-between;align-items:center">'
-        + '<div style="display:flex;align-items:center;gap:12px"><span style="background:'+col.color+';color:#fff;width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:900">'+(i+1)+'</span><span style="font-size:15px;font-weight:800;color:'+col.color+';letter-spacing:.5px">'+col.name.toUpperCase()+'</span></div>'
-        + '<div style="font-size:13px;color:#475569;font-weight:700">'+new Date(it.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
+    const grouped={}
+    items.forEach(it=>{
+      const t=it.type||'custom'
+      if(!grouped[t])grouped[t]={items:[],totalAmt:0,totalComm:0}
+      grouped[t].items.push(it)
+      grouped[t].totalAmt+=parseFloat(it.amount)||0
+      grouped[t].totalComm+=calc(it)
+    })
+    const cards=Object.entries(grouped).map(([typeKey,grp],idx)=>{
+      const col=REF_COLORS[typeKey]||REF_COLORS.custom
+      const cnt=grp.items.length
+      const breakdown=cnt>1?grp.items.map(it=>{
+        const cm=calc(it)
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #e2e8f0;font-size:13px"><span style="color:#475569;font-weight:600">'+new Date(it.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+(it.desc&&!it.desc.includes(typeKey)&&it.isCustom?' · '+it.desc:'')+'</span><span style="color:#1d4ed8;font-weight:700">Rs '+((parseFloat(it.amount)||0).toLocaleString('en-IN'))+'</span><span style="color:#15803d;font-weight:800;min-width:90px;text-align:right">Rs '+cm.toLocaleString('en-IN')+'</span></div>'
+      }).join(''):''
+      const avgPct=grp.totalAmt>0?Math.round(grp.totalComm*100/grp.totalAmt):0
+      return '<div style="background:#fff;border:2px solid '+col.border+';border-radius:14px;margin-bottom:18px;overflow:hidden;page-break-inside:avoid">'
+        + '<div style="background:'+col.bg+';padding:14px 22px;border-bottom:2px solid '+col.border+';display:flex;justify-content:space-between;align-items:center">'
+        + '<div style="display:flex;align-items:center;gap:12px"><span style="background:'+col.color+';color:#fff;width:38px;height:38px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;font-weight:900">'+(idx+1)+'</span><span style="font-size:17px;font-weight:900;color:'+col.color+';letter-spacing:1px">TOTAL '+col.name.toUpperCase()+'</span></div>'
+        + (cnt>1?'<div style="font-size:12px;color:#475569;font-weight:700">'+cnt+' entries</div>':'')
         + '</div>'
-        + '<div style="padding:18px 20px"><div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:14px;line-height:1.3">'+(it.desc||'-')+'</div>'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding-top:12px;border-top:1px dashed #cbd5e1">'
-        + '<div><div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:1px">Bill Amount</div><div style="font-size:24px;font-weight:900;color:#1d4ed8;margin-top:4px">Rs '+amt.toLocaleString('en-IN')+'</div></div>'
-        + '<div style="text-align:center"><div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:1px">Rate</div><div style="font-size:22px;font-weight:900;color:#475569;margin-top:4px">'+(parseFloat(it.commPct)||0)+'%</div></div>'
-        + '<div style="text-align:right"><div style="font-size:11px;color:#15803d;text-transform:uppercase;font-weight:800;letter-spacing:1px">Referral</div><div style="font-size:30px;font-weight:900;color:#15803d;margin-top:4px">Rs '+cm.toLocaleString('en-IN')+'</div></div>'
-        + '</div></div></div>'
+        + (breakdown?'<div style="padding:14px 22px 4px;background:#fafafa">'+breakdown+'</div>':'')
+        + '<div style="padding:18px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:'+(breakdown?'2px solid '+col.border:'none')+'">'
+        + '<div><div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:1.2px">Total Bill</div><div style="font-size:26px;font-weight:900;color:#1d4ed8;margin-top:4px">Rs '+grp.totalAmt.toLocaleString('en-IN')+'</div></div>'
+        + '<div style="text-align:center"><div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:1.2px">'+(cnt>1?'Avg Rate':'Rate')+'</div><div style="font-size:24px;font-weight:900;color:#475569;margin-top:4px">'+avgPct+'%</div></div>'
+        + '<div style="text-align:right"><div style="font-size:11px;color:#15803d;text-transform:uppercase;font-weight:800;letter-spacing:1.2px">Referral</div><div style="font-size:34px;font-weight:900;color:#15803d;margin-top:4px;line-height:1">Rs '+grp.totalComm.toLocaleString('en-IN')+'</div></div>'
+        + '</div>'
+        + '</div>'
     }).join('')
     const hospName=((hospital&&hospital.name)||'HOSPITAL').toUpperCase()
     const hospCity=(hospital&&hospital.city)||''
@@ -4816,13 +4840,13 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
       +'<div style="background:#f0fdf4;border:2px solid #16a34a;padding:18px 22px;border-radius:12px"><div style="font-size:11px;color:#15803d;font-weight:900;text-transform:uppercase;letter-spacing:1.5px">Date</div><div style="font-size:18px;font-weight:900;color:#1a1a2e;margin-top:6px;line-height:1.3">'+dateFull+'</div></div>'
       +(patientName?'<div style="background:#faf5ff;border:2px solid #7c3aed;padding:18px 22px;border-radius:12px;grid-column:1/-1"><div style="font-size:11px;color:#6d28d9;font-weight:900;text-transform:uppercase;letter-spacing:1.5px">Patient</div><div style="font-size:22px;font-weight:900;color:#1a1a2e;margin-top:6px">'+patientName+'</div></div>':'')
       +'</div>'
-      +'<div style="margin-bottom:24px"><div style="font-size:13px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px">Service Breakdown ('+items.length+' items)</div>'
+      +'<div style="margin-bottom:24px"><div style="font-size:13px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px">Service Categories ('+Object.keys(grouped).length+')</div>'
       +cards
       +'</div>'
       +'<div style="background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:3px solid #16a34a;border-radius:16px;padding:30px 28px;margin:28px 0;box-shadow:0 8px 24px rgba(22,163,74,.2)">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-bottom:18px;border-bottom:2px dashed #16a34a">'
       +'<div><div style="font-size:12px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:1.5px">Total Bill</div><div style="font-size:28px;font-weight:900;color:#1d4ed8;margin-top:4px">Rs '+totalBill.toLocaleString('en-IN')+'</div></div>'
-      +'<div style="text-align:right"><div style="font-size:12px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:1.5px">Items</div><div style="font-size:28px;font-weight:900;color:#475569;margin-top:4px">'+items.length+'</div></div>'
+      +'<div style="text-align:right"><div style="font-size:12px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:1.5px">Items</div><div style="font-size:28px;font-weight:900;color:#475569;margin-top:4px">'+items.length+' entries</div></div>'
       +'</div>'
       +'<div style="text-align:center"><div style="font-size:14px;color:#15803d;font-weight:900;text-transform:uppercase;letter-spacing:3px;margin-bottom:10px">★ TOTAL REFERRAL PAYABLE ★</div>'
       +'<div style="font-size:60px;font-weight:900;color:#15803d;letter-spacing:1px;line-height:1">Rs '+totalRef.toLocaleString('en-IN')+'</div>'
