@@ -1496,7 +1496,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile})=>{
   )
 }
 
-const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab,setEditIPPatient,hospital})=>{
+const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,gotoIP,prevTab,setPrevTab,setTab,setEditIPPatient,hospital,canSeeReports})=>{
   const [billPatient,setBillPatient]=useState(null)
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
@@ -1584,7 +1584,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               </div>
             </div>
             <div style={{display:'flex',gap:8,flexDirection:'column',alignItems:'flex-end'}}>
-            {!p.discharge_date&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}
+            {!p.discharge_date&&canSeeReports&&<GBtn onClick={()=>actions.dischargePatient(p.id)}>Discharge</GBtn>}
             <button onClick={()=>setEditIPPatient&&setEditIPPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date||'',dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||'',patient_area:p.patient_area||'',insurance_type:p.insurance_type||'',insurance_policy_no:p.insurance_policy_no||'',insurance_expected:p.insurance_expected||0,insurance_status:p.insurance_status||'pending'})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button>
             <button onClick={()=>setBillPatient(p)} style={{padding:'6px 12px',background:'#fefce8',border:'1.5px solid #d97706',borderRadius:8,fontSize:12,color:'#d97706',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>🧾 Generate Bill</button>
           </div>
@@ -1648,8 +1648,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           }} style={{flex:1,padding:'9px 12px',background:'#f3f4f6',color:'#374151',border:'1.5px solid #d1d5db',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off Balance</button>
         </div>}
         </Card></>)}
-        {p.ref_doctor&&!p.is_package&&ents.length>0&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
-        <button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>
+        {p.ref_doctor&&!p.is_package&&ents.length>0&&canSeeReports&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
+        {canSeeReports&&<button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>}
         {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
         </Card></>)}
         {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
@@ -5075,7 +5075,7 @@ export default function App(){
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
-  const TABS=[{k:'dash',l:'Dashboard'},...(canSeeReports?[{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},{k:'refdrs',l:'Ref Doctors'},{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[{k:'dash',l:'Dashboard'},...(canSeeReports?[{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'},{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'refdrs',l:'Ref Doctors'}]:[]),{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
@@ -5224,7 +5224,7 @@ export default function App(){
       <div className="app-main-content" style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF} profile={profile}/></div>
-        <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
+        <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} canSeeReports={canSeeReports} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
         {tab==='op'&&<OPTab db={db} actions={actions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
         {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions}/>}
