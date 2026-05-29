@@ -1835,11 +1835,13 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
 }
 
 /*  OP PATIENTS TAB  */
-const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canSeeReports})=>{
+const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canSeeReports,hospital})=>{
   const [selPat,setSelPat]=useState(null)
   const [payDoc,setPayDoc]=useState(null)
   const [editEntry,setEditEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
+  const [showRefModal,setShowRefModal]=useState(false)
+  const [bulkRefDoc,setBulkRefDoc]=useState(null)
   const [search,setSearch]=useState(opSearch||'')
   // Track if we came from daily report (local copy survives re-renders)
   const [fromReport,setFromReport]=useState(!!opPrevTab)
@@ -1878,6 +1880,48 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {pat.phone&&<div style={{fontSize:12,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}
           {pat.reg_no&&<div style={{fontSize:12,color:'#1d4ed8',fontWeight:700,marginTop:2}}>Reg: {pat.reg_no}</div>}
           <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{ents.length} visit{ents.length!==1?'s':''}</div>
+          {canSeeReports&&<div style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
+            <button onClick={()=>setBulkRefDoc({reg_no:pat.reg_no||pat.name,name:pat.name,currentRef:ents.find(e=>e.ref_doctor)?.ref_doctor||''})} style={{padding:'9px 14px',background:'#fff7ed',border:'1.5px solid #f59e0b',borderRadius:8,fontSize:12,color:'#c2410c',cursor:'pointer',fontWeight:700}}>👨‍⚕️ Set Ref Doctor for all visits</button>
+            <button onClick={()=>setShowRefModal(true)} style={{padding:'9px 14px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:8,fontSize:12,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>
+          </div>}
+          {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={(ents.find(e=>e.ref_doctor)?.ref_doctor)||''} patientName={pat.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
+          {bulkRefDoc&&(()=>{
+            const [sel,setSel]=[bulkRefDoc.currentRef,v=>setBulkRefDoc({...bulkRefDoc,currentRef:v})]
+            return(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+              <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:480,padding:'20px 18px'}}>
+                <div style={{fontSize:17,fontWeight:800,color:'#1a1a2e',marginBottom:4}}>Set Ref Doctor</div>
+                <div style={{fontSize:12,color:'#64748b',marginBottom:14}}>Patient: <strong>{bulkRefDoc.name}</strong>{bulkRefDoc.reg_no?' · Reg '+bulkRefDoc.reg_no:''}<br/>This will update ALL visits/entries for this patient with the selected ref doctor.</div>
+                <FSel label="Referring Doctor" value={sel} onChange={e=>setSel(e.target.value)}>
+                  <option value="">- No referral / Self -</option>
+                  {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+                </FSel>
+                <div style={{display:'flex',gap:8,marginTop:14}}>
+                  <button onClick={()=>setBulkRefDoc(null)} style={{flex:1,padding:'10px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+                  <button onClick={async()=>{
+                    const newRef=sel.trim()
+                    const matchByReg=!!pat.reg_no
+                    const targetEnts=db.income.filter(e=>{
+                      if(['ip','ip_r','ip_l','ip_p'].includes(e.type))return false
+                      if(matchByReg)return e.reg_no===pat.reg_no
+                      return (e.patient_name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()
+                    })
+                    if(targetEnts.length===0){alert('No entries to update');setBulkRefDoc(null);return}
+                    if(!window.confirm('Update '+targetEnts.length+' entries with Dr. '+(newRef||'(no referral)')+'?'))return
+                    const doc=db.ref_doctors.find(d=>d.name===newRef)
+                    let updated=0
+                    for(const e of targetEnts){
+                      const pctKey={op:'op_pct',opd:'op_pct',op_p:'op_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[e.type]
+                      const newCC=doc&&pctKey&&doc[pctKey]!=null?doc[pctKey]:null
+                      const ok=await actions.editIncome({...e,ref_doctor:newRef,custom_commission:newCC})
+                      if(ok!==false)updated++
+                    }
+                    alert('✅ Updated '+updated+' entries with Dr. '+(newRef||'(no referral)'))
+                    setBulkRefDoc(null)
+                  }} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Apply to All Entries</button>
+                </div>
+              </div>
+            </div>)
+          })()}
         </Card>
         <MetGrid items={[{label:'Total billed',value:fmt(totalInc),color:'#111'},{label:'Cash collected',value:fmt(totalCash),color:'#16a34a'},{label:'Credit (due)',value:fmt(totalCredit),color:totalCredit>0?'#c2410c':'#aaa'},{label:'Real income',value:fmt(totalInc-totalComm),color:'#16a34a'}]}/>
         <SecL>Charges breakdown</SecL>
@@ -2056,13 +2100,18 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
 }
 
 /*  REFERRALS REPORT  */
-const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
+const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital})=>{
   const [per,setPer]=useState('month')
   const [payDoc,setPayDoc]=useState(null)
   const [subTab,setSubTab]=useState('commission')
   const [selDoc,setSelDoc]=useState('')
   const [editPayId,setEditPayId]=useState(null)
   const [editPayForm,setEditPayForm]=useState({amount:'',date:'',payment:'cash'})
+  const [gFrom,setGFrom]=useState(todayStr().slice(0,8)+'01')
+  const [gTo,setGTo]=useState(todayStr())
+  const [gDoc,setGDoc]=useState('')
+  const [gPat,setGPat]=useState('')
+  const [gShowModal,setGShowModal]=useState(false)
   const fi=per==='month'?income.filter(e=>e.date?.startsWith(rm)):income.filter(e=>e.date?.startsWith(ry))
   const docs=buildRef(fi)
   const tc=docs.reduce((a,r)=>a+r.total_commission,0)
@@ -2072,7 +2121,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions})=>{
   const allRefDocs=[...new Set(income.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
-      {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
+      {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'},{k:'generate',l:'📄 Generate PDF'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
     </div>
     {subTab==='commission'&&<>
     <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
@@ -4613,7 +4662,7 @@ const PatientDataReport=({db})=>{
   </>)
 }
 
-const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
+const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hospital})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
   const [timelineSearch,setTimelineSearch]=useState('')
@@ -4650,7 +4699,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions})=>{
       {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
-      {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/>}
+      {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} hospital={hospital}/>}
       {rv==='patdata'&&<PatientDataReport db={db}/>}
       {rv==='patlist'&&(timelinePid?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>:<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>)}
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>{setTimelineSelPid('');setTimelineSearch('')}}/>:
@@ -5138,9 +5187,9 @@ export default function App(){
         {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF} profile={profile} canSeeReports={canSeeReports}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} canSeeReports={canSeeReports} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
-        {tab==='op'&&canSeeReports&&<OPTab db={db} actions={actions} canSeeReports={canSeeReports} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
+        {tab==='op'&&canSeeReports&&<OPTab db={db} actions={actions} canSeeReports={canSeeReports} hospital={hospital} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
-        {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions}/>}
+        {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions} hospital={hospital}/>}
         {tab==='ins'&&<InsuranceMainTab db={db} setDb={setDb} hospital={hospital} gotoIP={(id)=>{setTab('ip');setTimeout(()=>gotoIP(id),100)}}/>}
         {tab==='credit'&&canSeeReports&&<CreditTab db={db} actions={actions}/>}
         {tab==='refdrs'&&canSeeReports&&<RefDoctorsTab db={db} actions={actions}/>}
