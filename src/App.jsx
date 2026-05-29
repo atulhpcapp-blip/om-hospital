@@ -4700,7 +4700,7 @@ const SlowLoadWarning=()=>{
 }
 
 
-const REF_COLORS={ip:{bg:'#dbeafe',border:'#3b82f6',color:'#1d4ed8',name:'IP Charges'},ip_r:{bg:'#dcfce7',border:'#16a34a',color:'#15803d',name:'IP Pharmacy'},ip_l:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'IP Lab'},ip_p:{bg:'#f3e8ff',border:'#8b5cf6',color:'#6d28d9',name:'IP Package'},op:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP'},op_r:{bg:'#d1fae5',border:'#10b981',color:'#047857',name:'OP Pharmacy'},op_l:{bg:'#fed7aa',border:'#ea580c',color:'#9a3412',name:'OP Lab'},op_p:{bg:'#fef3c7',border:'#eab308',color:'#854d0e',name:'OP Procedure'},op_dm:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP Discharge Med'},vc:{bg:'#e0e7ff',border:'#4f46e5',color:'#3730a3',name:'VC'},custom:{bg:'#e5e7eb',border:'#6b7280',color:'#374151',name:'Other'}}
+const REF_COLORS={ip:{bg:'#dbeafe',border:'#3b82f6',color:'#1d4ed8',name:'IP Charges'},ip_r:{bg:'#dcfce7',border:'#16a34a',color:'#15803d',name:'IP Pharmacy'},ip_l:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'IP Lab'},lab:{bg:'#ffedd5',border:'#f59e0b',color:'#c2410c',name:'Lab'},ip_p:{bg:'#f3e8ff',border:'#8b5cf6',color:'#6d28d9',name:'IP Package'},op:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP'},op_r:{bg:'#d1fae5',border:'#10b981',color:'#047857',name:'OP Pharmacy'},op_l:{bg:'#fed7aa',border:'#ea580c',color:'#9a3412',name:'OP Lab'},op_p:{bg:'#fef3c7',border:'#eab308',color:'#854d0e',name:'OP Procedure'},op_dm:{bg:'#fce7f3',border:'#ec4899',color:'#be185d',name:'OP Discharge Med'},vc:{bg:'#e0e7ff',border:'#4f46e5',color:'#3730a3',name:'VC'},custom:{bg:'#e5e7eb',border:'#6b7280',color:'#374151',name:'Other'}}
 
 const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
   const [items,setItems]=useState(()=>(entries||[]).map((e,i)=>({
@@ -4725,7 +4725,9 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
   const genPDF=()=>{
     const grouped={}
     items.forEach(it=>{
-      const t=it.type||'custom'
+      let t=it.type||'custom'
+      // Combine OP Lab + IP Lab into single 'lab' group
+      if(t==='op_l'||t==='ip_l')t='lab'
       if(!grouped[t])grouped[t]={items:[],totalAmt:0,totalComm:0}
       grouped[t].items.push(it)
       grouped[t].totalAmt+=parseFloat(it.amount)||0
@@ -4734,9 +4736,9 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
     const cards=Object.entries(grouped).map(([typeKey,grp],idx)=>{
       const col=REF_COLORS[typeKey]||REF_COLORS.custom
       const cnt=grp.items.length
-      const breakdown=cnt>1?grp.items.map(it=>{
+      const breakdown=cnt>1&&typeKey==='custom'?grp.items.map(it=>{
         const cm=calc(it)
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed #e2e8f0;font-size:13px;gap:12px"><span style="color:#475569;font-weight:600;flex:1;min-width:0">'+new Date(it.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+(it.desc?' · '+it.desc:'')+'</span><span style="color:#1d4ed8;font-weight:700;white-space:nowrap">Rs '+((parseFloat(it.amount)||0).toLocaleString('en-IN'))+'</span><span style="color:#15803d;font-weight:800;min-width:90px;text-align:right;white-space:nowrap">Rs '+cm.toLocaleString('en-IN')+'</span></div>'
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed #e2e8f0;font-size:13px;gap:12px"><span style="color:#475569;font-weight:600;flex:1;min-width:0">'+(it.desc||'-')+'</span><span style="color:#1d4ed8;font-weight:700;white-space:nowrap">Rs '+((parseFloat(it.amount)||0).toLocaleString('en-IN'))+'</span><span style="color:#15803d;font-weight:800;min-width:90px;text-align:right;white-space:nowrap">Rs '+cm.toLocaleString('en-IN')+'</span></div>'
       }).join(''):''
       const avgPct=grp.totalAmt>0?Math.round(grp.totalComm*100/grp.totalAmt):0
       return '<div style="background:#fff;border:2px solid '+col.border+';border-radius:14px;margin-bottom:18px;overflow:hidden;page-break-inside:avoid">'
