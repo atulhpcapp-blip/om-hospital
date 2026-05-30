@@ -366,7 +366,7 @@ const PreviewApp=({db,hospital,onExit})=>{
   const gotoOP=useCallback((name,from=null)=>{if(from)setOpPrevTab(from);setOpNavSearch(name||'');setTab('op')},[])
   const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const allPaidComm=useMemo(()=>(db.expenses||[]).filter(e=>e.category==='ref_paid'),[db.expenses])
-  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},undoDischarge:async()=>{alert('Read-only preview')},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')}}
+  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},undoDischarge:async()=>{alert('Read-only preview')},updateIPPatient:async()=>{alert('Read-only preview');return false},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')}}
   const PTABS=[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'}]
   return(
     <div style={{background:'#f8fafc',minHeight:'100vh'}}>
@@ -1593,36 +1593,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         {p.ref_doctor&&!p.is_package&&ents.length>0&&canSeeReports&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
         {canSeeReports&&<button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>}
         {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
-        {bulkRefDoc&&(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
-          <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:480,padding:'20px 18px'}}>
-            <div style={{fontSize:17,fontWeight:800,color:'#1a1a2e',marginBottom:4}}>Set Ref Doctor</div>
-            <div style={{fontSize:12,color:'#64748b',marginBottom:14}}>Patient: <strong>{bulkRefDoc.name}</strong><br/>This will set the ref doctor on the patient AND propagate to ALL IP entries (charges, pharmacy, lab, package, OP-DM).</div>
-            <FSel label="Referring Doctor" value={bulkRefDoc.currentRef} onChange={e=>setBulkRefDoc({...bulkRefDoc,currentRef:e.target.value})}>
-              <option value="">- No referral / Self -</option>
-              {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
-            </FSel>
-            <div style={{display:'flex',gap:8,marginTop:14}}>
-              <button onClick={()=>setBulkRefDoc(null)} style={{flex:1,padding:'10px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
-              <button onClick={async()=>{
-                const newRef=(bulkRefDoc.currentRef||'').trim()
-                const targetEnts=db.income.filter(e=>['ip','ip_r','ip_l','ip_p','op_dm'].includes(e.type)&&(e.patient_id===bulkRefDoc.patientId||(e.patient_name||'').trim().toLowerCase()===(bulkRefDoc.name||'').trim().toLowerCase()))
-                if(!window.confirm('Set Dr. '+(newRef||'(no referral)')+' for '+bulkRefDoc.name+' and update '+targetEnts.length+' existing IP entries?'))return
-                await supabase.from('ip_patients').update({ref_doctor:newRef}).eq('id',bulkRefDoc.patientId)
-                setDb(d=>({...d,ip_patients:d.ip_patients.map(pp=>pp.id===bulkRefDoc.patientId?{...pp,ref_doctor:newRef}:pp)}))
-                const doc=db.ref_doctors.find(d=>d.name===newRef)
-                let updated=0
-                for(const e of targetEnts){
-                  const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[e.type]
-                  const newCC=doc&&pctKey&&doc[pctKey]!=null?doc[pctKey]:null
-                  const ok=await actions.editIncome({...e,ref_doctor:newRef,custom_commission:newCC,patient_id:bulkRefDoc.patientId})
-                  if(ok!==false)updated++
-                }
-                alert('✅ Updated patient and '+updated+' entries with Dr. '+(newRef||'(no referral)'))
-                setBulkRefDoc(null)
-              }} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Apply to All Entries</button>
-            </div>
-          </div>
-        </div>)}
+        
         </Card></>)}
         {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
@@ -1706,7 +1677,36 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             })()}
           </Card>
         </>)}
-        {(()=>{const nonInsPay=(p.payments||[]).filter(py=>py.mode!=='insurance');if(!nonInsPay.length)return null;return(<><SecL>Payments received</SecL><Card>{nonInsPay.map(py=>(<div key={py.id} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:500}}>{fmtD(py.date)} - {py.payment||py.mode||'cash'}</div>{py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(py.commission)} - Net: {fmt(py.amount-py.commission)}</div>}</div><div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}><span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(py.amount)}</span><DBtn onClick={()=>{if(window.confirm('Delete this payment?'))actions.deletePayment(p.id,py.id)}}>Delete</DBtn></div></div></div>))}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700}}><span>Total received</span><span style={{color:'#16a34a'}}>{fmt(nonInsPay.reduce((a,py)=>a+py.amount,0))}</span></div></Card></>)})()}
+        {(()=>{const nonInsPay=(p.payments||[]).filter(py=>py.mode!=='insurance');if(!nonInsPay.length)return null;return(<><SecL>Payments received</SecL><Card>{nonInsPay.map(py=>(<div key={py.id} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{fontSize:13,fontWeight:500}}>{fmtD(py.date)} - {py.payment||py.mode||'cash'}</div>{py.commission>0&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Commission: {fmt(py.commission)} - Net: {fmt(py.amount-py.commission)}</div>}</div><div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:6}}><span style={{color:'#16a34a',fontWeight:700,fontSize:14}}>{fmt(py.amount)}</span><DBtn onClick={()=>{if(window.confirm('Delete this payment?'))actions.deletePayment(p.id,py.id)}}>Delete</DBtn></div></div></div>))}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #f0f0f0',fontSize:13,fontWeight:700}}><span>Total received</span><span style={{color:'#16a34a'}}>{fmt(nonInsPay.reduce((a,py)=>a+py.amount,0))}</span></div></Card>{bulkRefDoc&&(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+          <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:480,padding:'20px 18px'}}>
+            <div style={{fontSize:17,fontWeight:800,color:'#1a1a2e',marginBottom:4}}>Set Ref Doctor</div>
+            <div style={{fontSize:12,color:'#64748b',marginBottom:14}}>Patient: <strong>{bulkRefDoc.name}</strong><br/>This will set the ref doctor on the patient AND propagate to ALL IP entries (charges, pharmacy, lab, package, OP-DM).</div>
+            <FSel label="Referring Doctor" value={bulkRefDoc.currentRef} onChange={e=>setBulkRefDoc({...bulkRefDoc,currentRef:e.target.value})}>
+              <option value="">- No referral / Self -</option>
+              {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+            </FSel>
+            <div style={{display:'flex',gap:8,marginTop:14}}>
+              <button onClick={()=>setBulkRefDoc(null)} style={{flex:1,padding:'10px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+              <button onClick={async()=>{
+                const newRef=(bulkRefDoc.currentRef||'').trim()
+                const targetEnts=db.income.filter(e=>['ip','ip_r','ip_l','ip_p','op_dm'].includes(e.type)&&(e.patient_id===bulkRefDoc.patientId||(e.patient_name||'').trim().toLowerCase()===(bulkRefDoc.name||'').trim().toLowerCase()))
+                if(!window.confirm('Set Dr. '+(newRef||'(no referral)')+' for '+bulkRefDoc.name+' and update '+targetEnts.length+' existing IP entries?'))return
+                await actions.updateIPPatient(bulkRefDoc.patientId,{ref_doctor:newRef})
+                const doc=db.ref_doctors.find(d=>d.name===newRef)
+                let updated=0
+                for(const e of targetEnts){
+                  const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[e.type]
+                  const newCC=doc&&pctKey&&doc[pctKey]!=null?doc[pctKey]:null
+                  const ok=await actions.editIncome({...e,ref_doctor:newRef,custom_commission:newCC,patient_id:bulkRefDoc.patientId})
+                  if(ok!==false)updated++
+                }
+                alert('✅ Updated patient and '+updated+' entries with Dr. '+(newRef||'(no referral)'))
+                setBulkRefDoc(null)
+              }} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Apply to All Entries</button>
+            </div>
+          </div>
+        </div>)}
+        </>)})()}
         <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #fecaca'}}><button style={{width:'100%',padding:'12px',background:'#fef2f2',color:'#dc2626',border:'2px solid #fecaca',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer'}} onClick={()=>{if(window.confirm('Delete '+p.name+' and ALL their records?')){actions.deletePatient(p.id);setIpv('list')}}}>Delete this patient and all records</button></div>
     </div>
     )
@@ -5104,7 +5104,7 @@ export default function App(){
       if(data)setDb(d=>({...d,ip_patients:[data[0],...d.ip_patients]}))
       return true
     },
-    dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},undoDischarge:async id=>{const {data,error}=await supabase.from('ip_patients').update({discharge_date:null}).eq('id',id).select();if(error){alert('Failed to undo discharge: '+error.message);return false}if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}));return true},
+    dischargePatient:async id=>{const {data}=await supabase.from('ip_patients').update({discharge_date:todayStr()}).eq('id',id).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}))},undoDischarge:async id=>{const {data,error}=await supabase.from('ip_patients').update({discharge_date:null}).eq('id',id).select();if(error){alert('Failed to undo discharge: '+error.message);return false}if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}));return true},updateIPPatient:async(id,updates)=>{const {data,error}=await supabase.from('ip_patients').update(updates).eq('id',id).select();if(error){alert('Failed: '+error.message);return false}if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(p=>p.id===id?data[0]:p)}));return true},
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePatient:async id=>{await supabase.from('income').delete().eq('patient_id',id);await supabase.from('ip_patients').delete().eq('id',id);setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))},
