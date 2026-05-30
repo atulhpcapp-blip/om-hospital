@@ -1188,18 +1188,35 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
       if(!pname){alert('Please select an IP patient for OP Discharge Medicine');return}
     }
     else{if(!iF.pname.trim()&&itype!=='vc'){alert('Patient name is required');return};pname=iF.pname.trim()}
+    // Phone is mandatory - default to 0000000000 if missing
+    if(!isIP&&itype!=='vc'){
+      if(!iF.phone||!iF.phone.trim())iF.phone='0000000000'
+      else iF.phone=iF.phone.trim()
+    }
     let regNo=null
     if(!isIP&&['op','opd','op_p','op_r','op_l','op_dm'].includes(itype)){
-      // First try to reuse existing reg_no for this patient name
-      const existingEntry=db.income.find(e=>e.patient_name&&e.patient_name.trim().toLowerCase()===pname.trim().toLowerCase()&&e.reg_no)
-      if(existingEntry){
-        regNo=existingEntry.reg_no
-      } else {
-        // Try IP patients table too
-        const ipMatch=(db.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===pname.trim().toLowerCase()&&p.reg_no)
-        if(ipMatch)regNo=ipMatch.reg_no
-        else regNo=await genRegNo()
+      const phone=(iF.phone||'').trim()
+      const realPhone=phone&&phone!=='0000000000'
+      // Priority 1: match by REAL phone number
+      if(realPhone){
+        const phoneMatch=db.income.find(e=>e.patient_phone===phone&&e.reg_no)
+        if(phoneMatch)regNo=phoneMatch.reg_no
+        if(!regNo){
+          const ipPhoneMatch=(db.ip_patients||[]).find(p=>p.phone===phone&&p.reg_no)
+          if(ipPhoneMatch)regNo=ipPhoneMatch.reg_no
+        }
       }
+      // Priority 2: fallback to name match
+      if(!regNo){
+        const existingEntry=db.income.find(e=>e.patient_name&&e.patient_name.trim().toLowerCase()===pname.trim().toLowerCase()&&e.reg_no&&(realPhone?e.patient_phone===phone:!e.patient_phone||e.patient_phone==='0000000000'))
+        if(existingEntry){
+          regNo=existingEntry.reg_no
+        } else {
+          const ipMatch=(db.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===pname.trim().toLowerCase()&&p.reg_no)
+          if(ipMatch)regNo=ipMatch.reg_no
+        }
+      }
+      if(!regNo)regNo=await genRegNo()
     }
     const activeSplits=(iF.splits||[]).filter(s=>parseFloat(s.amount)>0)
     const isMultiSplit=activeSplits.length>1
@@ -1265,7 +1282,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
                 return(<div style={{margin:'-6px 0 10px 0',padding:'6px 10px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,color:'#16a34a',fontWeight:600}}>✓ Existing patient — Reg No: <strong>{rn}</strong></div>)
               })()}
             </>)}
-            <FInp label="Phone (optional)" type="tel" placeholder="9999999999" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
+            <FInp label="Phone" type="tel" placeholder="9999999999 (leave empty for 0000000000)" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
             {!isIP&&<FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur, KPHB" value={iF.patient_area||''} onChange={e=>setIF({...iF,patient_area:e.target.value})}/>}
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
             {!isIP&&itype==='op'&&(<>
