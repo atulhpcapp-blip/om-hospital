@@ -1527,6 +1527,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             {!p.discharge_date&&canSeeReports&&<GBtn onClick={()=>{if(window.confirm('Discharge '+(p.name||'this patient')+'?\n\nDischarge date will be set to today.\n\nThis can be undone later.'))actions.dischargePatient(p.id)}}>Discharge</GBtn>}
             {p.discharge_date&&canSeeReports&&<button onClick={async()=>{if(window.confirm('Undo discharge for '+(p.name||'this patient')+'?\n\nPatient was discharged on '+fmtD(p.discharge_date)+'.\n\nThis will reactivate the patient (discharge date cleared).'))await actions.undoDischarge(p.id)}} style={{padding:'8px 14px',background:'#fff7ed',border:'1.5px solid #fb923c',borderRadius:8,color:'#c2410c',fontSize:12,fontWeight:700,cursor:'pointer'}}>↻ Undo Discharge</button>}
             <button onClick={()=>setEditIPPatient&&setEditIPPatient({id:p.id,name:p.name,phone:p.phone||'',adm:p.admission_date||'',dx:p.diagnosis||'',room:p.room||'',ref:p.ref_doctor||'',patient_area:p.patient_area||'',insurance_type:p.insurance_type||'',insurance_policy_no:p.insurance_policy_no||'',insurance_expected:p.insurance_expected||0,insurance_status:p.insurance_status||'pending'})} style={{padding:'6px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>Edit info</button>
+            {canSeeReports&&<button onClick={()=>setBulkRefDoc({patientId:p.id,name:p.name,currentRef:p.ref_doctor||''})} style={{padding:'6px 12px',background:'#fff7ed',border:'1.5px solid #f59e0b',borderRadius:8,fontSize:12,color:'#c2410c',cursor:'pointer',fontWeight:700,whiteSpace:'nowrap'}}>👨‍⚕️ Set Ref Doctor</button>}
             <button onClick={()=>setBillPatient(p)} style={{padding:'6px 12px',background:'#fefce8',border:'1.5px solid #d97706',borderRadius:8,fontSize:12,color:'#d97706',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>🧾 Generate Bill</button>
           </div>
           </div>
@@ -1592,6 +1593,36 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         {p.ref_doctor&&!p.is_package&&ents.length>0&&canSeeReports&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
         {canSeeReports&&<button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>}
         {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
+        {bulkRefDoc&&(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+          <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:480,padding:'20px 18px'}}>
+            <div style={{fontSize:17,fontWeight:800,color:'#1a1a2e',marginBottom:4}}>Set Ref Doctor</div>
+            <div style={{fontSize:12,color:'#64748b',marginBottom:14}}>Patient: <strong>{bulkRefDoc.name}</strong><br/>This will set the ref doctor on the patient AND propagate to ALL IP entries (charges, pharmacy, lab, package, OP-DM).</div>
+            <FSel label="Referring Doctor" value={bulkRefDoc.currentRef} onChange={e=>setBulkRefDoc({...bulkRefDoc,currentRef:e.target.value})}>
+              <option value="">- No referral / Self -</option>
+              {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
+            </FSel>
+            <div style={{display:'flex',gap:8,marginTop:14}}>
+              <button onClick={()=>setBulkRefDoc(null)} style={{flex:1,padding:'10px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+              <button onClick={async()=>{
+                const newRef=(bulkRefDoc.currentRef||'').trim()
+                const targetEnts=db.income.filter(e=>['ip','ip_r','ip_l','ip_p','op_dm'].includes(e.type)&&(e.patient_id===bulkRefDoc.patientId||(e.patient_name||'').trim().toLowerCase()===(bulkRefDoc.name||'').trim().toLowerCase()))
+                if(!window.confirm('Set Dr. '+(newRef||'(no referral)')+' for '+bulkRefDoc.name+' and update '+targetEnts.length+' existing IP entries?'))return
+                await supabase.from('ip_patients').update({ref_doctor:newRef}).eq('id',bulkRefDoc.patientId)
+                setDb(d=>({...d,ip_patients:d.ip_patients.map(pp=>pp.id===bulkRefDoc.patientId?{...pp,ref_doctor:newRef}:pp)}))
+                const doc=db.ref_doctors.find(d=>d.name===newRef)
+                let updated=0
+                for(const e of targetEnts){
+                  const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[e.type]
+                  const newCC=doc&&pctKey&&doc[pctKey]!=null?doc[pctKey]:null
+                  const ok=await actions.editIncome({...e,ref_doctor:newRef,custom_commission:newCC,patient_id:bulkRefDoc.patientId})
+                  if(ok!==false)updated++
+                }
+                alert('✅ Updated patient and '+updated+' entries with Dr. '+(newRef||'(no referral)'))
+                setBulkRefDoc(null)
+              }} style={{flex:2,padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Apply to All Entries</button>
+            </div>
+          </div>
+        </div>)}
         </Card></>)}
         {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
