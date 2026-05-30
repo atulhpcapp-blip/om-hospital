@@ -1440,6 +1440,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [editIPEntry,setEditIPEntry]=useState(null)
   const [collectEntry,setCollectEntry]=useState(null)
   const [showRefModal,setShowRefModal]=useState(false)
+  const [bulkRefDoc,setBulkRefDoc]=useState(null)
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('active')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
