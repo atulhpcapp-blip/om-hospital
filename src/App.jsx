@@ -1869,6 +1869,8 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
   const [collectEntry,setCollectEntry]=useState(null)
   const [showRefModal,setShowRefModal]=useState(false)
   const [bulkRefDoc,setBulkRefDoc]=useState(null)
+  const [pdfFrom,setPdfFrom]=useState(todayStr().slice(0,8)+'01')
+  const [pdfTo,setPdfTo]=useState(todayStr())
   const [search,setSearch]=useState(opSearch||'')
   // Track if we came from daily report (local copy survives re-renders)
   const [fromReport,setFromReport]=useState(!!opPrevTab)
@@ -1907,11 +1909,34 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {pat.phone&&<div style={{fontSize:12,color:'#aaa',marginTop:2}}>Ph: {pat.phone}</div>}
           {pat.reg_no&&<div style={{fontSize:12,color:'#1d4ed8',fontWeight:700,marginTop:2}}>Reg: {pat.reg_no}</div>}
           <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{ents.length} visit{ents.length!==1?'s':''}</div>
-          {canSeeReports&&<div style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
-            <button onClick={()=>setBulkRefDoc({reg_no:pat.reg_no||pat.name,name:pat.name,currentRef:ents.find(e=>e.ref_doctor)?.ref_doctor||''})} style={{padding:'9px 14px',background:'#fff7ed',border:'1.5px solid #f59e0b',borderRadius:8,fontSize:12,color:'#c2410c',cursor:'pointer',fontWeight:700}}>👨‍⚕️ Set Ref Doctor for all visits</button>
-            <button onClick={()=>setShowRefModal(true)} style={{padding:'9px 14px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:8,fontSize:12,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>
-          </div>}
-          {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={(ents.find(e=>e.ref_doctor)?.ref_doctor)||''} patientName={pat.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
+          {canSeeReports&&<>
+            <div style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
+              <button onClick={()=>setBulkRefDoc({reg_no:pat.reg_no||pat.name,name:pat.name,currentRef:ents.find(e=>e.ref_doctor)?.ref_doctor||''})} style={{padding:'9px 14px',background:'#fff7ed',border:'1.5px solid #f59e0b',borderRadius:8,fontSize:12,color:'#c2410c',cursor:'pointer',fontWeight:700}}>👨‍⚕️ Set Ref Doctor for all visits</button>
+            </div>
+            <div style={{background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:10,padding:'10px 12px',marginTop:10}}>
+              <div style={{fontSize:10,fontWeight:800,color:'#475569',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:8}}>📄 Generate Referral PDF — Select date range</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                <div><label style={{fontSize:10,color:'#64748b',fontWeight:700,display:'block',marginBottom:2}}>From</label>
+                  <input type="date" value={pdfFrom} onChange={e=>setPdfFrom(e.target.value)} style={{width:'100%',padding:'7px 10px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,boxSizing:'border-box',outline:'none'}}/>
+                </div>
+                <div><label style={{fontSize:10,color:'#64748b',fontWeight:700,display:'block',marginBottom:2}}>To</label>
+                  <input type="date" value={pdfTo} onChange={e=>setPdfTo(e.target.value)} style={{width:'100%',padding:'7px 10px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,boxSizing:'border-box',outline:'none'}}/>
+                </div>
+              </div>
+              {(()=>{
+                const filtered=ents.filter(e=>getComm(e)>0&&e.date>=pdfFrom&&e.date<=pdfTo)
+                const totalComm=filtered.reduce((a,e)=>a+getComm(e),0)
+                return(<>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:8,marginBottom:8,fontSize:12}}>
+                    <span style={{color:'#64748b',fontWeight:600}}>Matching entries: <strong style={{color:'#1a1a2e'}}>{filtered.length}</strong></span>
+                    <span style={{color:'#15803d',fontWeight:800}}>Referral: Rs {totalComm.toLocaleString('en-IN')}</span>
+                  </div>
+                  <button onClick={()=>{if(filtered.length===0){alert('No referral entries in this date range');return}setShowRefModal(true)}} disabled={filtered.length===0} style={{width:'100%',padding:'10px',background:filtered.length===0?'#e5e7eb':'linear-gradient(135deg,#1a1a2e,#16213e)',color:filtered.length===0?'#94a3b8':'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:filtered.length===0?'not-allowed':'pointer'}}>📄 Generate PDF ({filtered.length} entries)</button>
+                </>)
+              })()}
+            </div>
+          </>}
+          {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0&&e.date>=pdfFrom&&e.date<=pdfTo)} docName={(ents.find(e=>e.ref_doctor)?.ref_doctor)||''} patientName={pat.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
           {bulkRefDoc&&(()=>{
             const [sel,setSel]=[bulkRefDoc.currentRef,v=>setBulkRefDoc({...bulkRefDoc,currentRef:v})]
             return(<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
