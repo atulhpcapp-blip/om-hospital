@@ -1193,28 +1193,15 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
       if(!iF.phone||!iF.phone.trim())iF.phone='0000000000'
       else iF.phone=iF.phone.trim()
     }
-    let regNo=null
-    if(!isIP&&['op','opd','op_p','op_r','op_l','op_dm'].includes(itype)){
-      const phone=(iF.phone||'').trim()
-      const realPhone=phone&&phone!=='0000000000'
-      // Priority 1: match by REAL phone number
-      if(realPhone){
-        const phoneMatch=db.income.find(e=>e.patient_phone===phone&&e.reg_no)
-        if(phoneMatch)regNo=phoneMatch.reg_no
-        if(!regNo){
-          const ipPhoneMatch=(db.ip_patients||[]).find(p=>p.phone===phone&&p.reg_no)
-          if(ipPhoneMatch)regNo=ipPhoneMatch.reg_no
-        }
-      }
-      // Priority 2: fallback to name match
-      if(!regNo){
-        const existingEntry=db.income.find(e=>e.patient_name&&e.patient_name.trim().toLowerCase()===pname.trim().toLowerCase()&&e.reg_no&&(realPhone?e.patient_phone===phone:!e.patient_phone||e.patient_phone==='0000000000'))
-        if(existingEntry){
-          regNo=existingEntry.reg_no
-        } else {
-          const ipMatch=(db.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===pname.trim().toLowerCase()&&p.reg_no)
-          if(ipMatch)regNo=ipMatch.reg_no
-        }
+    let regNo=iF.reg_no||null  // if user picked from suggestions, use that
+    if(!isIP&&!regNo&&['op','opd','op_p','op_r','op_l','op_dm'].includes(itype)){
+      // Match by name only (phones can be shared across family members)
+      const existingEntry=db.income.find(e=>e.patient_name&&e.patient_name.trim().toLowerCase()===pname.trim().toLowerCase()&&e.reg_no)
+      if(existingEntry){
+        regNo=existingEntry.reg_no
+      } else {
+        const ipMatch=(db.ip_patients||[]).find(p=>p.name&&p.name.trim().toLowerCase()===pname.trim().toLowerCase()&&p.reg_no)
+        if(ipMatch)regNo=ipMatch.reg_no
       }
       if(!regNo)regNo=await genRegNo()
     }
@@ -1282,7 +1269,30 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
                 return(<div style={{margin:'-6px 0 10px 0',padding:'6px 10px',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:11,color:'#16a34a',fontWeight:600}}>✓ Existing patient — Reg No: <strong>{rn}</strong></div>)
               })()}
             </>)}
-            <FInp label="Phone" type="tel" placeholder="9999999999 (leave empty for 0000000000)" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value})}/>
+            <FInp label="Phone" type="tel" placeholder="9999999999 (leave empty for 0000000000)" value={iF.phone||''} onChange={e=>setIF({...iF,phone:e.target.value,reg_no:''})}/>
+          {(()=>{
+            const phone=(iF.phone||'').trim()
+            if(!phone||phone==='0000000000'||phone.length<3)return null
+            const seen=new Set()
+            const opMatches=db.income.filter(e=>e.patient_phone===phone&&e.patient_name&&e.reg_no).filter(e=>{const k=(e.patient_name||'').toLowerCase()+'|'+e.reg_no;if(seen.has(k))return false;seen.add(k);return true})
+            const ipMatches=(db.ip_patients||[]).filter(p=>p.phone===phone&&p.name&&p.reg_no).filter(p=>{const k=(p.name||'').toLowerCase()+'|'+p.reg_no;if(seen.has(k))return false;seen.add(k);return true})
+            const allMatches=[...opMatches.map(e=>({source:'op',name:e.patient_name,reg_no:e.reg_no,area:e.patient_area,date:e.date})),...ipMatches.map(p=>({source:'ip',name:p.name,reg_no:p.reg_no,area:p.patient_area,date:p.admission_date}))]
+            if(allMatches.length===0)return null
+            return(<div style={{background:'#eff6ff',border:'1.5px solid #3b82f6',borderRadius:10,padding:'10px 12px',marginTop:-4,marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:800,color:'#1d4ed8',marginBottom:8,textTransform:'uppercase',letterSpacing:'.5px'}}>📞 {allMatches.length} patient{allMatches.length!==1?'s':''} share this phone</div>
+              <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:200,overflowY:'auto'}}>
+                {allMatches.map((m,i)=><button key={i} type="button" onClick={()=>setIF({...iF,pname:m.name,reg_no:m.reg_no,patient_area:m.area||iF.patient_area||''})} style={{textAlign:'left',padding:'8px 12px',background:'#fff',border:'1.5px solid #bfdbfe',borderRadius:8,cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{m.name}</div>
+                    <div style={{fontSize:11,color:'#64748b',marginTop:2}}>Reg: {m.reg_no}{m.area?' · '+m.area:''}{m.date?' · last: '+m.date:''}</div>
+                  </div>
+                  <div style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:12,background:m.source==='ip'?'#dbeafe':'#dcfce7',color:m.source==='ip'?'#1d4ed8':'#15803d'}}>{m.source.toUpperCase()}</div>
+                </button>)}
+                <button type="button" onClick={()=>setIF({...iF,reg_no:''})} style={{padding:'8px 12px',background:'#fef3c7',border:'1.5px dashed #f59e0b',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700,color:'#92400e'}}>+ Add as NEW patient (different from above)</button>
+              </div>
+              {iF.reg_no&&<div style={{marginTop:8,padding:'6px 10px',background:'#fff',border:'1px solid #3b82f6',borderRadius:6,fontSize:11,color:'#1d4ed8',fontWeight:700}}>✓ Selected: {iF.pname} · Reg {iF.reg_no}</div>}
+            </div>)
+          })()}
             {!isIP&&<FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur, KPHB" value={iF.patient_area||''} onChange={e=>setIF({...iF,patient_area:e.target.value})}/>}
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
             {!isIP&&itype==='op'&&(<>
