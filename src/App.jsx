@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabaseClient.js";
 import {
   MessageCircle, Compass, Shield, User, ArrowLeft, Send, Plus, LogOut, Lock,
-  Pin, Trash2, Settings, IndianRupee, Crown, Smile, Paperclip, Camera, X, Users, Phone
+  Pin, Trash2, Settings, IndianRupee, Crown, Smile, Paperclip, Camera, X, Users, Phone, Zap
 } from "lucide-react";
 
 const W = { teal: "#008069", sent: "#D9FDD3", recv: "#fff", wall: "#EAE2D8", ink: "#111B21", soft: "#667781", line: "#E9EDEF", blue: "#53BDEB", pink: "#D81B7A", bg: "#F0F2F5" };
@@ -14,6 +14,14 @@ async function uploadPhoto(userId, file) {
   const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
   if (error) throw error;
   return supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+}
+
+async function uploadChatFile(roomId, file) {
+  const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+  const path = `${roomId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const { error } = await supabase.storage.from("chat").upload(path, file, { contentType: file.type });
+  if (error) throw error;
+  return supabase.storage.from("chat").getPublicUrl(path).data.publicUrl;
 }
 
 export default function App() {
@@ -30,7 +38,7 @@ export default function App() {
 function Shell({ children }) {
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif", background: "#d9d9d9", display: "flex", justifyContent: "center", minHeight: "100vh", width: "100%", overflowX: "hidden" }}>
-      <style>{`html,body,#root{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}input,button{font-family:inherit;}::-webkit-scrollbar{width:0;}`}</style>
+      <style>{`html,body,#root{margin:0;padding:0;width:100%;max-width:100%;overflow-x:hidden;}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}input,button{font-family:inherit;}::-webkit-scrollbar{width:0;}.chatscreen{height:100vh;height:100dvh;}`}</style>
       <div style={{ width: "100%", maxWidth: 430, minHeight: "100vh", background: W.bg, boxShadow: "0 0 60px rgba(0,0,0,.15)", position: "relative", overflowX: "hidden" }}>{children}</div>
     </div>
   );
@@ -285,17 +293,24 @@ function RoomChat({ room, user, profile, isAdmin, memberCount, onBack, onUpdateR
   const [pinText, setPinText] = useState(room.pinned || "");
   const endRef = useRef(null);
   const sRef = useRef({});
+  const headRef = useRef(null);
+  const [headPad, setHeadPad] = useState(112);
+  const camRef = useRef(null);
+  const fileRef = useRef(null);
+  const [qrs, setQrs] = useState([]);
+  const [showQR, setShowQR] = useState(false);
+  const [newQR, setNewQR] = useState("");
 
   useEffect(() => {
     let channel;
     (async () => {
       const { data } = await supabase.from("messages")
-        .select("id, body, sender_id, created_at, sender:profiles(full_name, avatar_url)")
+        .select("id, body, media_url, media_type, file_name, sender_id, created_at, sender:profiles(full_name, avatar_url)")
         .eq("group_type", "room").eq("group_id", room.id)
         .order("created_at", { ascending: true });
-      const sm = {}; (data || []).forEach(m => { if (m.sender) sm[m.sender_id] = { name: m.sender.full_name, avatar: m.sender.avatar_url }; });
-      sm[user.id] = { name: profile.full_name, avatar: profile.avatar_url }; sRef.current = sm; setSenders(sm);
-      setMsgs((data || []).map(m => ({ id: m.id, body: m.body, sender_id: m.sender_id, created_at: m.created_at })));
+      const sm = {}; (data || []).forEach(m => { if (m.sender) sm[m.sender_id] = { name: m.sender.full_name, avatar: m.sender.avatar_url || sm[m.sender_id]?.avatar }; });
+      sm[user.id] = { name: profile.full_name, avatar: profile.avatar_url || sm[user.id]?.avatar }; sRef.current = sm; setSenders(sm);
+      setMsgs((data || []).map(m => ({ id: m.id, body: m.body, media_url: m.media_url, media_type: m.media_type, file_name: m.file_name, sender_id: m.sender_id, created_at: m.created_at })));
       channel = supabase.channel("room-" + room.id)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `group_id=eq.${room.id}` }, async (payload) => {
           const m = payload.new;
@@ -303,45 +318,60 @@ function RoomChat({ room, user, profile, isAdmin, memberCount, onBack, onUpdateR
             const { data: p } = await supabase.from("profiles").select("full_name, avatar_url").eq("id", m.sender_id).single();
             sRef.current = { ...sRef.current, [m.sender_id]: { name: p?.full_name || "Member", avatar: p?.avatar_url } }; setSenders(sRef.current);
           }
-          setMsgs(prev => (prev && prev.some(x => x.id === m.id)) ? prev : [...(prev || []), { id: m.id, body: m.body, sender_id: m.sender_id, created_at: m.created_at }]);
+          setMsgs(prev => (prev && prev.some(x => x.id === m.id)) ? prev : [...(prev || []), { id: m.id, body: m.body, media_url: m.media_url, media_type: m.media_type, file_name: m.file_name, sender_id: m.sender_id, created_at: m.created_at }]);
         }).subscribe();
     })();
     return () => { if (channel) supabase.removeChannel(channel); };
   }, [room.id]);
   useEffect(() => { endRef.current?.scrollIntoView(); }, [msgs]);
+  useEffect(() => { if (headRef.current) setHeadPad(headRef.current.offsetHeight); }, [room.pinned, isAdmin, editPin, msgs === null]);
+  useEffect(() => { supabase.from("quick_replies").select("*").eq("owner_id", user.id).order("created_at", { ascending: true }).then(({ data }) => setQrs(data || [])); }, [user.id]);
 
   const send = async () => {
     const body = text.trim(); if (!body) return; setText("");
-    const { data, error } = await supabase.from("messages").insert({ group_type: "room", group_id: room.id, sender_id: user.id, body }).select("id, body, sender_id, created_at").single();
+    const { data, error } = await supabase.from("messages").insert({ group_type: "room", group_id: room.id, sender_id: user.id, body }).select("id, body, media_url, media_type, file_name, sender_id, created_at").single();
     if (error) { setText(body); return; }
     setMsgs(prev => prev.some(x => x.id === data.id) ? prev : [...prev, data]);
   };
+  const sendFile = async (file, kind) => {
+    if (!file) return;
+    try {
+      const url = await uploadChatFile(room.id, file);
+      const { data, error } = await supabase.from("messages").insert({ group_type: "room", group_id: room.id, sender_id: user.id, body: "", media_url: url, media_type: kind, file_name: file.name }).select("id, body, media_url, media_type, file_name, sender_id, created_at").single();
+      if (error) throw error;
+      setMsgs(prev => prev.some(x => x.id === data.id) ? prev : [...prev, data]);
+    } catch (x) { alert("Upload failed: " + x.message); }
+  };
+  const addQR = async () => { const t = newQR.trim(); if (!t) return; const { data, error } = await supabase.from("quick_replies").insert({ owner_id: user.id, text: t }).select().single(); if (!error) { setQrs(p => [...p, data]); setNewQR(""); } };
+  const delQR = async (id) => { await supabase.from("quick_replies").delete().eq("id", id); setQrs(p => p.filter(q => q.id !== id)); };
   const savePin = async () => { await onUpdateRoom(room.id, { pinned: pinText.trim() }); room.pinned = pinText.trim(); setEditPin(false); };
 
   return (
-    <div style={{ height: "100vh", width: "100%", display: "flex", flexDirection: "column", overflowX: "hidden" }}>
-      <div style={{ background: W.teal, color: "#fff", display: "flex", alignItems: "center", gap: 10, padding: "12px" }}>
-        <ArrowLeft size={22} onClick={onBack} style={{ cursor: "pointer", flexShrink: 0 }} />
-        <Avatar room={room} size={38} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 16.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{room.name}</div>
-          <div style={{ fontSize: 12, opacity: .85 }}>{memberCount} members</div>
+    <div style={{ minHeight: "100dvh", background: W.wall, backgroundImage: `url("${WALL}")`, paddingBottom: 72 }}>
+      <div ref={headRef} style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, zIndex: 30 }}>
+        <div style={{ background: W.teal, color: "#fff", display: "flex", alignItems: "center", gap: 10, padding: "12px" }}>
+          <ArrowLeft size={22} onClick={onBack} style={{ cursor: "pointer", flexShrink: 0 }} />
+          <Avatar room={room} size={38} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 16.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{room.name}</div>
+            <div style={{ fontSize: 12, opacity: .85 }}>{memberCount} members</div>
+          </div>
         </div>
+        {(room.pinned || isAdmin) && (
+          <div style={{ background: "#fff", borderBottom: `1px solid ${W.line}`, padding: "8px 14px", display: "flex", alignItems: "center", gap: 9 }}>
+            <Pin size={15} color={W.teal} style={{ flexShrink: 0 }} />
+            {editPin ? (<>
+              <input value={pinText} onChange={e => setPinText(e.target.value)} placeholder="Pin an announcement…" style={{ flex: 1, minWidth: 0, border: `1px solid ${W.line}`, borderRadius: 8, padding: "6px 10px", fontSize: 13, outline: "none" }} />
+              <button onClick={savePin} style={{ ...btn(W.teal, "#fff"), padding: "6px 12px" }}>Save</button>
+            </>) : (<>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: room.pinned ? W.ink : W.soft }}>{room.pinned || "No announcement pinned"}</div>
+              {isAdmin && <Settings size={16} color={W.soft} style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => { setPinText(room.pinned || ""); setEditPin(true); }} />}
+            </>)}
+          </div>
+        )}
       </div>
-      {(room.pinned || isAdmin) && (
-        <div style={{ background: "#fff", borderBottom: `1px solid ${W.line}`, padding: "8px 14px", display: "flex", alignItems: "center", gap: 9 }}>
-          <Pin size={15} color={W.teal} style={{ flexShrink: 0 }} />
-          {editPin ? (<>
-            <input value={pinText} onChange={e => setPinText(e.target.value)} placeholder="Pin an announcement…" style={{ flex: 1, minWidth: 0, border: `1px solid ${W.line}`, borderRadius: 8, padding: "6px 10px", fontSize: 13, outline: "none" }} />
-            <button onClick={savePin} style={{ ...btn(W.teal, "#fff"), padding: "6px 12px" }}>Save</button>
-          </>) : (<>
-            <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: room.pinned ? W.ink : W.soft }}>{room.pinned || "No announcement pinned"}</div>
-            {isAdmin && <Settings size={16} color={W.soft} style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => { setPinText(room.pinned || ""); setEditPin(true); }} />}
-          </>)}
-        </div>
-      )}
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 8px", background: W.wall, backgroundImage: `url("${WALL}")` }}>
-        <div style={{ textAlign: "center", margin: "6px 0 16px" }}><span style={{ background: "#FBF1C7", color: "#54656F", fontSize: 12, padding: "5px 12px", borderRadius: 8 }}>🔒 Only members can see these messages</span></div>
+      <div style={{ paddingTop: headPad + 8, paddingLeft: 8, paddingRight: 8, paddingBottom: 8 }}>
+        <div style={{ textAlign: "center", margin: "0 0 16px" }}><span style={{ background: "#FBF1C7", color: "#54656F", fontSize: 12, padding: "5px 12px", borderRadius: 8 }}>🔒 Only members can see these messages</span></div>
         {msgs === null ? <Center>loading…</Center> : msgs.length === 0 ? <Center>No messages yet — say hello 👋</Center> :
           msgs.map((m, i) => {
             const mine = m.sender_id === user.id;
@@ -352,21 +382,46 @@ function RoomChat({ room, user, profile, isAdmin, memberCount, onBack, onUpdateR
                 {!mine && (first ? <PersonAvatar url={s.avatar} name={s.name} size={28} /> : <div style={{ width: 28, flexShrink: 0 }} />)}
                 <div style={{ maxWidth: "78%", background: mine ? W.sent : W.recv, padding: "6px 9px 5px", borderRadius: 8, borderTopRightRadius: mine ? 2 : 8, borderTopLeftRadius: mine ? 8 : 2, boxShadow: "0 1px 1px rgba(0,0,0,.12)" }}>
                   {!mine && first && <div style={{ fontSize: 12.5, fontWeight: 700, color: W.teal, marginBottom: 1 }}>{s.name || "Member"}</div>}
-                  <div style={{ fontSize: 14.5, color: W.ink, lineHeight: 1.35 }}>{m.body}</div>
+                  {m.media_url && m.media_type === "image" && <img src={m.media_url} alt="" style={{ maxWidth: "100%", borderRadius: 6, display: "block", marginBottom: m.body ? 4 : 0 }} />}
+                  {m.media_url && m.media_type === "file" && <a href={m.media_url} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: W.ink, background: "#F0F2F5", borderRadius: 8, padding: "8px 10px", marginBottom: m.body ? 4 : 0 }}><Paperclip size={16} color={W.teal} /><span style={{ fontSize: 13.5, wordBreak: "break-all" }}>{m.file_name || "file"}</span></a>}
+                  {m.body && <div style={{ fontSize: 14.5, color: W.ink, lineHeight: 1.35 }}>{m.body}</div>}
                   <div style={{ fontSize: 11, color: W.soft, textAlign: "right", marginTop: 2 }}>{fmtTime(m.created_at)}</div>
                 </div>
+                {mine && (first ? <PersonAvatar url={s.avatar} name={s.name} size={28} /> : <div style={{ width: 28, flexShrink: 0 }} />)}
               </div>
             );
           })}
         <div ref={endRef} />
       </div>
-      <div style={{ background: W.bg, padding: "8px 9px", display: "flex", alignItems: "flex-end", gap: 7 }}>
-        <div style={{ flex: 1, minWidth: 0, background: "#fff", borderRadius: 24, display: "flex", alignItems: "center", gap: 8, padding: "9px 14px" }}>
-          <Smile size={21} color={W.soft} style={{ flexShrink: 0 }} />
+      {showQR && (
+        <div style={{ position: "fixed", bottom: 63, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, zIndex: 25, background: "#fff", borderTop: `1px solid ${W.line}`, boxShadow: "0 -4px 16px rgba(0,0,0,.08)", maxHeight: "45vh", overflowY: "auto", padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontWeight: 700, color: W.ink, fontSize: 14 }}>Quick replies</span>
+            <X size={18} style={{ cursor: "pointer" }} onClick={() => setShowQR(false)} />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input value={newQR} onChange={e => setNewQR(e.target.value)} placeholder="Save a new quick reply…" style={{ flex: 1, minWidth: 0, border: `1px solid ${W.line}`, borderRadius: 9, padding: "9px 12px", fontSize: 14, outline: "none" }} />
+            <button onClick={addQR} style={btn(W.teal, "#fff")}>Save</button>
+          </div>
+          {qrs.length === 0 ? <div style={{ color: W.soft, fontSize: 13, padding: "6px 0" }}>No saved replies yet. Type one above and Save.</div> :
+            qrs.map(q => (
+              <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 0", borderTop: `1px solid ${W.line}` }}>
+                <div onClick={() => { setText(q.text); setShowQR(false); }} style={{ flex: 1, minWidth: 0, fontSize: 14, color: W.ink, cursor: "pointer" }}>{q.text}</div>
+                <Trash2 size={16} color="#C0392B" style={{ cursor: "pointer", flexShrink: 0 }} onClick={() => delQR(q.id)} />
+              </div>
+            ))}
+        </div>
+      )}
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, zIndex: 20, background: W.bg, padding: "8px 9px", display: "flex", alignItems: "flex-end", gap: 7 }}>
+        <div style={{ flex: 1, minWidth: 0, background: "#fff", borderRadius: 24, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px" }}>
+          <Zap size={21} color={showQR ? W.teal : W.soft} style={{ flexShrink: 0, cursor: "pointer" }} onClick={() => setShowQR(v => !v)} />
           <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Message" style={{ flex: 1, minWidth: 0, border: "none", outline: "none", fontSize: 15.5, color: W.ink }} />
-          <Paperclip size={20} color={W.soft} style={{ flexShrink: 0 }} /><Camera size={20} color={W.soft} style={{ flexShrink: 0 }} />
+          <Paperclip size={20} color={W.soft} style={{ flexShrink: 0, cursor: "pointer" }} onClick={() => fileRef.current?.click()} />
+          <Camera size={20} color={W.soft} style={{ flexShrink: 0, cursor: "pointer" }} onClick={() => camRef.current?.click()} />
         </div>
         <button onClick={send} style={{ width: 47, height: 47, borderRadius: "50%", border: "none", background: W.teal, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Send size={20} /></button>
+        <input ref={camRef} type="file" accept="image/*" capture="environment" onChange={e => { sendFile(e.target.files?.[0], "image"); e.target.value = ""; }} style={{ display: "none" }} />
+        <input ref={fileRef} type="file" onChange={e => { const f = e.target.files?.[0]; sendFile(f, f && f.type.startsWith("image/") ? "image" : "file"); e.target.value = ""; }} style={{ display: "none" }} />
       </div>
     </div>
   );
@@ -425,6 +480,7 @@ function AdminRooms({ rooms, onCreate, onUpdate, onDelete }) {
             </div>
             {manage === r.id && (
               <div style={{ marginTop: 14, borderTop: `1px solid ${W.line}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+                <RoomPhoto room={r} onUpdate={onUpdate} />
                 <PinEditor room={r} onUpdate={onUpdate} />
                 <button onClick={() => { if (confirm("Delete this room and all its messages?")) onDelete(r.id); }} style={{ ...btn("#fff", "#C0392B"), border: "1px solid #F2C4C0", justifyContent: "center" }}><Trash2 size={15} />Delete room</button>
               </div>
@@ -444,6 +500,27 @@ function PinEditor({ room, onUpdate }) {
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         <input value={pin} onChange={e => setPin(e.target.value)} placeholder="e.g. Next meetup Friday 7PM" style={{ flex: 1, minWidth: 0, border: `1px solid ${W.line}`, borderRadius: 9, padding: "9px 12px", fontSize: 14, outline: "none" }} />
         <button onClick={() => onUpdate(room.id, { pinned: pin.trim() })} style={btn(W.teal, "#fff")}>Pin</button>
+      </div>
+    </div>
+  );
+}
+function RoomPhoto({ room, onUpdate }) {
+  const ref = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const pick = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    setBusy(true);
+    try { const url = await uploadPhoto(room.id, f); await onUpdate(room.id, { logo_url: url }); }
+    catch (x) { alert("Upload failed: " + x.message); }
+    setBusy(false);
+  };
+  return (
+    <div>
+      <label style={{ fontSize: 13, fontWeight: 600, color: W.soft }}>Room photo / icon</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
+        <Avatar room={room} size={48} />
+        <button onClick={() => ref.current?.click()} style={btn(W.teal, "#fff")}><Camera size={15} />{busy ? "Uploading…" : "Change photo"}</button>
+        <input ref={ref} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
       </div>
     </div>
   );
