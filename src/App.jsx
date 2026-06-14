@@ -1002,13 +1002,17 @@ const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
     for(const ce of allCredits){
       if(remainingToCollect<=0)break
       const useAmt=Math.min(remainingToCollect,ce.amount)
+      const origDate=ce.date
+      const settledNote='💰 Credit settled on '+fmtD(date)+(origDate!==date?' (originally from '+fmtD(origDate)+')':'')
       if(useAmt>=ce.amount){
-        // Full entry payment: convert credit → paid
-        await actions.editIncome({...ce,payment:pay,date})
+        // Full entry payment: convert credit → paid, date moves to today, append settled note
+        const mergedNotes=ce.notes?ce.notes+' · '+settledNote:settledNote
+        await actions.editIncome({...ce,payment:pay,date,notes:mergedNotes})
       } else {
-        // Partial: reduce credit + add paid entry
+        // Partial: reduce credit on original entry (keep original date), add NEW paid entry on today
         await actions.editIncome({...ce,amount:ce.amount-useAmt})
-        await actions.addIncome({id:uid(),date,type:ce.type,amount:useAmt,patient_id:ce.patient_id,patient_name:ce.patient_name,payment:pay,ref_doctor:ce.ref_doctor||'',notes:'Partial payment',custom_commission:ce.custom_commission!=null?ce.custom_commission:null,reg_no:ce.reg_no||''})
+        const partialNote='💰 Partial credit settlement (originally from '+fmtD(origDate)+')'
+        await actions.addIncome({id:uid(),date,type:ce.type,amount:useAmt,patient_id:ce.patient_id,patient_name:ce.patient_name,payment:pay,ref_doctor:ce.ref_doctor||'',notes:partialNote,custom_commission:ce.custom_commission!=null?ce.custom_commission:null,reg_no:ce.reg_no||''})
       }
       remainingToCollect-=useAmt
     }
