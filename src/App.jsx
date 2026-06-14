@@ -4115,6 +4115,110 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
 
 
 /*  DAILY DETAIL REPORT  */
+const SegmentPL=({incList,expList})=>{
+    // For each segment: income = sum of revenue (paid + credit, excluding discount/written_off)
+    //                    commission = sum of getComm() for that segment's entries
+    //                    consultant = sum of consultant_fee for that segment's entries
+    //                    expenses = sum of category expenses in that segment
+    const calcSeg=(seg)=>{
+      const sInc=incList.filter(e=>incomeSegment(e.type)===seg)
+      const billed=sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
+      const cash=sInc.filter(e=>e.payment!=='credit'&&e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
+      const credit=sInc.filter(e=>e.payment==='credit').reduce((a,e)=>a+(e.amount||0),0)
+      const comm=sInc.reduce((a,e)=>a+getComm(e),0)
+      const cons=sInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
+      const sExp=expList.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&expenseSegment(e.category)===seg)
+      const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
+      const net=billed-comm-cons-expTotal
+      const margin=billed>0?(net/billed*100):0
+      return{billed,cash,credit,comm,cons,expTotal,net,margin,count:sInc.length}
+    }
+    const clinical=calcSeg('clinical')
+    const lab=calcSeg('lab')
+    const totalNet=clinical.net+lab.net
+    const totalBilled=clinical.billed+lab.billed
+    const combinedMargin=totalBilled>0?(totalNet/totalBilled*100):0
+    
+    const Card1=({title,d,color})=>(<div style={{background:'#fff',border:'2px solid '+color.border,borderRadius:14,padding:'14px 16px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={{fontSize:11,fontWeight:800,color:color.dark,textTransform:'uppercase',letterSpacing:'.5px'}}>{title}</div>
+        <div style={{fontSize:10,fontWeight:600,color:'#94a3b8'}}>{d.count} entries</div>
+      </div>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+        <tbody>
+          <tr><td style={{padding:'4px 0',color:'#475569'}}>Income (billed)</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>{fmt(d.billed)}</td></tr>
+          {d.credit>0&&<tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>}
+          <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
+          {d.comm>0&&<tr><td style={{padding:'4px 0',color:'#dc2626'}}>Commission</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.comm)}</td></tr>}
+          {d.cons>0&&<tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>}
+          <tr style={{borderTop:'1.5px solid '+color.border}}>
+            <td style={{padding:'8px 0 2px',fontWeight:800,color:d.net>=0?'#15803d':'#dc2626',fontSize:13}}>NET PROFIT</td>
+            <td style={{textAlign:'right',padding:'8px 0 2px',fontWeight:900,fontSize:16,color:d.net>=0?'#15803d':'#dc2626'}}>{fmt(d.net)}</td>
+          </tr>
+          <tr><td colSpan={2} style={{textAlign:'right',fontSize:10,color:'#94a3b8',fontWeight:600}}>Margin: {d.margin.toFixed(1)}%</td></tr>
+        </tbody>
+      </table>
+    </div>)
+    
+    return(<div style={{marginBottom:14}}>
+      <SecL>📊 Segment Profit & Loss</SecL>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+        <Card1 title="🏥 Clinical" d={clinical} color={{border:'#bfdbfe',dark:'#1d4ed8'}}/>
+        <Card1 title="🧪 Lab" d={lab} color={{border:'#fde68a',dark:'#92400e'}}/>
+      </div>
+      <div style={{background:totalNet>=0?'linear-gradient(135deg,#16a34a,#15803d)':'linear-gradient(135deg,#dc2626,#991b1b)',color:'#fff',padding:'12px 18px',borderRadius:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,opacity:.9,textTransform:'uppercase',letterSpacing:'.5px'}}>Total Net Profit</div>
+          <div style={{fontSize:11,opacity:.85,marginTop:2}}>Combined margin: {combinedMargin.toFixed(1)}%</div>
+        </div>
+        <div style={{fontSize:26,fontWeight:900}}>{fmt(totalNet)}</div>
+      </div>
+    </div>)
+  }
+
+const PatientBreakdown=({incList,db,gotoIP,gotoOP,title,compact})=>{
+  const groups={}
+  incList.forEach(e=>{
+    if(e.type==='vc')return
+    const name=(e.patient_name||'').trim()
+    if(!name)return
+    const key=name.toLowerCase()+'|'+(e.reg_no||'')
+    if(!groups[key])groups[key]={name,reg_no:e.reg_no||'',patient_id:e.patient_id||null,entries:[],total:0,cash:0,credit:0}
+    groups[key].entries.push(e)
+    groups[key].total+=e.amount||0
+    if(e.payment==='credit')groups[key].credit+=e.amount||0
+    else if(e.payment!=='discount'&&e.payment!=='written_off')groups[key].cash+=e.amount||0
+    if(e.patient_id&&!groups[key].patient_id)groups[key].patient_id=e.patient_id
+  })
+  const pats=Object.values(groups).sort((a,b)=>b.total-a.total)
+  if(pats.length===0)return null
+  const isIPPatient=(p)=>p.patient_id&&db.ip_patients.some(ip=>ip.id===p.patient_id)
+  const handleClick=(p)=>{if(isIPPatient(p)){gotoIP&&gotoIP(p.patient_id,'rep')}else{gotoOP&&gotoOP(p.name,'rep')}}
+  return(<div style={{marginBottom:14}}>
+    <SecL>{'\uD83D\uDC65 '+(title||'Patients')+' ('+pats.length+')'}</SecL>
+    <Card>
+      {pats.map((p,i)=>(<div key={p.name+i} style={{padding:'10px 0',borderBottom:i<pats.length-1?'1px solid #f1f5f9':'none'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:compact?0:6}}>
+          <button onClick={()=>handleClick(p)} style={{background:'none',border:'none',padding:0,cursor:'pointer',textAlign:'left',flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:700,color:'#1d4ed8',textDecoration:'underline'}}>{p.name}{isIPPatient(p)?' \uD83C\uDFE5':''}</div>
+            <div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{p.reg_no?'Reg: '+p.reg_no:''}{p.entries.length>1?(p.reg_no?' \u00B7 ':'')+p.entries.length+' transactions':''}</div>
+          </button>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{fmt(p.total)}</div>
+            {p.credit>0&&<div style={{fontSize:10,color:'#c2410c',fontWeight:600}}>Credit: {fmt(p.credit)}</div>}
+          </div>
+        </div>
+        {!compact&&<div style={{paddingLeft:8,fontSize:11,color:'#64748b'}}>
+          {p.entries.map((e,j)=>(<div key={e.id} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:j<p.entries.length-1?'1px dotted #f1f5f9':'none'}}>
+            <span><TypeTag t={e.type}/> {fmtD(e.date)} \u00B7 {e.payment}{e.notes?' \u00B7 '+e.notes:''}</span>
+            <span style={{color:e.payment==='credit'?'#c2410c':'#16a34a',fontWeight:600,whiteSpace:'nowrap',marginLeft:8}}>{fmt(e.amount)}</span>
+          </div>))}
+        </div>}
+      </div>))}
+    </Card>
+  </div>)
+}
+
 const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,gotoIP,gotoTimeline,gotoOP})=>{
   const dI=db.income.filter(e=>e.date===rd)
   const dExpAll=db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid')
@@ -4229,7 +4333,9 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     </div>
 
     {/* OP CONSULTATION */}
-    <SecL>OP Consultation</SecL>
+    <SegmentPL incList={dI} expList={dExpAll}/>
+      <PatientBreakdown incList={dI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Today patients" compact={false}/>
+      <SecL>OP Consultation</SecL>
     {Object.keys(opByPat).length===0
       ?<div style={{color:'#ccc',fontSize:13,padding:'8px 0',marginBottom:8}}>No OP consultations</div>
       :<Card>
@@ -4957,66 +5063,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
   const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'profit',l:'💰 Profit'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'patdata',l:'Patient Data'}]
-  const SegmentPL=({incList,expList})=>{
-    // For each segment: income = sum of revenue (paid + credit, excluding discount/written_off)
-    //                    commission = sum of getComm() for that segment's entries
-    //                    consultant = sum of consultant_fee for that segment's entries
-    //                    expenses = sum of category expenses in that segment
-    const calcSeg=(seg)=>{
-      const sInc=incList.filter(e=>incomeSegment(e.type)===seg)
-      const billed=sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
-      const cash=sInc.filter(e=>e.payment!=='credit'&&e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
-      const credit=sInc.filter(e=>e.payment==='credit').reduce((a,e)=>a+(e.amount||0),0)
-      const comm=sInc.reduce((a,e)=>a+getComm(e),0)
-      const cons=sInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
-      const sExp=expList.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&expenseSegment(e.category)===seg)
-      const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
-      const net=billed-comm-cons-expTotal
-      const margin=billed>0?(net/billed*100):0
-      return{billed,cash,credit,comm,cons,expTotal,net,margin,count:sInc.length}
-    }
-    const clinical=calcSeg('clinical')
-    const lab=calcSeg('lab')
-    const totalNet=clinical.net+lab.net
-    const totalBilled=clinical.billed+lab.billed
-    const combinedMargin=totalBilled>0?(totalNet/totalBilled*100):0
-    
-    const Card1=({title,d,color})=>(<div style={{background:'#fff',border:'2px solid '+color.border,borderRadius:14,padding:'14px 16px'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:800,color:color.dark,textTransform:'uppercase',letterSpacing:'.5px'}}>{title}</div>
-        <div style={{fontSize:10,fontWeight:600,color:'#94a3b8'}}>{d.count} entries</div>
-      </div>
-      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-        <tbody>
-          <tr><td style={{padding:'4px 0',color:'#475569'}}>Income (billed)</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>{fmt(d.billed)}</td></tr>
-          {d.credit>0&&<tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>}
-          <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
-          {d.comm>0&&<tr><td style={{padding:'4px 0',color:'#dc2626'}}>Commission</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.comm)}</td></tr>}
-          {d.cons>0&&<tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>}
-          <tr style={{borderTop:'1.5px solid '+color.border}}>
-            <td style={{padding:'8px 0 2px',fontWeight:800,color:d.net>=0?'#15803d':'#dc2626',fontSize:13}}>NET PROFIT</td>
-            <td style={{textAlign:'right',padding:'8px 0 2px',fontWeight:900,fontSize:16,color:d.net>=0?'#15803d':'#dc2626'}}>{fmt(d.net)}</td>
-          </tr>
-          <tr><td colSpan={2} style={{textAlign:'right',fontSize:10,color:'#94a3b8',fontWeight:600}}>Margin: {d.margin.toFixed(1)}%</td></tr>
-        </tbody>
-      </table>
-    </div>)
-    
-    return(<div style={{marginBottom:14}}>
-      <SecL>📊 Segment Profit & Loss</SecL>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-        <Card1 title="🏥 Clinical" d={clinical} color={{border:'#bfdbfe',dark:'#1d4ed8'}}/>
-        <Card1 title="🧪 Lab" d={lab} color={{border:'#fde68a',dark:'#92400e'}}/>
-      </div>
-      <div style={{background:totalNet>=0?'linear-gradient(135deg,#16a34a,#15803d)':'linear-gradient(135deg,#dc2626,#991b1b)',color:'#fff',padding:'12px 18px',borderRadius:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:700,opacity:.9,textTransform:'uppercase',letterSpacing:'.5px'}}>Total Net Profit</div>
-          <div style={{fontSize:11,opacity:.85,marginTop:2}}>Combined margin: {combinedMargin.toFixed(1)}%</div>
-        </div>
-        <div style={{fontSize:26,fontWeight:900}}>{fmt(totalNet)}</div>
-      </div>
-    </div>)
-  }
+  
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
     return(<div style={{marginBottom:12}}>
@@ -5040,9 +5087,9 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
       {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
-      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><SegmentPL incList={mI} expList={mE}/><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
-      {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><SegmentPL incList={yI} expList={yE}/><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
-      {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><SegmentPL incList={incList} expList={expList}/><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
+      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><SegmentPL incList={mI} expList={mE}/><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><PatientBreakdown incList={mI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this month" compact={true}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
+      {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><SegmentPL incList={yI} expList={yE}/><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><PatientBreakdown incList={yI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this year" compact={true}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
+      {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><SegmentPL incList={incList} expList={expList}/><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><PatientBreakdown incList={incList} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients in range" compact={false}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} hospital={hospital}/>}
       {rv==='patdata'&&<PatientDataReport db={db}/>}
       {rv==='patlist'&&(timelinePid?<PatientTimeline db={db} pid={timelinePid} onBack={()=>setTimelinePid(null)}/>:<PatientListReport db={db} gotoTimeline={pid=>setTimelinePid(pid)}/>)}
