@@ -914,7 +914,7 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
 }
 
 /*  CREDIT TAB  */
-const CreditTab=({db,actions})=>{
+const CreditTab=({db,actions,canSeeReports})=>{
   const [collectEntry,setCollectEntry]=useState(null)
   if(collectEntry)return(<CollectCreditForm entry={collectEntry} actions={actions} db={db} onCancel={()=>setCollectEntry(null)}/>)
   const allCredit=db.income.filter(e=>isCredit(e))
@@ -5586,7 +5586,7 @@ export default function App(){
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
         {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions} hospital={hospital}/>}
         {tab==='ins'&&<InsuranceMainTab db={db} setDb={setDb} hospital={hospital} gotoIP={(id)=>{setTab('ip');setTimeout(()=>gotoIP(id),100)}}/>}
-        {tab==='credit'&&canSeeReports&&<CreditTab db={db} actions={actions}/>}
+        {tab==='credit'&&canSeeReports&&<CreditTab canSeeReports={canSeeReports} db={db} actions={actions}/>}
         {tab==='refdrs'&&canSeeReports&&<RefDoctorsTab db={db} actions={actions}/>}
         {tab==='consult'&&<ConsultantsTab db={db} actions={actions}/>}
         {isAdmin&&tab==='admin'&&<AdminTab currentUser={profile} hospital={hospital} onLogoUpdate={url=>setHospital(h=>({...h,logo_url:url}))}/>}
