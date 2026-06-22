@@ -981,7 +981,15 @@ const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
   const [pay,setPay]=useState('cash')
   
   // Find ALL credit entries for this patient (across all types)
-  const allCredits=(db?.income||[]).filter(e=>e.patient_id===entry.patient_id&&e.payment==='credit').sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+  const allCredits=(db?.income||[]).filter(e=>{
+    if(e.payment!=='credit')return false
+    // Match by patient_id if both have it
+    if(entry.patient_id&&e.patient_id)return e.patient_id===entry.patient_id
+    // Otherwise match by reg_no (if available)
+    if(entry.reg_no&&e.reg_no)return e.reg_no===entry.reg_no
+    // Fallback: match by patient name
+    return (e.patient_name||'').trim().toLowerCase()===(entry.patient_name||'').trim().toLowerCase()
+  }).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
   const totalCredit=allCredits.reduce((a,e)=>a+e.amount,0)
   const byType={}
   allCredits.forEach(e=>{if(!byType[e.type])byType[e.type]=0;byType[e.type]+=e.amount})
