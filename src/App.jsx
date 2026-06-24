@@ -2173,7 +2173,15 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
 /*  EXPENSES TAB  */
 const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const exp=db.expenses.filter(e=>e.category!=='ref_paid').filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
+  const [selMonth,setSelMonth]=useState(todayStr().slice(0,7))
+  const [editExp,setEditExp]=useState(null)
+  const monthExp=db.expenses.filter(e=>e.category!=='ref_paid'&&e.date?.startsWith(selMonth)).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const monthTot=monthExp.reduce((a,e)=>a+e.amount,0)
+  const monthByCat={};monthExp.forEach(e=>{if(!monthByCat[e.category])monthByCat[e.category]={total:0,entries:[]};monthByCat[e.category].total+=e.amount;monthByCat[e.category].entries.push(e)})
+  const monthCatSorted=Object.entries(monthByCat).sort((a,b)=>b[1].total-a[1].total)
+  const [expandCat,setExpandCat]=useState(null)
   const go=async()=>{const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return};const ok=await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon});if(ok!==false)setExF({...exF,amt:'',desc:''})}
+  const saveEdit=async()=>{const amt=parseFloat(editExp.amount);if(!amt||amt<=0){alert('Enter amount');return};await actions.updateExpense(editExp.id,{date:editExp.date,category:editExp.category,amount:amt,description:editExp.description});setEditExp(null)}
   return(
     <div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -2213,6 +2221,66 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
       </Card>
       <SecL>Expenses - {fmtD(exD)} - {fmt(etot)}</SecL>
       {exp.length===0?<div style={{textAlign:'center',padding:'24px 0',color:'#ccc',fontSize:13}}>No expenses</div>:<Card>{exp.map(e=>{const c=ECATS.find(c=>c.key===e.category);return<Row key={e.id} left={<span>{c?.label||e.category}{e.is_monthly&&<Pill label="monthly" bg="#dbeafe" tx="#1d4ed8"/>}</span>} sub={(e.description||'-')+' - '+e.payment} right={<><span style={{color:'#ef4444',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span><DBtn confirmText={'Delete this expense?\n\nCategory: '+(ECATS.find(c=>c.key===e.category)?.label||e.category)+'\nAmount: Rs '+e.amount+'\nDescription: '+(e.description||'-')+'\n\nThis cannot be undone.'} onClick={()=>actions.delExpense(e.id)}>X</DBtn></>}/>})}</Card>}
+      
+      {/* MONTHLY EXPENSES DETAIL */}
+      <div style={{marginTop:24,paddingTop:16,borderTop:'2px solid #f1f5f9'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <div style={{fontSize:15,fontWeight:800,color:'#1a1a2e'}}>📅 Monthly Expenses</div>
+          <input type="month" value={selMonth} onChange={e=>setSelMonth(e.target.value)} style={{padding:'7px 10px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,outline:'none'}}/>
+        </div>
+        <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:12,padding:'14px 16px',marginBottom:12}}>
+          <div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase'}}>Total for {selMonth}</div>
+          <div style={{fontSize:26,fontWeight:800,color:'#dc2626'}}>{fmt(monthTot)}</div>
+          <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{monthExp.length} entries · {monthCatSorted.length} categories</div>
+        </div>
+        {monthCatSorted.length===0?<div style={{textAlign:'center',padding:'24px 0',color:'#ccc',fontSize:13}}>No expenses this month</div>:
+        <Card>
+          {monthCatSorted.map(([cat,data])=>{
+            const cInfo=ECATS.find(x=>x.key===cat);const pct=monthTot>0?Math.round(data.total/monthTot*100):0
+            const isExp=expandCat===cat
+            return(<div key={cat} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
+              <div onClick={()=>setExpandCat(isExp?null:cat)} style={{cursor:'pointer'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                  <span style={{fontSize:13,fontWeight:600}}>{isExp?'▼':'▶'} {cInfo?.label||cat}{cInfo?.segment==='lab'?' 🧪':''} <span style={{fontSize:10,color:'#94a3b8'}}>({data.entries.length})</span></span>
+                  <span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(data.total)}</span>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:6,background:'#f0f0f0',borderRadius:3}}><div style={{width:pct+'%',height:6,background:'#ef4444',borderRadius:3,opacity:0.7}}/></div><span style={{fontSize:10,color:'#aaa',minWidth:28}}>{pct}%</span></div>
+              </div>
+              {isExp&&<div style={{marginTop:8,paddingLeft:12,borderLeft:'2px solid #fecaca'}}>
+                {data.entries.sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px dotted #f1f5f9'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,color:'#1a1a2e'}}>{e.description||'(no description)'}</div>
+                    <div style={{fontSize:10,color:'#94a3b8'}}>{fmtD(e.date)}{e.payment?' · '+e.payment:''}{e.is_monthly?' · monthly':''}</div>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(e.amount)}</span>
+                    <button onClick={()=>setEditExp({...e})} style={{padding:'3px 8px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,fontSize:10,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
+                    <button onClick={()=>{if(window.confirm('Delete this expense?'))actions.delExpense(e.id)}} style={{padding:'3px 8px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,fontSize:10,color:'#dc2626',cursor:'pointer',fontWeight:600}}>✕</button>
+                  </div>
+                </div>))}
+              </div>}
+            </div>)
+          })}
+          <div style={{display:'flex',justifyContent:'space-between',paddingTop:10,marginTop:4,borderTop:'2px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total</span><span style={{color:'#ef4444'}}>{fmt(monthTot)}</span></div>
+        </Card>}
+      </div>
+      
+      {/* EDIT EXPENSE MODAL */}
+      {editExp&&<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+        <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Edit Expense</div>
+          <FInp label="Date" type="date" value={editExp.date} onChange={e=>setEditExp({...editExp,date:e.target.value})}/>
+          <FSel label="Category" value={editExp.category} onChange={e=>setEditExp({...editExp,category:e.target.value})}>
+            {ECATS.filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
+          </FSel>
+          <FInp label="Description" value={editExp.description||''} onChange={e=>setEditExp({...editExp,description:e.target.value})}/>
+          <FInp label="Amount (Rs)" type="number" value={editExp.amount} onChange={e=>setEditExp({...editExp,amount:e.target.value})}/>
+          <div style={{display:'flex',gap:8,marginTop:14}}>
+            <button onClick={()=>setEditExp(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+            <button onClick={saveEdit} style={{flex:2,padding:'11px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save Changes</button>
+          </div>
+        </div>
+      </div>}
     </div>
   )
 }
