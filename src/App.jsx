@@ -369,7 +369,7 @@ const PreviewApp=({db,hospital,onExit})=>{
   const gotoOP=useCallback((name,from=null)=>{if(from)setOpPrevTab(from);setOpNavSearch(name||'');setTab('op')},[])
   const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const allPaidComm=useMemo(()=>(db.expenses||[]).filter(e=>e.category==='ref_paid'),[db.expenses])
-  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},undoDischarge:async()=>{alert('Read-only preview')},updateIPPatient:async()=>{alert('Read-only preview');return false},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')}}
+  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},undoDischarge:async()=>{alert('Read-only preview')},updateIPPatient:async()=>{alert('Read-only preview');return false},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')},addEmployee:async()=>{alert('Read-only preview');return false},updateEmployee:async()=>{alert('Read-only preview');return false},deleteEmployee:async()=>{alert('Read-only preview');return false},markAttendance:async()=>{alert('Read-only preview');return false},paySalary:async()=>{alert('Read-only preview');return false},deleteSalaryPayment:async()=>{alert('Read-only preview');return false}}
   const PTABS=[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'}]
   return(
     <div style={{background:'#f8fafc',minHeight:'100vh'}}>
@@ -5548,20 +5548,23 @@ export default function App(){
       const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
       if(!prof?.hospital_id){setProfile(prof);setLoading(false);return}
       const hid=prof.hospital_id
-      const [{data:hosp},[incR,expR,ptsR,rdsR,consR]]=await Promise.all([
+      const [{data:hosp},[incR,expR,ptsR,rdsR,consR,empR,attR,salR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
           supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions').eq('hospital_id',hid).order('date',{ascending:false}).limit(2000),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
-          supabase.from('consultants').select('*').eq('hospital_id',hid).order('name')
+          supabase.from('consultants').select('*').eq('hospital_id',hid).order('name'),
+          supabase.from('employees').select('*').eq('hospital_id',hid).order('name'),
+          supabase.from('attendance').select('*').eq('hospital_id',hid).order('date',{ascending:false}).limit(2000),
+          supabase.from('salary_payments').select('*').eq('hospital_id',hid).order('paid_date',{ascending:false}).limit(500)
         ])
       ])
       setProfile(prof)
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
-      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[]})
+      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[]})
       setLoading(false)
       if(!tabInitialized){
         if(prof?.role==='admin'||prof?.role==='management')setTab('rep');else setTab('entry')
@@ -5591,6 +5594,23 @@ export default function App(){
     addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     updateExpense:async(id,updates)=>{await supabase.from('expenses').update(updates).eq('id',id);setDb(d=>({...d,expenses:d.expenses.map(e=>e.id===id?{...e,...updates}:e)}))},
+    addEmployee:async row=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('employees').insert([{...row,hospital_id:hid}]).select();if(error){alert('Failed: '+error.message);return false}if(data)setDb(d=>({...d,employees:[...(d.employees||[]),data[0]].sort((a,b)=>a.name.localeCompare(b.name))}));return true},
+    updateEmployee:async(id,updates)=>{const {error}=await supabase.from('employees').update(updates).eq('id',id);if(error){alert('Failed: '+error.message);return false}setDb(d=>({...d,employees:d.employees.map(e=>e.id===id?{...e,...updates}:e)}));return true},
+    deleteEmployee:async id=>{const {error}=await supabase.from('employees').delete().eq('id',id);if(error){alert('Failed: '+error.message);return false}setDb(d=>({...d,employees:d.employees.filter(e=>e.id!==id)}));return true},
+    markAttendance:async(empId,date,status)=>{const hid=profile?.hospital_id;
+      const existing=(db.attendance||[]).find(a=>a.employee_id===empId&&a.date===date)
+      if(existing){const {error}=await supabase.from('attendance').update({status}).eq('id',existing.id);if(error){alert('Failed: '+error.message);return false}setDb(d=>({...d,attendance:d.attendance.map(a=>a.id===existing.id?{...a,status}:a)}))}
+      else{const {data,error}=await supabase.from('attendance').insert([{hospital_id:hid,employee_id:empId,date,status}]).select();if(error){alert('Failed: '+error.message);return false}if(data)setDb(d=>({...d,attendance:[data[0],...(d.attendance||[])]}))}
+      return true},
+    paySalary:async(emp,month,amount,paidDate,payment,notes)=>{const hid=profile?.hospital_id;
+      const {data,error}=await supabase.from('salary_payments').insert([{hospital_id:hid,employee_id:emp.id,month,amount,paid_date:paidDate,payment:payment||'cash',notes:notes||''}]).select()
+      if(error){alert('Failed: '+error.message);return false}
+      if(data)setDb(d=>({...d,salary_payments:[data[0],...(d.salary_payments||[])]}))
+      // Auto-create matching expense entry
+      const {data:expData,error:expErr}=await supabase.from('expenses').insert([{hospital_id:hid,date:paidDate,category:'salary',amount,description:emp.name+' — '+month+' salary',payment:payment||'cash',is_monthly:false}]).select()
+      if(!expErr&&expData)setDb(d=>({...d,expenses:[expData[0],...d.expenses]}))
+      return true},
+    deleteSalaryPayment:async id=>{const {error}=await supabase.from('salary_payments').delete().eq('id',id);if(error){alert('Failed: '+error.message);return false}setDb(d=>({...d,salary_payments:d.salary_payments.filter(s=>s.id!==id)}));return true},
     admitPatient:async row=>{
       const hid=profile?.hospital_id;
       if(!hid){alert('Hospital not loaded, please wait a moment and try again');return false}
@@ -5626,7 +5646,7 @@ export default function App(){
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
-  const TABS=[...(canSeeReports?[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},...(canSeeReports?[{k:'op',l:'OP Patients'}]:[]),{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'refdrs',l:'Ref Doctors'}]:[]),{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[...(canSeeReports?[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'Daily Entry'},{k:'ip',l:'IP Patients'},...(canSeeReports?[{k:'op',l:'OP Patients'}]:[]),{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'refdrs',l:'Ref Doctors'}]:[]),{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'},{k:'employees',l:'👥 Employees'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
@@ -5780,6 +5800,7 @@ export default function App(){
         {tab==='credit'&&canSeeReports&&<CreditTab canSeeReports={canSeeReports} db={db} actions={actions}/>}
         {tab==='refdrs'&&canSeeReports&&<RefDoctorsTab db={db} actions={actions}/>}
         {tab==='consult'&&<ConsultantsTab db={db} actions={actions}/>}
+        {tab==='employees'&&canSeeReports&&<EmployeesTab db={db} actions={actions}/>}
         {isAdmin&&tab==='admin'&&<AdminTab currentUser={profile} hospital={hospital} onLogoUpdate={url=>setHospital(h=>({...h,logo_url:url}))}/>}
       </div>
     </div>
@@ -5874,6 +5895,207 @@ const RefDoctorsTab=({db,actions})=>{
 }
 
 /*  CONSULTANTS TAB  */
+const EmployeesTab=({db,actions})=>{
+  const [view,setView]=useState('list')  // list | detail | attendance
+  const [selEmp,setSelEmp]=useState(null)
+  const [showAdd,setShowAdd]=useState(false)
+  const [editEmp,setEditEmp]=useState(null)
+  const [addF,setAddF]=useState({name:'',role:'',phone:'',monthly_salary:'',join_date:todayStr()})
+  const [attDate,setAttDate]=useState(todayStr())
+  const [payForm,setPayForm]=useState(null)
+  const [attMonth,setAttMonth]=useState(todayStr().slice(0,7))
+  
+  const emps=(db.employees||[]).filter(e=>e.active!==false)
+  const inactiveEmps=(db.employees||[]).filter(e=>e.active===false)
+  const att=db.attendance||[]
+  const sals=db.salary_payments||[]
+  
+  const ROLES=['Nurse','Doctor','Receptionist','Pharmacist','Lab Technician','Cleaner','Ward Boy','Security','Accountant','Manager','Other']
+  const ATT_STATUS={present:{l:'Present',c:'#16a34a',bg:'#f0fdf4'},absent:{l:'Absent',c:'#dc2626',bg:'#fef2f2'},half:{l:'Half day',c:'#d97706',bg:'#fffbeb'},leave:{l:'Leave',c:'#7c3aed',bg:'#f5f3ff'}}
+  
+  const saveAdd=async()=>{
+    if(!addF.name.trim()){alert('Name required');return}
+    const ok=await actions.addEmployee({name:addF.name.trim(),role:addF.role,phone:addF.phone,monthly_salary:parseFloat(addF.monthly_salary)||0,join_date:addF.join_date||null,active:true})
+    if(ok!==false){setAddF({name:'',role:'',phone:'',monthly_salary:'',join_date:todayStr()});setShowAdd(false)}
+  }
+  const saveEdit=async()=>{
+    if(!editEmp.name.trim()){alert('Name required');return}
+    await actions.updateEmployee(editEmp.id,{name:editEmp.name.trim(),role:editEmp.role,phone:editEmp.phone,monthly_salary:parseFloat(editEmp.monthly_salary)||0,join_date:editEmp.join_date||null,active:editEmp.active})
+    setEditEmp(null)
+  }
+  
+  // ATTENDANCE VIEW
+  if(view==='attendance'){
+    const dayAtt={};att.filter(a=>a.date===attDate).forEach(a=>{dayAtt[a.employee_id]=a.status})
+    return(<div>
+      <button onClick={()=>setView('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,fontWeight:600}}>← Back to employees</button>
+      <SecL>📋 Daily Attendance</SecL>
+      <div style={{display:'flex',gap:8,marginBottom:14}}>
+        <input type="date" value={attDate} onChange={e=>setAttDate(e.target.value)} style={{flex:1,padding:'9px 12px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,outline:'none'}}/>
+        <GBtn onClick={()=>setAttDate(todayStr())}>Today</GBtn>
+      </div>
+      {emps.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#ccc',fontSize:13}}>No active employees. Add some first.</div>}
+      {emps.map(emp=>{
+        const cur=dayAtt[emp.id]
+        return(<Card key={emp.id} style={{marginBottom:8}}>
+          <div style={{fontSize:14,fontWeight:700,color:'#1a1a2e',marginBottom:8}}>{emp.name}<span style={{fontSize:11,color:'#94a3b8',fontWeight:500,marginLeft:6}}>{emp.role}</span></div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+            {Object.entries(ATT_STATUS).map(([k,s])=>(
+              <button key={k} onClick={()=>actions.markAttendance(emp.id,attDate,k)} style={{padding:'8px 4px',border:cur===k?'2px solid '+s.c:'1.5px solid #e5e7eb',background:cur===k?s.bg:'#fff',color:cur===k?s.c:'#94a3b8',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>{s.l}</button>
+            ))}
+          </div>
+        </Card>)
+      })}
+    </div>)
+  }
+  
+  // EMPLOYEE DETAIL VIEW
+  if(view==='detail'&&selEmp){
+    const emp=db.employees.find(e=>e.id===selEmp)
+    if(!emp){setView('list');return null}
+    const empAtt=att.filter(a=>a.employee_id===emp.id&&a.date?.startsWith(attMonth))
+    const attCounts={present:0,absent:0,half:0,leave:0}
+    empAtt.forEach(a=>{if(attCounts[a.status]!=null)attCounts[a.status]++})
+    const empSals=sals.filter(s=>s.employee_id===emp.id).sort((a,b)=>(b.paid_date||'').localeCompare(a.paid_date||''))
+    const curMonth=todayStr().slice(0,7)
+    const paidThisMonth=sals.filter(s=>s.employee_id===emp.id&&s.month===curMonth).reduce((a,s)=>a+s.amount,0)
+    return(<div>
+      <button onClick={()=>setView('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,fontWeight:600}}>← Back to employees</button>
+      <Card style={{marginBottom:14}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div>
+            <div style={{fontSize:20,fontWeight:800,color:'#1a1a2e'}}>{emp.name}</div>
+            <div style={{fontSize:13,color:'#64748b',marginTop:2}}>{emp.role||'—'}</div>
+            {emp.phone&&<div style={{fontSize:12,color:'#94a3b8',marginTop:4}}>📞 {emp.phone}</div>}
+            {emp.join_date&&<div style={{fontSize:12,color:'#94a3b8',marginTop:2}}>Joined: {fmtD(emp.join_date)}</div>}
+          </div>
+          <button onClick={()=>setEditEmp({...emp})} style={{padding:'6px 12px',background:'#eff6ff',border:'1.5px solid #bfdbfe',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:14}}>
+          <div style={{background:'#f8fafc',borderRadius:10,padding:'12px'}}><div style={{fontSize:10,color:'#64748b',fontWeight:700,textTransform:'uppercase'}}>Monthly Salary</div><div style={{fontSize:18,fontWeight:800,color:'#1a1a2e'}}>{fmt(emp.monthly_salary||0)}</div></div>
+          <div style={{background:paidThisMonth>=( emp.monthly_salary||0)&&emp.monthly_salary>0?'#f0fdf4':'#fffbeb',borderRadius:10,padding:'12px'}}><div style={{fontSize:10,color:'#64748b',fontWeight:700,textTransform:'uppercase'}}>Paid ({curMonth})</div><div style={{fontSize:18,fontWeight:800,color:paidThisMonth>0?'#15803d':'#92400e'}}>{fmt(paidThisMonth)}</div></div>
+        </div>
+      </Card>
+      
+      <div style={{display:'flex',gap:8,marginBottom:14}}>
+        <button onClick={()=>{setAttDate(todayStr());setView('attendance')}} style={{flex:1,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>📋 Mark Attendance</button>
+        <button onClick={()=>setPayForm({emp,month:curMonth,amount:String(emp.monthly_salary||''),paid_date:todayStr(),payment:'cash',notes:''})} style={{flex:1,padding:'11px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay Salary</button>
+      </div>
+      
+      <SecL>📊 Attendance — {attMonth}</SecL>
+      <input type="month" value={attMonth} onChange={e=>setAttMonth(e.target.value)} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,marginBottom:10,outline:'none',boxSizing:'border-box'}}/>
+      <Card style={{marginBottom:14}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+          {Object.entries(ATT_STATUS).map(([k,s])=>(<div key={k} style={{textAlign:'center',padding:'10px 4px',background:s.bg,borderRadius:10}}><div style={{fontSize:22,fontWeight:900,color:s.c}}>{attCounts[k]}</div><div style={{fontSize:10,color:s.c,fontWeight:700}}>{s.l}</div></div>))}
+        </div>
+        <div style={{fontSize:11,color:'#94a3b8',textAlign:'center',marginTop:10}}>Total marked: {empAtt.length} days</div>
+      </Card>
+      
+      <SecL>💰 Salary History</SecL>
+      {empSals.length===0?<div style={{textAlign:'center',padding:'20px 0',color:'#ccc',fontSize:13}}>No salary payments yet</div>:
+      <Card>
+        {empSals.map(s=>(<div key={s.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f1f5f9'}}>
+          <div><div style={{fontSize:13,fontWeight:700,color:'#1a1a2e'}}>{s.month}</div><div style={{fontSize:11,color:'#94a3b8'}}>Paid {fmtD(s.paid_date)} · {s.payment}{s.notes?' · '+s.notes:''}</div></div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:15,fontWeight:800,color:'#15803d'}}>{fmt(s.amount)}</span>
+            <button onClick={()=>{if(window.confirm('Delete this salary payment record?\n\nNote: This does NOT delete the linked expense entry.'))actions.deleteSalaryPayment(s.id)}} style={{padding:'3px 8px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,fontSize:10,color:'#dc2626',cursor:'pointer',fontWeight:600}}>✕</button>
+          </div>
+        </div>))}
+      </Card>}
+      
+      {/* Edit employee modal */}
+      {editEmp&&<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+        <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Edit Employee</div>
+          <FInp label="Name" value={editEmp.name} onChange={e=>setEditEmp({...editEmp,name:e.target.value})}/>
+          <FSel label="Role" value={editEmp.role||''} onChange={e=>setEditEmp({...editEmp,role:e.target.value})}><option value="">- Select -</option>{ROLES.map(r=><option key={r} value={r}>{r}</option>)}</FSel>
+          <FInp label="Phone" value={editEmp.phone||''} onChange={e=>setEditEmp({...editEmp,phone:e.target.value})}/>
+          <FInp label="Monthly Salary (Rs)" type="number" value={editEmp.monthly_salary||''} onChange={e=>setEditEmp({...editEmp,monthly_salary:e.target.value})}/>
+          <FInp label="Join Date" type="date" value={editEmp.join_date||''} onChange={e=>setEditEmp({...editEmp,join_date:e.target.value})}/>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,cursor:'pointer',margin:'10px 0'}}><input type="checkbox" checked={editEmp.active!==false} onChange={e=>setEditEmp({...editEmp,active:e.target.checked})} style={{width:18,height:18}}/>Active employee</label>
+          <div style={{display:'flex',gap:8,marginTop:8}}>
+            <button onClick={()=>setEditEmp(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+            <button onClick={saveEdit} style={{flex:2,padding:'11px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save</button>
+          </div>
+        </div>
+      </div>}
+      
+      {/* Pay salary modal */}
+      {payForm&&<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+        <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>💰 Pay Salary — {payForm.emp.name}</div>
+          <div style={{fontSize:11,color:'#94a3b8',marginBottom:14}}>This creates a salary record AND a matching expense entry.</div>
+          <FInp label="Month (YYYY-MM)" type="month" value={payForm.month} onChange={e=>setPayForm({...payForm,month:e.target.value})}/>
+          <FInp label="Amount (Rs)" type="number" value={payForm.amount} onChange={e=>setPayForm({...payForm,amount:e.target.value})}/>
+          <FInp label="Paid date" type="date" value={payForm.paid_date} onChange={e=>setPayForm({...payForm,paid_date:e.target.value})}/>
+          <FSel label="Payment mode" value={payForm.payment} onChange={e=>setPayForm({...payForm,payment:e.target.value})}>{['cash','upi','bank','card'].map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
+          <FInp label="Notes (optional)" value={payForm.notes} onChange={e=>setPayForm({...payForm,notes:e.target.value})}/>
+          <div style={{display:'flex',gap:8,marginTop:14}}>
+            <button onClick={()=>setPayForm(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+            <button onClick={async()=>{const amt=parseFloat(payForm.amount);if(!amt||amt<=0){alert('Enter amount');return}const ok=await actions.paySalary(payForm.emp,payForm.month,amt,payForm.paid_date,payForm.payment,payForm.notes);if(ok!==false){alert('✅ Salary paid + expense recorded');setPayForm(null)}}} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Pay & Record</button>
+          </div>
+        </div>
+      </div>}
+    </div>)
+  }
+  
+  // LIST VIEW (default)
+  const curMonth=todayStr().slice(0,7)
+  const totalSalary=emps.reduce((a,e)=>a+(e.monthly_salary||0),0)
+  const paidThisMonth=sals.filter(s=>s.month===curMonth).reduce((a,s)=>a+s.amount,0)
+  return(<div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+      <SecL>👥 Employees ({emps.length})</SecL>
+      <button onClick={()=>setShowAdd(true)} style={{padding:'7px 14px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>+ Add</button>
+    </div>
+    
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+      <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:12,padding:'14px'}}><div style={{fontSize:10,color:'#1d4ed8',fontWeight:700,textTransform:'uppercase'}}>Monthly Payroll</div><div style={{fontSize:20,fontWeight:800,color:'#1d4ed8'}}>{fmt(totalSalary)}</div></div>
+      <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Paid ({curMonth})</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(paidThisMonth)}</div></div>
+    </div>
+    
+    <button onClick={()=>{setAttDate(todayStr());setView('attendance')}} style={{width:'100%',padding:'12px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:12,fontSize:14,fontWeight:800,cursor:'pointer',marginBottom:14}}>📋 Mark Today's Attendance</button>
+    
+    {emps.length===0&&<div style={{textAlign:'center',padding:'32px 0',color:'#ccc',fontSize:14}}>No employees yet. Tap "+ Add" to start.</div>}
+    {emps.map(emp=>{
+      const paidM=sals.filter(s=>s.employee_id===emp.id&&s.month===curMonth).reduce((a,s)=>a+s.amount,0)
+      const todayAtt=att.find(a=>a.employee_id===emp.id&&a.date===todayStr())
+      const ATT_C={present:'#16a34a',absent:'#dc2626',half:'#d97706',leave:'#7c3aed'}
+      return(<Card key={emp.id} style={{marginBottom:8}}>
+        <div onClick={()=>{setSelEmp(emp.id);setView('detail')}} style={{cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:15,fontWeight:700,color:'#1d4ed8',textDecoration:'underline'}}>{emp.name}</div>
+            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{emp.role||'—'}{emp.monthly_salary?' · '+fmt(emp.monthly_salary)+'/mo':''}</div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            {todayAtt&&<div style={{fontSize:10,fontWeight:700,color:ATT_C[todayAtt.status]||'#94a3b8',marginBottom:2}}>● {todayAtt.status}</div>}
+            <div style={{fontSize:12,fontWeight:700,color:paidM>0?'#15803d':'#94a3b8'}}>{paidM>0?fmt(paidM)+' paid':'unpaid'}</div>
+          </div>
+        </div>
+      </Card>)
+    })}
+    
+    {inactiveEmps.length>0&&<><SecL>Inactive ({inactiveEmps.length})</SecL>
+    {inactiveEmps.map(emp=>(<Card key={emp.id} style={{marginBottom:6,opacity:.6}}><div onClick={()=>{setSelEmp(emp.id);setView('detail')}} style={{cursor:'pointer',fontSize:14,fontWeight:600,color:'#64748b'}}>{emp.name} <span style={{fontSize:11}}>({emp.role})</span></div></Card>))}</>}
+    
+    {/* Add employee modal */}
+    {showAdd&&<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+      <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>+ Add Employee</div>
+        <FInp label="Name *" value={addF.name} onChange={e=>setAddF({...addF,name:e.target.value})}/>
+        <FSel label="Role" value={addF.role} onChange={e=>setAddF({...addF,role:e.target.value})}><option value="">- Select -</option>{ROLES.map(r=><option key={r} value={r}>{r}</option>)}</FSel>
+        <FInp label="Phone" value={addF.phone} onChange={e=>setAddF({...addF,phone:e.target.value})}/>
+        <FInp label="Monthly Salary (Rs)" type="number" value={addF.monthly_salary} onChange={e=>setAddF({...addF,monthly_salary:e.target.value})}/>
+        <FInp label="Join Date" type="date" value={addF.join_date} onChange={e=>setAddF({...addF,join_date:e.target.value})}/>
+        <div style={{display:'flex',gap:8,marginTop:14}}>
+          <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+          <button onClick={saveAdd} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Employee</button>
+        </div>
+      </div>
+    </div>}
+  </div>)
+}
+
 const ConsultantsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
