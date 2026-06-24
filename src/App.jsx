@@ -5581,7 +5581,7 @@ export default function App(){
       setProfile(prof)
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
-      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[]})
+      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[],hospital:hosp})
       setLoading(false)
       if(!tabInitialized){
         if(prof?.role==='admin'||prof?.role==='management')setTab('rep');else setTab('entry')
@@ -5807,7 +5807,7 @@ export default function App(){
         </div>
       </div>
       <div className="app-main-content" style={{padding:'16px 16px 80px',minHeight:'50vh'}}>
-        {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
+        {tab==='dash'&&(canSeeReports?<AnalyticsDash db={db} actions={actions}/>:<div style={{textAlign:'center',padding:'40px 0',color:'#94a3b8',fontSize:13}}>Dashboard available for Admin and Management only</div>)}
         <div style={{display:tab==='entry'?'block':'none'}}><EntryTab db={db} actions={actions} eDate={eDate} setEDate={setEDate} itype={itype} setItype={setItype} iF={iF} setIF={setIF} profile={profile} canSeeReports={canSeeReports}/></div>
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} canSeeReports={canSeeReports} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
         {tab==='op'&&canSeeReports&&<OPTab db={db} actions={actions} canSeeReports={canSeeReports} hospital={hospital} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
@@ -5928,6 +5928,74 @@ const EmployeesTab=({db,actions})=>{
   const sals=db.salary_payments||[]
   
   const ROLES=['Nurse','Doctor','Receptionist','Pharmacist','Lab Technician','Cleaner','Ward Boy','Security','Accountant','Manager','Other']
+  const hospital=db.hospital||{}
+  const genSalarySlip=(emp,month,paidAmount,paidDate,paymentMode,notes)=>{
+    const ded=computeSalaryDeduction(emp,month,db.attendance||[])
+    const monthAtt=(db.attendance||[]).filter(a=>a.employee_id===emp.id&&a.date&&a.date.startsWith(month))
+    const counts={present:0,absent:0,half:0,leave:0}
+    monthAtt.forEach(a=>{if(counts[a.status]!=null)counts[a.status]++})
+    const hospName=((hospital&&hospital.name)||'OM HOSPITAL').toUpperCase()
+    const hospCity=(hospital&&hospital.city)||''
+    const hospPhone=hospital&&hospital.phone?'  Ph: '+hospital.phone:''
+    const monthLabel=new Date(month+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+    const base=emp.monthly_salary||0
+    const html='<!DOCTYPE html><html><head><title>Salary Slip - '+emp.name+' - '+month+'</title><meta charset="utf-8"/>'
+      +'<style>*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}'
+      +'body{background:#fff;padding:36px;color:#0f172a;font-size:14px;line-height:1.45;max-width:760px;margin:0 auto}'
+      +'@media print{body{padding:18px;max-width:none}.no-print{display:none!important}}'
+      +'</style></head><body>'
+      // Letterhead
+      +'<div style="text-align:center;border-bottom:4px double #1a1a2e;padding-bottom:22px;margin-bottom:26px">'
+      +'<div style="font-size:36px;font-weight:900;color:#1a1a2e;letter-spacing:3px;margin-bottom:6px">'+hospName+'</div>'
+      +'<div style="font-size:14px;color:#64748b;letter-spacing:2px;font-weight:700">MULTI-SPECIALITY MEDICAL CENTRE</div>'
+      +'<div style="height:4px;background:linear-gradient(90deg,#c9a84c,#f0d068,#c9a84c);margin:12px auto;width:60%;border-radius:2px"></div>'
+      +'<div style="font-size:13px;color:#64748b;margin-top:8px;font-weight:600">'+hospCity+hospPhone+'</div>'
+      +'</div>'
+      // Title banner
+      +'<div style="background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:20px 28px;border-radius:14px;margin-bottom:24px;text-align:center">'
+      +'<div style="font-size:24px;color:#c9a84c;letter-spacing:2px;font-weight:900">SALARY SLIP</div>'
+      +'<div style="font-size:14px;color:#cbd5e1;font-weight:600;margin-top:4px">'+monthLabel+'</div>'
+      +'</div>'
+      // Employee info
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:22px">'
+      +'<div style="background:#eff6ff;border:2px solid #3b82f6;padding:16px 20px;border-radius:12px"><div style="font-size:11px;color:#1d4ed8;font-weight:900;text-transform:uppercase;letter-spacing:1.5px">Employee</div><div style="font-size:20px;font-weight:900;color:#1a1a2e;margin-top:6px">'+emp.name+'</div><div style="font-size:13px;color:#64748b;margin-top:2px">'+(emp.role||'')+'</div></div>'
+      +'<div style="background:#f0fdf4;border:2px solid #16a34a;padding:16px 20px;border-radius:12px"><div style="font-size:11px;color:#15803d;font-weight:900;text-transform:uppercase;letter-spacing:1.5px">Paid On</div><div style="font-size:16px;font-weight:900;color:#1a1a2e;margin-top:6px">'+new Date(paidDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div><div style="font-size:12px;color:#64748b;margin-top:2px;text-transform:capitalize">'+(paymentMode||'cash')+'</div></div>'
+      +'</div>'
+      // Attendance summary
+      +'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin-bottom:18px">'
+      +'<div style="font-size:12px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Attendance — '+monthLabel+'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center">'
+      +'<div><div style="font-size:22px;font-weight:900;color:#16a34a">'+counts.present+'</div><div style="font-size:10px;color:#64748b;font-weight:700">PRESENT</div></div>'
+      +'<div><div style="font-size:22px;font-weight:900;color:#dc2626">'+counts.absent+'</div><div style="font-size:10px;color:#64748b;font-weight:700">ABSENT</div></div>'
+      +'<div><div style="font-size:22px;font-weight:900;color:#d97706">'+counts.half+'</div><div style="font-size:10px;color:#64748b;font-weight:700">HALF DAY</div></div>'
+      +'<div><div style="font-size:22px;font-weight:900;color:#7c3aed">'+counts.leave+'</div><div style="font-size:10px;color:#64748b;font-weight:700">LEAVE</div></div>'
+      +'</div></div>'
+      // Earnings/Deductions table
+      +'<div style="border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:20px">'
+      +'<table style="width:100%;border-collapse:collapse;font-size:14px">'
+      +'<tr style="background:#1a1a2e;color:#fff"><td style="padding:12px 18px;font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:12px">Description</td><td style="padding:12px 18px;text-align:right;font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:12px">Amount</td></tr>'
+      +'<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:12px 18px;color:#1a1a2e;font-weight:600">Basic Monthly Salary</td><td style="padding:12px 18px;text-align:right;font-weight:700;color:#16a34a">Rs '+base.toLocaleString('en-IN')+'</td></tr>'
+      +(ded.excess>0?'<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:12px 18px;color:#dc2626">Leave Deduction <span style="font-size:11px;color:#94a3b8">('+ded.excess+' day'+(ded.excess!==1?'s':'')+' over 2 free · Rs '+ded.perDay+'/day)</span></td><td style="padding:12px 18px;text-align:right;font-weight:700;color:#dc2626">− Rs '+ded.deduction.toLocaleString('en-IN')+'</td></tr>':'<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:12px 18px;color:#16a34a">Leave Deduction <span style="font-size:11px;color:#94a3b8">(within 2-day allowance)</span></td><td style="padding:12px 18px;text-align:right;font-weight:700;color:#16a34a">Rs 0</td></tr>')
+      +(paidAmount!=ded.payable?'<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:12px 18px;color:#64748b;font-style:italic">Manual adjustment</td><td style="padding:12px 18px;text-align:right;font-weight:700;color:#64748b">Rs '+(paidAmount-ded.payable).toLocaleString('en-IN')+'</td></tr>':'')
+      +'</table></div>'
+      // Net pay hero
+      +'<div style="background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:3px solid #16a34a;border-radius:16px;padding:26px;margin-bottom:24px;text-align:center;box-shadow:0 8px 24px rgba(22,163,74,.18)">'
+      +'<div style="font-size:13px;color:#15803d;font-weight:900;text-transform:uppercase;letter-spacing:3px;margin-bottom:8px">★ NET SALARY PAID ★</div>'
+      +'<div style="font-size:52px;font-weight:900;color:#15803d;line-height:1">Rs '+Number(paidAmount).toLocaleString('en-IN')+'</div>'
+      +'</div>'
+      +(notes?'<div style="background:#fffbeb;border:2px solid #fde68a;border-radius:12px;padding:14px 20px;margin-bottom:20px"><div style="font-size:11px;color:#a16207;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Notes</div><div style="color:#451a03;font-size:14px">'+notes+'</div></div>':'')
+      // Signatures
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:60px">'
+      +'<div style="text-align:center"><div style="height:40px"></div><div style="border-top:2px solid #1a1a2e;padding-top:8px;font-size:12px;color:#64748b;font-weight:700">Employee Signature<br/><span style="color:#1a1a2e;font-weight:900;font-size:14px">'+emp.name+'</span></div></div>'
+      +'<div style="text-align:center"><div style="height:40px"></div><div style="border-top:2px solid #1a1a2e;padding-top:8px;font-size:12px;color:#64748b;font-weight:700">Authorised Signatory<br/><span style="color:#1a1a2e;font-weight:900;font-size:14px">'+((hospital&&hospital.name)||'Om Hospital')+'</span></div></div>'
+      +'</div>'
+      +'<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;font-size:11px;color:#94a3b8">Computer-generated salary slip · '+new Date().toLocaleString('en-IN')+'</div>'
+      +'<div class="no-print" style="text-align:center;margin-top:32px"><button onclick="window.print()" style="padding:16px 50px;background:#16a34a;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(22,163,74,.35)">Print / Save as PDF</button></div>'
+      +'</body></html>'
+    const w=window.open('','_blank','width=900,height=1200')
+    if(!w){alert('Please allow popups to view the salary slip');return}
+    w.document.write(html);w.document.close()
+  }
   const ATT_STATUS={present:{l:'Present',c:'#16a34a',bg:'#f0fdf4'},absent:{l:'Absent',c:'#dc2626',bg:'#fef2f2'},half:{l:'Half day',c:'#d97706',bg:'#fffbeb'},leave:{l:'Leave',c:'#7c3aed',bg:'#f5f3ff'}}
   
   const saveAdd=async()=>{
@@ -6014,8 +6082,9 @@ const EmployeesTab=({db,actions})=>{
       <Card>
         {empSals.map(s=>(<div key={s.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f1f5f9'}}>
           <div><div style={{fontSize:13,fontWeight:700,color:'#1a1a2e'}}>{s.month}</div><div style={{fontSize:11,color:'#94a3b8'}}>Paid {fmtD(s.paid_date)} · {s.payment}{s.notes?' · '+s.notes:''}</div></div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
             <span style={{fontSize:15,fontWeight:800,color:'#15803d'}}>{fmt(s.amount)}</span>
+            <button onClick={()=>genSalarySlip(emp,s.month,s.amount,s.paid_date,s.payment,s.notes)} style={{padding:'3px 10px',background:'#1a1a2e',border:'none',borderRadius:6,fontSize:10,color:'#c9a84c',cursor:'pointer',fontWeight:700}}>📄 Slip</button>
             <button onClick={()=>{if(window.confirm('Delete this salary payment record?\n\nNote: This does NOT delete the linked expense entry.'))actions.deleteSalaryPayment(s.id)}} style={{padding:'3px 8px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,fontSize:10,color:'#dc2626',cursor:'pointer',fontWeight:600}}>✕</button>
           </div>
         </div>))}
@@ -6063,7 +6132,7 @@ const EmployeesTab=({db,actions})=>{
           <FInp label="Notes (optional)" value={payForm.notes} onChange={e=>setPayForm({...payForm,notes:e.target.value})}/>
           <div style={{display:'flex',gap:8,marginTop:14}}>
             <button onClick={()=>setPayForm(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
-            <button onClick={async()=>{const amt=parseFloat(payForm.amount);if(!amt||amt<=0){alert('Enter amount');return}const ok=await actions.paySalary(payForm.emp,payForm.month,amt,payForm.paid_date,payForm.payment,payForm.notes);if(ok!==false){alert('✅ Salary paid + expense recorded');setPayForm(null)}}} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Pay & Record</button>
+            <button onClick={async()=>{const amt=parseFloat(payForm.amount);if(!amt||amt<=0){alert('Enter amount');return}const ok=await actions.paySalary(payForm.emp,payForm.month,amt,payForm.paid_date,payForm.payment,payForm.notes);if(ok!==false){const pf=payForm;setPayForm(null);if(window.confirm('✅ Salary paid + expense recorded.\n\nGenerate salary slip now?'))genSalarySlip(pf.emp,pf.month,amt,pf.paid_date,pf.payment,pf.notes)}}} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Pay & Record</button>
           </div>
         </div>
       </div>}
@@ -6459,7 +6528,38 @@ const SmartReminders=({db})=>{
 }
 
 /*  ANALYTICS DASHBOARD  */
-const AnalyticsDash=({db})=>{
+const QuickAttendance=({db,actions})=>{
+  const [collapsed,setCollapsed]=useState(false)
+  const today=todayStr()
+  const emps=(db.employees||[]).filter(e=>e.active!==false)
+  const att=db.attendance||[]
+  if(emps.length===0)return null
+  const dayAtt={};att.filter(a=>a.date===today).forEach(a=>{dayAtt[a.employee_id]=a.status})
+  const markedCount=Object.keys(dayAtt).length
+  const ATT={present:{l:'P',c:'#16a34a',bg:'#dcfce7'},absent:{l:'A',c:'#dc2626',bg:'#fee2e2'},half:{l:'½',c:'#d97706',bg:'#fef3c7'},leave:{l:'L',c:'#7c3aed',bg:'#ede9fe'}}
+  return(<div style={{background:'#fff',border:'2px solid #e0e7ff',borderRadius:16,padding:'14px 16px',marginBottom:14}}>
+    <div onClick={()=>setCollapsed(!collapsed)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',marginBottom:collapsed?0:12}}>
+      <div style={{fontSize:14,fontWeight:800,color:'#1a1a2e'}}>📋 Today's Attendance <span style={{fontSize:11,fontWeight:600,color:markedCount===emps.length?'#16a34a':'#f59e0b',marginLeft:6}}>{markedCount}/{emps.length} marked</span></div>
+      <span style={{fontSize:13,color:'#94a3b8'}}>{collapsed?'▶':'▼'}</span>
+    </div>
+    {!collapsed&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
+      {emps.map(emp=>{
+        const cur=dayAtt[emp.id]
+        return(<div key={emp.id} style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{flex:1,minWidth:0,fontSize:13,fontWeight:600,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{emp.name}<span style={{fontSize:10,color:'#94a3b8',fontWeight:500,marginLeft:4}}>{emp.role}</span></div>
+          <div style={{display:'flex',gap:4}}>
+            {Object.entries(ATT).map(([k,s])=>(
+              <button key={k} onClick={()=>actions.markAttendance(emp.id,today,k)} title={k} style={{width:34,height:34,borderRadius:8,border:cur===k?'2px solid '+s.c:'1.5px solid #e5e7eb',background:cur===k?s.bg:'#fff',color:cur===k?s.c:'#cbd5e1',fontSize:13,fontWeight:800,cursor:'pointer',padding:0}}>{s.l}</button>
+            ))}
+          </div>
+        </div>)
+      })}
+      <div style={{fontSize:10,color:'#94a3b8',textAlign:'center',marginTop:2}}>P=Present · A=Absent · ½=Half day · L=Leave</div>
+    </div>}
+  </div>)
+}
+
+const AnalyticsDash=({db,actions})=>{
   const today=todayStr()
   const thisMonth=today.slice(0,7)
   const lastMonth=(()=>{const d=new Date(today);d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7)})()
@@ -6531,6 +6631,7 @@ const AnalyticsDash=({db})=>{
   return(
     <div>
       <SmartReminders db={db}/>
+      <QuickAttendance db={db} actions={actions}/>
             {/* TODAY STRIP */}
       <div style={{background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)',borderRadius:16,padding:'16px',marginBottom:14,color:'#fff'}}>
         <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:10}}>Today  {new Date(today+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
