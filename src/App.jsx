@@ -6015,10 +6015,11 @@ const EmployeesTab=({db,actions})=>{
     return(<div>
       <button onClick={()=>setView('list')} style={{color:'#3b82f6',fontSize:14,background:'none',border:'none',cursor:'pointer',marginBottom:12,fontWeight:600}}>← Back to employees</button>
       <SecL>📋 Daily Attendance</SecL>
-      <div style={{display:'flex',gap:8,marginBottom:14}}>
+      <div style={{display:'flex',gap:8,marginBottom:10}}>
         <input type="date" value={attDate} onChange={e=>setAttDate(e.target.value)} style={{flex:1,padding:'9px 12px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,outline:'none'}}/>
         <GBtn onClick={()=>setAttDate(todayStr())}>Today</GBtn>
       </div>
+      {emps.length>0&&<button onClick={async()=>{for(const emp of emps){if(dayAtt[emp.id]!=='present')await actions.markAttendance(emp.id,attDate,'present')}}} style={{width:'100%',padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer',marginBottom:14}}>✓ Mark all Present ({emps.length})</button>}
       {emps.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#ccc',fontSize:13}}>No active employees. Add some first.</div>}
       {emps.map(emp=>{
         const cur=dayAtt[emp.id]
@@ -6543,6 +6544,7 @@ const QuickAttendance=({db,actions})=>{
       <span style={{fontSize:13,color:'#94a3b8'}}>{collapsed?'▶':'▼'}</span>
     </div>
     {!collapsed&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <button onClick={async()=>{for(const emp of emps){if(dayAtt[emp.id]!=='present')await actions.markAttendance(emp.id,today,'present')}}} style={{padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:800,cursor:'pointer',marginBottom:2}}>✓ Mark all Present ({emps.length})</button>
       {emps.map(emp=>{
         const cur=dayAtt[emp.id]
         return(<div key={emp.id} style={{display:'flex',alignItems:'center',gap:8}}>
