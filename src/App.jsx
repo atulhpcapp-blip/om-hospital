@@ -20,6 +20,23 @@ const PLANS=[{key:'trial',label:'Trial (7 days)',price:0},{key:'starter',label:'
 const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@easymedicalsolutions.in`
 
 const todayStr=()=>new Date().toISOString().split('T')[0]
+const daysInMonth=(ym)=>{const [y,m]=ym.split('-').map(Number);return new Date(y,m,0).getDate()}
+const computeSalaryDeduction=(emp,month,attList)=>{
+  // leave + absent both count toward allowance; half = 0.5
+  const monthAtt=attList.filter(a=>a.employee_id===emp.id&&a.date&&a.date.startsWith(month))
+  let leaveUnits=0
+  monthAtt.forEach(a=>{
+    if(a.status==='leave'||a.status==='absent')leaveUnits+=1
+    else if(a.status==='half')leaveUnits+=0.5
+  })
+  const ALLOWANCE=2
+  const excess=Math.max(0,leaveUnits-ALLOWANCE)
+  const dim=daysInMonth(month)
+  const perDay=(emp.monthly_salary||0)/dim
+  const deduction=Math.round(excess*perDay)
+  const payable=Math.max(0,(emp.monthly_salary||0)-deduction)
+  return{leaveUnits,excess,perDay:Math.round(perDay),deduction,payable,daysInMonth:dim,allowance:ALLOWANCE}
+}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6)
 const genRegNo=async()=>{try{const {data}=await supabase.rpc('next_reg_no');return data||('REG'+Date.now().toString().slice(-5))}catch(e){return 'REG'+Date.now().toString().slice(-5)}}
 const fmt=n=>'Rs '+(Math.round(n)||0).toLocaleString('en-IN')
@@ -5979,7 +5996,7 @@ const EmployeesTab=({db,actions})=>{
       
       <div style={{display:'flex',gap:8,marginBottom:14}}>
         <button onClick={()=>{setAttDate(todayStr());setView('attendance')}} style={{flex:1,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>📋 Mark Attendance</button>
-        <button onClick={()=>setPayForm({emp,month:curMonth,amount:String(emp.monthly_salary||''),paid_date:todayStr(),payment:'cash',notes:''})} style={{flex:1,padding:'11px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay Salary</button>
+        <button onClick={()=>{const ded=computeSalaryDeduction(emp,curMonth,att);setPayForm({emp,month:curMonth,amount:String(ded.payable),paid_date:todayStr(),payment:'cash',notes:''})}} style={{flex:1,padding:'11px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay Salary</button>
       </div>
       
       <SecL>📊 Attendance — {attMonth}</SecL>
@@ -5989,6 +6006,7 @@ const EmployeesTab=({db,actions})=>{
           {Object.entries(ATT_STATUS).map(([k,s])=>(<div key={k} style={{textAlign:'center',padding:'10px 4px',background:s.bg,borderRadius:10}}><div style={{fontSize:22,fontWeight:900,color:s.c}}>{attCounts[k]}</div><div style={{fontSize:10,color:s.c,fontWeight:700}}>{s.l}</div></div>))}
         </div>
         <div style={{fontSize:11,color:'#94a3b8',textAlign:'center',marginTop:10}}>Total marked: {empAtt.length} days</div>
+        {(()=>{const ded=computeSalaryDeduction(emp,attMonth,att);if(ded.leaveUnits===0)return null;return(<div style={{marginTop:8,padding:'8px 12px',background:ded.deduction>0?'#fffbeb':'#f0fdf4',borderRadius:8,fontSize:11,textAlign:'center',color:ded.deduction>0?'#92400e':'#15803d',fontWeight:600}}>{ded.leaveUnits} leave/absent · {ded.excess>0?'Deduction: '+fmt(ded.deduction)+' ('+ded.excess+' over allowance)':'Within 2-day free allowance'}</div>)})()}
       </Card>
       
       <SecL>💰 Salary History</SecL>
@@ -6025,8 +6043,21 @@ const EmployeesTab=({db,actions})=>{
         <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
           <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>💰 Pay Salary — {payForm.emp.name}</div>
           <div style={{fontSize:11,color:'#94a3b8',marginBottom:14}}>This creates a salary record AND a matching expense entry.</div>
-          <FInp label="Month (YYYY-MM)" type="month" value={payForm.month} onChange={e=>setPayForm({...payForm,month:e.target.value})}/>
-          <FInp label="Amount (Rs)" type="number" value={payForm.amount} onChange={e=>setPayForm({...payForm,amount:e.target.value})}/>
+          <FInp label="Month (YYYY-MM)" type="month" value={payForm.month} onChange={e=>{const ded=computeSalaryDeduction(payForm.emp,e.target.value,att);setPayForm({...payForm,month:e.target.value,amount:String(ded.payable)})}}/>
+          {(()=>{
+            const ded=computeSalaryDeduction(payForm.emp,payForm.month,att)
+            return(<div style={{background:ded.deduction>0?'#fffbeb':'#f0fdf4',border:'1px solid '+(ded.deduction>0?'#fde68a':'#bbf7d0'),borderRadius:10,padding:'12px 14px',marginBottom:12,fontSize:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{color:'#475569'}}>Base salary</span><span style={{fontWeight:700,color:'#1a1a2e'}}>{fmt(payForm.emp.monthly_salary||0)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4,color:'#64748b'}}><span>Leave/absent taken</span><span>{ded.leaveUnits} {ded.leaveUnits===1?'day':'days'} (2 free)</span></div>
+              {ded.excess>0?<>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:4,color:'#64748b'}}><span>Excess (deductible)</span><span>{ded.excess} {ded.excess===1?'day':'days'} × {fmt(ded.perDay)}/day</span></div>
+                <div style={{display:'flex',justifyContent:'space-between',paddingTop:6,borderTop:'1px dashed '+(ded.deduction>0?'#fde68a':'#bbf7d0'),color:'#dc2626',fontWeight:700}}><span>Deduction</span><span>−{fmt(ded.deduction)}</span></div>
+                <div style={{display:'flex',justifyContent:'space-between',marginTop:4,fontWeight:800,fontSize:13}}><span style={{color:'#15803d'}}>Suggested payable</span><span style={{color:'#15803d'}}>{fmt(ded.payable)}</span></div>
+              </>:<div style={{display:'flex',justifyContent:'space-between',paddingTop:6,borderTop:'1px dashed #bbf7d0',color:'#15803d',fontWeight:700}}><span>✓ Within 2-day allowance</span><span>No deduction</span></div>}
+              <div style={{fontSize:10,color:'#94a3b8',marginTop:6,fontStyle:'italic'}}>Per-day = salary ÷ {ded.daysInMonth} days. You can override the amount below.</div>
+            </div>)
+          })()}
+          <FInp label="Amount to pay (Rs) — editable" type="number" value={payForm.amount} onChange={e=>setPayForm({...payForm,amount:e.target.value})}/>
           <FInp label="Paid date" type="date" value={payForm.paid_date} onChange={e=>setPayForm({...payForm,paid_date:e.target.value})}/>
           <FSel label="Payment mode" value={payForm.payment} onChange={e=>setPayForm({...payForm,payment:e.target.value})}>{['cash','upi','bank','card'].map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</FSel>
           <FInp label="Notes (optional)" value={payForm.notes} onChange={e=>setPayForm({...payForm,notes:e.target.value})}/>
