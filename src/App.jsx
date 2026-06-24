@@ -2386,33 +2386,148 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
 }
 
 /*  EXPENSES REPORT  */
-const ExpensesReport=({db})=>{
+const ExpensesReport=({db,actions})=>{
   const [per,setPer]=useState('month')
   const [rm2,setRm2]=useState(todayStr().slice(0,7))
   const [ry2,setRy2]=useState(todayStr().slice(0,4))
   const [from,setFrom]=useState(todayStr().slice(0,7)+'-01')
   const [to,setTo]=useState(todayStr())
+  const [expandCat,setExpandCat]=useState(null)
+  const [showAdd,setShowAdd]=useState(false)
+  const [editExp,setEditExp]=useState(null)
+  const [addF,setAddF]=useState({date:todayStr(),cat:'supplies',amt:'',desc:'',pay:'cash'})
   const yrs=[...new Set(db.expenses.map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry2))yrs.unshift(ry2)
-  const expList=(per==='month'?db.expenses.filter(e=>e.date?.startsWith(rm2)):per==='year'?db.expenses.filter(e=>e.date?.startsWith(ry2)):db.expenses.filter(e=>e.date>=from&&e.date<=to)).filter(e=>e.category!=='ref_paid')
+  const allExp=db.expenses.filter(e=>e.category!=='ref_paid')
+  const expList=(per==='month'?allExp.filter(e=>e.date?.startsWith(rm2)):per==='year'?allExp.filter(e=>e.date?.startsWith(ry2)):allExp.filter(e=>e.date>=from&&e.date<=to))
   const total=expList.reduce((a,e)=>a+e.amount,0)
   const byCat={};expList.forEach(e=>{if(!byCat[e.category])byCat[e.category]=0;byCat[e.category]+=e.amount})
   const sorted=Object.entries(byCat).sort((a,b)=>b[1]-a[1])
+  
+  // Month-over-month comparison (only in month view)
+  const prevMonth=(()=>{const d=new Date(rm2+'-01');d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7)})()
+  const prevExpList=allExp.filter(e=>e.date?.startsWith(prevMonth))
+  const prevTotal=prevExpList.reduce((a,e)=>a+e.amount,0)
+  const momChange=prevTotal>0?((total-prevTotal)/prevTotal*100):0
+  
+  // Category trend over last 6 months
+  const last6=(()=>{const arr=[];const base=new Date(rm2+'-01');for(let i=5;i>=0;i--){const d=new Date(base);d.setMonth(d.getMonth()-i);arr.push(d.toISOString().slice(0,7))}return arr})()
+  const trendData=last6.map(m=>{const mExp=allExp.filter(e=>e.date?.startsWith(m));return{month:m,total:mExp.reduce((a,e)=>a+e.amount,0)}})
+  const maxTrend=Math.max(1,...trendData.map(t=>t.total))
+  
+  const saveAdd=async()=>{
+    const amt=parseFloat(addF.amt);if(!amt||amt<=0){alert('Enter amount');return}
+    await actions.addExpense({id:uid(),date:addF.date,category:addF.cat,amount:amt,description:addF.desc,payment:addF.pay,is_monthly:false})
+    setAddF({date:todayStr(),cat:'supplies',amt:'',desc:'',pay:'cash'});setShowAdd(false)
+  }
+  const saveEdit=async()=>{
+    const amt=parseFloat(editExp.amount);if(!amt||amt<=0){alert('Enter amount');return}
+    await actions.updateExpense(editExp.id,{date:editExp.date,category:editExp.category,amount:amt,description:editExp.description})
+    setEditExp(null)
+  }
+  const delExp=async(id)=>{if(window.confirm('Delete this expense?'))await actions.delExpense(id)}
+  
   return(<>
-    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
-      {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        {[{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}].map(v=>(<button key={v.k} onClick={()=>setPer(v.k)} style={{padding:'6px 14px',borderRadius:20,border:per===v.k?'none':'1px solid #e5e7eb',background:per===v.k?'#111':'none',color:per===v.k?'#fff':'#888',fontSize:12,fontWeight:600,cursor:'pointer'}}>{v.l}</button>))}
+      </div>
+      <button onClick={()=>setShowAdd(true)} style={{padding:'7px 14px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>+ Add Expense</button>
     </div>
     {per==='month'&&<input style={{...S.inp,marginBottom:12}} type="month" value={rm2} onChange={e=>setRm2(e.target.value)}/>}
     {per==='year'&&<select style={{...S.sel,marginBottom:12}} value={ry2} onChange={e=>setRy2(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select>}
     {per==='custom'&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}><FInp label="From" type="date" value={from} onChange={e=>setFrom(e.target.value)}/><FInp label="To" type="date" value={to} onChange={e=>setTo(e.target.value)}/></div>}
-    <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:14,padding:'16px',marginBottom:14}}><div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total expenses</div><div style={{fontSize:32,fontWeight:800,color:'#dc2626'}}>{fmt(total)}</div><div style={{fontSize:11,color:'#aaa',marginTop:4}}>{expList.length} entries</div></div>
-    <SecL>By category</SecL>
+    
+    <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:14,padding:'16px',marginBottom:14}}>
+      <div style={{fontSize:11,color:'#dc2626',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total expenses</div>
+      <div style={{fontSize:32,fontWeight:800,color:'#dc2626'}}>{fmt(total)}</div>
+      <div style={{fontSize:11,color:'#aaa',marginTop:4}}>{expList.length} entries</div>
+      {per==='month'&&prevTotal>0&&<div style={{marginTop:8,paddingTop:8,borderTop:'1px dashed #fecaca',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{fontSize:12,color:'#92400e'}}>vs last month ({fmt(prevTotal)})</span>
+        <span style={{fontSize:13,fontWeight:800,color:momChange>0?'#dc2626':'#16a34a'}}>{momChange>0?'▲':'▼'} {Math.abs(momChange).toFixed(1)}%</span>
+      </div>}
+    </div>
+    
+    {/* 6-MONTH TREND */}
+    {per==='month'&&<><SecL>📈 6-month trend</SecL>
+    <Card style={{marginBottom:14}}>
+      <div style={{display:'flex',alignItems:'flex-end',gap:6,height:120,marginBottom:8}}>
+        {trendData.map((t,i)=>{const h=t.total/maxTrend*100;const isCur=t.month===rm2;return(
+          <div key={t.month} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+            <div style={{fontSize:9,color:'#64748b',fontWeight:700}}>{t.total>=1000?(t.total/1000).toFixed(0)+'k':t.total}</div>
+            <div style={{width:'100%',height:h+'%',minHeight:2,background:isCur?'#dc2626':'#fca5a5',borderRadius:'4px 4px 0 0'}}/>
+            <div style={{fontSize:9,color:isCur?'#dc2626':'#94a3b8',fontWeight:isCur?800:500}}>{t.month.slice(5)}</div>
+          </div>
+        )})}
+      </div>
+    </Card></>}
+    
+    <SecL>By category (tap to expand)</SecL>
     <Card>
       {sorted.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#ccc',fontSize:13}}>No expenses</div>}
-      {sorted.map(([cat,amt])=>{const c=ECATS.find(x=>x.key===cat);const pct=total>0?Math.round(amt/total*100):0;return(<div key={cat} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}><span style={{fontSize:13,fontWeight:500}}>{c?.label||cat}</span><span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(amt)}</span></div><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:6,background:'#f0f0f0',borderRadius:3}}><div style={{width:pct+'%',height:6,background:'#ef4444',borderRadius:3,opacity:0.7}}/></div><span style={{fontSize:10,color:'#aaa',minWidth:28}}>{pct}%</span></div></div>)})}
+      {sorted.map(([cat,amt])=>{
+        const cInfo=ECATS.find(x=>x.key===cat);const pct=total>0?Math.round(amt/total*100):0
+        const catEntries=expList.filter(e=>e.category===cat).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+        const isExp=expandCat===cat
+        return(<div key={cat} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
+          <div onClick={()=>setExpandCat(isExp?null:cat)} style={{cursor:'pointer'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+              <span style={{fontSize:13,fontWeight:600}}>{isExp?'▼':'▶'} {cInfo?.label||cat}{cInfo?.segment==='lab'?' 🧪':''}</span>
+              <span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(amt)}</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{flex:1,height:6,background:'#f0f0f0',borderRadius:3}}><div style={{width:pct+'%',height:6,background:'#ef4444',borderRadius:3,opacity:0.7}}/></div><span style={{fontSize:10,color:'#aaa',minWidth:28}}>{pct}%</span></div>
+          </div>
+          {isExp&&<div style={{marginTop:8,paddingLeft:12,borderLeft:'2px solid #fecaca'}}>
+            {catEntries.map(e=>(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px dotted #f1f5f9'}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,color:'#1a1a2e'}}>{e.description||'(no description)'}</div>
+                <div style={{fontSize:10,color:'#94a3b8'}}>{fmtD(e.date)}{e.payment?' · '+e.payment:''}</div>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(e.amount)}</span>
+                <button onClick={()=>setEditExp({...e})} style={{padding:'3px 8px',background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:6,fontSize:10,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
+                <button onClick={()=>delExp(e.id)} style={{padding:'3px 8px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,fontSize:10,color:'#dc2626',cursor:'pointer',fontWeight:600}}>✕</button>
+              </div>
+            </div>))}
+          </div>}
+        </div>)
+      })}
       {total>0&&<div style={{display:'flex',justifyContent:'space-between',paddingTop:10,marginTop:4,borderTop:'2px solid #f0f0f0',fontSize:14,fontWeight:700}}><span>Total</span><span style={{color:'#ef4444'}}>{fmt(total)}</span></div>}
     </Card>
-    <HBarChart title="Expenses by category" data={sorted.slice(0,8).map(([cat,amt])=>{const c=ECATS.find(x=>x.key===cat);return{label:(c?.label||cat).split(' ').slice(0,2).join(' '),value:amt,color:'#ef4444',fmt:fmt(amt)}})}/>
+    
+    {/* ADD EXPENSE MODAL */}
+    {showAdd&&<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+      <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>+ Add Expense</div>
+        <FInp label="Date" type="date" value={addF.date} onChange={e=>setAddF({...addF,date:e.target.value})}/>
+        <FSel label="Category" value={addF.cat} onChange={e=>setAddF({...addF,cat:e.target.value})}>
+          {ECATS.filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
+        </FSel>
+        <FInp label="Description (e.g. employee name for salary)" value={addF.desc} onChange={e=>setAddF({...addF,desc:e.target.value})}/>
+        <FInp label="Amount (Rs)" type="number" value={addF.amt} onChange={e=>setAddF({...addF,amt:e.target.value})}/>
+        <div style={{display:'flex',gap:8,marginTop:14}}>
+          <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+          <button onClick={saveAdd} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add Expense</button>
+        </div>
+      </div>
+    </div>}
+    
+    {/* EDIT EXPENSE MODAL */}
+    {editExp&&<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.6)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:14}}>
+      <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
+        <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Edit Expense</div>
+        <FInp label="Date" type="date" value={editExp.date} onChange={e=>setEditExp({...editExp,date:e.target.value})}/>
+        <FSel label="Category" value={editExp.category} onChange={e=>setEditExp({...editExp,category:e.target.value})}>
+          {ECATS.filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
+        </FSel>
+        <FInp label="Description" value={editExp.description||''} onChange={e=>setEditExp({...editExp,description:e.target.value})}/>
+        <FInp label="Amount (Rs)" type="number" value={editExp.amount} onChange={e=>setEditExp({...editExp,amount:e.target.value})}/>
+        <div style={{display:'flex',gap:8,marginTop:14}}>
+          <button onClick={()=>setEditExp(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+          <button onClick={saveEdit} style={{flex:2,padding:'11px',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer'}}>Save Changes</button>
+        </div>
+      </div>
+    </div>}
   </>)
 }
 
@@ -5107,7 +5222,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
       {rv==='timeline'&&(timelineSelPid?<PatientTimeline db={db} pid={timelineSelPid} onBack={()=>{setTimelineSelPid('');setTimelineSearch('')}}/>:
           <TimelinePatientList db={db} onSelect={pid=>setTimelineSelPid(pid)} search={timelineSearch} setSearch={setTimelineSearch}/>
         )}
-      {rv==='expenses'&&<ExpensesReport db={db}/>}
+      {rv==='expenses'&&<ExpensesReport db={db} actions={actions}/>}
       {rv==='realincome'&&<RealIncomeReport db={db}/>}
       {rv==='area'&&<AreaReport db={db} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs}/>}
       {rv==='insurance'&&<InsuranceReport db={db} actions={actions}/>}
