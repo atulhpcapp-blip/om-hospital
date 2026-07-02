@@ -371,6 +371,7 @@ const SettingsPanel=()=>{
 
 /*  SUPER ADMIN PREVIEW APP  */
 const PreviewApp=({db,hospital,onExit})=>{
+  const canSeeReports=true
   if(!db||!hospital)return null
   const [tab,setTab]=useState('rep')
   const [rv,setRv]=useState('daily')
@@ -399,7 +400,7 @@ const PreviewApp=({db,hospital,onExit})=>{
       </div>
       <div style={{padding:'16px'}}>
         {tab==='dash'&&<AnalyticsDash db={db}/>}
-        {tab==='rep'&&canSeeReports&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
+        {tab==='rep'&&canSeeReports&&<RepTab canSeeReports={canSeeReports} db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
         {tab==='ip'&&<div style={{display:'block'}}><IPTab db={db} actions={fakeActions} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={{name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''}} setPF={()=>{}} cF={{}} setCF={()=>{}} pyF={{}} setPyF={()=>{}} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={()=>alert('Read-only preview')}/></div>}
         {tab==='op'&&canSeeReports&&<OPTab db={db} actions={fakeActions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
       </div>
@@ -5263,7 +5264,7 @@ const ProfitReport=({db})=>{
   </div>)
 }
 
-const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hospital})=>{
+const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hospital,canSeeReports})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
   const [timelineSearch,setTimelineSearch]=useState('')
@@ -5812,7 +5813,7 @@ export default function App(){
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} canSeeReports={canSeeReports} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
         {tab==='op'&&canSeeReports&&<OPTab db={db} actions={actions} canSeeReports={canSeeReports} hospital={hospital} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
-        {tab==='rep'&&<RepTab db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions} hospital={hospital}/>}
+        {tab==='rep'&&<RepTab canSeeReports={canSeeReports} db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions} hospital={hospital}/>}
         {tab==='ins'&&<InsuranceMainTab db={db} setDb={setDb} hospital={hospital} gotoIP={(id)=>{setTab('ip');setTimeout(()=>gotoIP(id),100)}}/>}
         {tab==='credit'&&canSeeReports&&<CreditTab canSeeReports={canSeeReports} db={db} actions={actions}/>}
         {tab==='refdrs'&&canSeeReports&&<RefDoctorsTab db={db} actions={actions}/>}
