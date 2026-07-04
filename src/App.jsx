@@ -2220,7 +2220,7 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
                 setExF({...exF,cat:key,_customCats:[...(exF._customCats||[]),{key,label:name.trim(),segment:isLab?'lab':'clinical'}]})
               }else{setExF({...exF,cat:v})}
             }}>
-              {ECATS.filter(c=>c.segment!=='skip').map(c=><option key={c.key} value={c.key}>{c.segment==='lab'?'🧪 ':''}{c.label}</option>)}
+              {ECATS.filter(c=>c.key!=='ref_paid').map(c=><option key={c.key} value={c.key}>{c.segment==='lab'?'🧪 ':''}{c.label}</option>)}
               {(exF._customCats||[]).map(c=><option key={c.key} value={c.key}>{c.segment==='lab'?'🧪 ':''}{c.label} (custom)</option>)}
               <option disabled>──────────</option>
               <option value="__add__">+ Add new category…</option>
@@ -2228,7 +2228,11 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
           </div>
           <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={exF.amt} onChange={e=>setExF({...exF,amt:e.target.value})}/>
         </div>
-        <FInp label="Description" type="text" placeholder="Details" value={exF.desc} onChange={e=>setExF({...exF,desc:e.target.value})}/>
+        {exF.cat==='consultant_fee'&&<FSel label="Consultant (name goes into description)" value={exF.desc} onChange={e=>setExF({...exF,desc:e.target.value})}>
+          <option value="">- Select consultant -</option>
+          {db.consultants.map(cn=><option key={cn.id} value={'Dr. '+cn.name}>Dr. {cn.name}</option>)}
+        </FSel>}
+        <FInp label={exF.cat==='consultant_fee'?'Description (consultant name + details)':'Description'} type="text" placeholder={exF.cat==='consultant_fee'?'Dr. name — visit details':'Details'} value={exF.desc} onChange={e=>setExF({...exF,desc:e.target.value})}/>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,alignItems:'center'}}>
           <FSel label="Payment" value={exF.pay} onChange={e=>setExF({...exF,pay:e.target.value})}>
             {PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}
@@ -2587,8 +2591,12 @@ const ExpensesReport=({db,actions})=>{
         <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>+ Add Expense</div>
         <FInp label="Date" type="date" value={addF.date} onChange={e=>setAddF({...addF,date:e.target.value})}/>
         <FSel label="Category" value={addF.cat} onChange={e=>setAddF({...addF,cat:e.target.value})}>
-          {ECATS.filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
+          {ECATS.filter(x=>x.key!=='ref_paid').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
         </FSel>
+        {addF.cat==='consultant_fee'&&<FSel label="Consultant (name goes into description)" value={addF.desc} onChange={e=>setAddF({...addF,desc:e.target.value})}>
+          <option value="">- Select consultant -</option>
+          {db.consultants.map(cn=><option key={cn.id} value={'Dr. '+cn.name}>Dr. {cn.name}</option>)}
+        </FSel>}
         <FInp label="Description (e.g. employee name for salary)" value={addF.desc} onChange={e=>setAddF({...addF,desc:e.target.value})}/>
         <FInp label="Amount (Rs)" type="number" value={addF.amt} onChange={e=>setAddF({...addF,amt:e.target.value})}/>
         <div style={{display:'flex',gap:8,marginTop:14}}>
