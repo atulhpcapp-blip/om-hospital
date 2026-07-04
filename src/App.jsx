@@ -1123,6 +1123,7 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
   const [type,setType]=useState(entry.type)
   const [vcConsultant,setVcConsultant]=useState(entry.consultant_name||'')
   const [vcFee,setVcFee]=useState(entry.consultant_fee!=null?String(entry.consultant_fee):'')
+  const [opConsFee,setOpConsFee]=useState('')
   const [busy,setBusy]=useState(false)
   const isOP=type==='op'
   const isVC=type==='vc'
@@ -1144,7 +1145,7 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
         if(!ref.trim()&&ipPat.ref_doctor){setRef(ipPat.ref_doctor)}
       }
     }
-    await onSave({...entry,type,amount:amt,patient_id:linkedPatientId,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:'',consultant_fee:isVC?parseFloat(vcFee||0):entry.consultant_fee})
+    await onSave({...entry,type,amount:amt,patient_id:linkedPatientId,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:entry.consultant_name,consultant_fee:isVC?parseFloat(vcFee||0):(opConsFee!==''?parseFloat(opConsFee||0):entry.consultant_fee)})
     setBusy(false)
   }
   return(
@@ -1184,12 +1185,16 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
           <FInp label="Consultant fee paid (Rs)" type="number" inputMode="numeric" value={vcFee} onChange={e=>setVcFee(e.target.value)} placeholder="0"/>
           {vcFee&&parseFloat(vcFee)>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#15803d'}}>Hospital profit: {fmt(parseFloat(amount||0)-parseFloat(vcFee||0))}</div>}
         </>}
-        {showRefField&&<FSel label="Referring doctor" value={ref} onChange={e=>{const sel=(db?.ref_doctors||[]).find(d=>d.name===e.target.value);const pctKey={op_r:'op_r_pct',op_l:'op_l_pct',op:'op_pct',ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[type]||'op_pct';const pct=sel?sel[pctKey]:null;setRef(e.target.value);if(pct!=null&&custComm==='')setCustComm(String(pct))}}>
+        {showRefField&&<FSel label="Referring doctor" value={ref} onChange={e=>{const sel=(db?.ref_doctors||[]).find(d=>d.name===e.target.value);const pctKey={op_r:'op_r_pct',op_l:'op_l_pct',op:'op_pct',opd:'op_pct',op_p:'op_p_pct',op_dm:'op_r_pct',ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct'}[type]||'op_pct';const pct=sel?sel[pctKey]:null;setRef(e.target.value);if(pct!=null&&custComm==='')setCustComm(String(pct))}}>
           <option value="">- No referral / Self -</option>
           {(db?.ref_doctors||[]).map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
         </FSel>}
         {showRefField&&ref.trim()!==''&&<FInp label={`Commission % (default ${defaultCommPct}%)`} type="number" inputMode="numeric" value={custComm} onChange={e=>setCustComm(e.target.value)} placeholder={String(defaultCommPct)}/>}
         {canSeeReports&&comm>0&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}>Commission to Dr. {ref}: {fmt(comm)} ({commPct}%)</div>}
+      {type==='op'&&entry.consultant_name&&<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8}}>
+        <div style={{fontSize:11,fontWeight:700,color:'#7e22ce',marginBottom:6}}>Consultant: Dr. {entry.consultant_name} — current fee: {fmt(entry.consultant_fee||0)}</div>
+        <FInp label="Correct consultant fee (Rs) — leave blank to keep current" type="number" value={opConsFee} onChange={e=>setOpConsFee(e.target.value)}/>
+      </div>}
         <FInp label="Notes (optional)" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
         <PBtn onClick={go} disabled={busy} style={{marginTop:8}}>{busy?'Saving...':'Save changes'}</PBtn>
         <button onClick={onCancel} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
@@ -1334,7 +1339,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
                 {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name}</option>)}
               </FSel>
               {iF.consultant_name&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
-              {canSeeReports&&(<><FSel label="Referring doctor (optional)" value={iF.ref} onChange={e=>{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pct=sel?sel.op_pct:null;setIF({...iF,ref:e.target.value,custom_commission:pct!=null?String(pct):''})}}>
+              {canSeeReports&&(<><FSel label="Referring doctor (optional)" value={iF.ref} onChange={e=>{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pk={op:'op_pct',opd:'op_pct',op_p:'op_p_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[itype]||'op_pct';const pct=sel?sel[pk]:null;setIF({...iF,ref:e.target.value,custom_commission:pct!=null?String(pct):''})}}>
                 <option value="">- No referral / Self patient -</option>
                 {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
               </FSel>
@@ -2031,7 +2036,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
                     const doc=db.ref_doctors.find(d=>d.name===newRef)
                     let updated=0
                     for(const e of targetEnts){
-                      const pctKey={op:'op_pct',opd:'op_pct',op_p:'op_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[e.type]
+                      const pctKey={op:'op_pct',opd:'op_pct',op_p:'op_p_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[e.type]
                       const newCC=doc&&pctKey&&doc[pctKey]!=null?doc[pctKey]:null
                       const ok=await actions.editIncome({...e,ref_doctor:newRef,custom_commission:newCC})
                       if(ok!==false)updated++
@@ -5848,10 +5853,10 @@ const RefDoctorsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
-  const blank={name:'',phone:'',area:'',ip_pct:40,ip_r_pct:40,ip_l_pct:50,op_r_pct:0,op_l_pct:0}
+  const blank={name:'',phone:'',area:'',ip_pct:40,ip_r_pct:40,ip_l_pct:50,op_pct:0,op_r_pct:0,op_l_pct:0,op_p_pct:0}
   const [form,setForm]=useState(blank)
   const ipCats=[{key:'ip_pct',label:'IP Charges',color:'#16a34a'},{key:'ip_r_pct',label:'IP Pharmacy',color:'#b45309'},{key:'ip_l_pct',label:'IP Lab',color:'#9d174d'}]
-  const opCats=[{key:'op_r_pct',label:'OP Pharmacy',color:'#c2410c'},{key:'op_l_pct',label:'OP Lab',color:'#7e22ce'}]
+  const opCats=[{key:'op_pct',label:'OP Consultation',color:'#1d4ed8'},{key:'op_p_pct',label:'OP Procedure',color:'#0f766e'},{key:'op_r_pct',label:'OP Pharmacy',color:'#c2410c'},{key:'op_l_pct',label:'OP Lab',color:'#7e22ce'}]
   const save=async()=>{
     if(!form.name.trim()){alert('Doctor name required');return}
     setBusy(true)
@@ -5863,7 +5868,7 @@ const RefDoctorsTab=({db,actions})=>{
     }
     setForm(blank);setShowAdd(false);setBusy(false)
   }
-  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',area:d.area||'',ip_pct:d.ip_pct,ip_r_pct:d.ip_r_pct,ip_l_pct:d.ip_l_pct,op_r_pct:d.op_r_pct,op_l_pct:d.op_l_pct});setEditId(d.id);setShowAdd(true)}
+  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',area:d.area||'',ip_pct:d.ip_pct??40,ip_r_pct:d.ip_r_pct??40,ip_l_pct:d.ip_l_pct??50,op_pct:d.op_pct??0,op_r_pct:d.op_r_pct??0,op_l_pct:d.op_l_pct??0,op_p_pct:d.op_p_pct??0});setEditId(d.id);setShowAdd(true)}
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add referral doctor</PBtn>}
     {showAdd&&<Card style={{border:'2px solid #e5e7eb'}}>
@@ -5884,7 +5889,7 @@ const RefDoctorsTab=({db,actions})=>{
           </div>
         </div>))}
       </div>
-      <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>OP lab & pharmacy commission %</div>
+      <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>OP commission % per category</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
         {opCats.map(c=>(<div key={c.key}>
           <label style={{display:'block',fontSize:10,color:c.color,fontWeight:700,textTransform:'uppercase',marginBottom:4}}>{c.label}</label>
@@ -6223,9 +6228,12 @@ const ConsultantsTab=({db,actions})=>{
   const [form,setForm]=useState(blank)
   const save=async()=>{
     if(!form.name.trim()){alert('Consultant name required');return}
+    const pct=parseFloat(form.fee_share_pct)||0
+    if(pct>100){alert('Fee share % cannot exceed 100.\n\nYou entered '+pct+' — this looks like a rupee amount, not a percentage.\nE.g. if the doctor gets half the fee, enter 50.');return}
+    const safeForm={...form,fee_share_pct:pct}
     setBusy(true)
-    if(editId){await actions.updateConsultant(editId,form);setEditId(null)}
-    else{await actions.addConsultant(form)}
+    if(editId){await actions.updateConsultant(editId,safeForm);setEditId(null)}
+    else{await actions.addConsultant(safeForm)}
     setForm(blank);setShowAdd(false);setBusy(false)
   }
   const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0});setEditId(d.id);setShowAdd(true)}
