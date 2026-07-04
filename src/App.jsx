@@ -4437,6 +4437,8 @@ const SegmentPL=({incList,expList})=>{
       const credit=sInc.filter(e=>e.payment==='credit').reduce((a,e)=>a+(e.amount||0),0)
       const comm=sInc.reduce((a,e)=>a+getComm(e),0)
       const cons=sInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
+      const incByType={};sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off').forEach(e=>{if(!incByType[e.type])incByType[e.type]=0;incByType[e.type]+=e.amount||0})
+      const incSplit=Object.entries(incByType).map(([t,amt])=>({t,label:(ITYPES.find(x=>x.key===t)||{}).full||t,amt})).filter(s=>s.amt>0).sort((a,b)=>b.amt-a.amt)
       const commByDoc={};sInc.forEach(e=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){if(!commByDoc[e.ref_doctor])commByDoc[e.ref_doctor]=0;commByDoc[e.ref_doctor]+=cm}})
       const commSplit=Object.entries(commByDoc).map(([n,amt])=>({name:n,amt:Math.round(amt)})).sort((a,b)=>b.amt-a.amt)
       const consByName={};sInc.forEach(e=>{if((e.consultant_fee||0)>0){const n=e.consultant_name||'(unnamed)';if(!consByName[n])consByName[n]=0;consByName[n]+=e.consultant_fee||0}})
@@ -4447,7 +4449,7 @@ const SegmentPL=({incList,expList})=>{
       const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt})).sort((a,b)=>b.amt-a.amt)
       const net=billed-comm-cons-expTotal
       const margin=billed>0?(net/billed*100):0
-      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,net,margin,count:sInc.length}
+      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,net,margin,count:sInc.length}
     }
     const clinical=calcSeg('clinical')
     const lab=calcSeg('lab')
@@ -4463,6 +4465,7 @@ const SegmentPL=({incList,expList})=>{
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
         <tbody>
           <tr><td style={{padding:'4px 0',color:'#475569'}}>Income (billed)</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>{fmt(d.billed)}</td></tr>
+          {(d.incSplit||[]).map(s=>(<tr key={s.t} style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0',color:'#16a34a'}}>{fmt(s.amt)}</td></tr>))}
           {d.credit>0&&<tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>}
           <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
           {(d.expSplit||[]).map(s=>(<tr key={s.cat} style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>))}
