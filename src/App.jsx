@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'op_p',label:'OP-P',full:'OP Procedures'},{key:'op_dm',label:'OP-DM',full:'OP Discharge Medicine'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
-const ECATS=[{key:'ref_paid',label:'Referral commission paid',segment:'skip'},{key:'consultant_fee',label:'Consultant fee paid',segment:'skip'},{key:'lab_to_lab',label:'Lab to lab expenses',segment:'lab'},{key:'lab_grbs',label:'GRBS strips',segment:'lab'},{key:'lab_ecg',label:'ECG strips/rolls',segment:'lab'},{key:'lab_reagents',label:'Lab reagents & kits',segment:'lab'},{key:'lab_consumables',label:'Lab consumables',segment:'lab'},{key:'rent',label:'Hospital rent',segment:'clinical'},{key:'electricity',label:'Electricity',segment:'clinical'},{key:'water',label:'Water',segment:'clinical'},{key:'salary',label:'Staff salary',segment:'clinical'},{key:'supplies',label:'Medical supplies',segment:'clinical'},{key:'municipality',label:'Municipality',segment:'clinical'},{key:'biomedical_bags',label:'Biomedical waste bags',segment:'clinical'},{key:'stationary',label:'Stationary',segment:'clinical'},{key:'washroom_cleaner',label:'Washroom cleaner',segment:'clinical'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)',segment:'clinical'},{key:'misc',label:'Miscellaneous',segment:'clinical'}]
+const ECATS=[{key:'ref_paid',label:'Referral commission paid',segment:'skip'},{key:'consultant_fee',label:'Consultant fee (OP Consult)',segment:'skip'},{key:'consultant_proc_comm',label:'Consultant commission (OP Procedure)',segment:'skip'},{key:'lab_to_lab',label:'Lab to lab expenses',segment:'lab'},{key:'lab_grbs',label:'GRBS strips',segment:'lab'},{key:'lab_ecg',label:'ECG strips/rolls',segment:'lab'},{key:'lab_reagents',label:'Lab reagents & kits',segment:'lab'},{key:'lab_consumables',label:'Lab consumables',segment:'lab'},{key:'rent',label:'Hospital rent',segment:'clinical'},{key:'electricity',label:'Electricity',segment:'clinical'},{key:'water',label:'Water',segment:'clinical'},{key:'salary',label:'Staff salary',segment:'clinical'},{key:'supplies',label:'Medical supplies',segment:'clinical'},{key:'municipality',label:'Municipality',segment:'clinical'},{key:'biomedical_bags',label:'Biomedical waste bags',segment:'clinical'},{key:'stationary',label:'Stationary',segment:'clinical'},{key:'washroom_cleaner',label:'Washroom cleaner',segment:'clinical'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)',segment:'clinical'},{key:'misc',label:'Miscellaneous',segment:'clinical'}]
 const LAB_INCOME_TYPES=new Set(['op_l','ip_l'])
 const expenseSegment=(catKey)=>{const found=ECATS.find(c=>c.key===catKey);if(found)return found.segment;if(catKey&&/lab|grbs|ecg|strip|reagent|kit/i.test(catKey))return 'lab';return 'clinical'}
 const incomeSegment=(type)=>LAB_INCOME_TYPES.has(type)?'lab':'clinical'
@@ -1976,9 +1976,10 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
     const byType={};ents.forEach(e=>{if(!byType[e.type])byType[e.type]={inc:0,comm:0};byType[e.type].inc+=e.amount;byType[e.type].comm+=getComm(e)})
     const refDocs={};ents.forEach(e=>{const doc=e.ref_doctor;if(!doc||!doc.trim())return;if(!refDocs[doc])refDocs[doc]={name:doc,income:0,commission:0};refDocs[doc].income+=e.amount;refDocs[doc].commission+=getComm(e)})
     const refs=Object.values(refDocs)
-    const consMap={};ents.forEach(e=>{const cn=e.consultant_name;const cf=e.consultant_fee||0;if(!cn||!cn.trim()||cf<=0)return;if(!consMap[cn])consMap[cn]={name:cn,income:0,fee:0};consMap[cn].income+=e.amount;consMap[cn].fee+=cf})
+    const consMap={};ents.forEach(e=>{const cn=e.consultant_name;const cf=e.consultant_fee||0;if(!cn||!cn.trim()||cf<=0)return;if(!consMap[cn])consMap[cn]={name:cn,income:0,fee:0,consultFee:0,procComm:0};consMap[cn].income+=e.amount;consMap[cn].fee+=cf;if(e.type==='op_p')consMap[cn].procComm+=cf;else consMap[cn].consultFee+=cf})
     const consList=Object.values(consMap)
     const consPaid=db.expenses.filter(e=>e.category==='consultant_fee')
+    const procPaid=db.expenses.filter(e=>e.category==='consultant_proc_comm')
     return(
       <div>
         {fromReport&&<button onClick={()=>{setFromReport(false);setOpPrevTab&&setOpPrevTab(null);setTab&&setTab('rep');setSelPat(null)}} style={{color:'#16a34a',fontSize:13,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,cursor:'pointer',marginBottom:8,display:'block',padding:'6px 14px',fontWeight:600}}>Back to Daily Report</button>}
@@ -2067,7 +2068,28 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(totalInc)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totalComm>0?'-'+fmt(totalComm):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(totalInc-totalComm)}</span></div>
         </Card>
         {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{balance>0&&(!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}</Card>)})}</>)}
-        {consList.length>0&&canSeeReports&&(<><SecL>Consultant commission</SecL>{consList.map(cn=>{const paid=consPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0);const balance=cn.fee-paid;const isOpen=payDoc==='CONS:'+cn.name;return(<Card key={cn.name} style={{border:balance>0?'1px solid #d8b4fe':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {cn.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(cn.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#7e22ce',fontWeight:600}}>Consultant fee</div><div style={{fontSize:20,fontWeight:700,color:'#7e22ce'}}>{fmt(cn.fee)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#7e22ce'}}>{fmt(cn.fee)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{balance>0&&(!isOpen?<button onClick={()=>setPayDoc('CONS:'+cn.name)} style={{width:'100%',padding:'10px',background:'#7e22ce',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record consultant payment</button>:<CommPayForm docName={cn.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'consultant_fee',amount:amt,description:'Dr. '+cn.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}</Card>)})}</>)}
+        {consList.length>0&&canSeeReports&&(<><SecL>Consultants</SecL>{consList.map(cn=>{
+        const cfPaid=consPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const pcPaid=procPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const cfBal=cn.consultFee-cfPaid,pcBal=cn.procComm-pcPaid
+        const SubRow=({label,earned,paid,bal,cat,payKey,color})=>{const isOpen=payDoc===payKey;return(<div style={{padding:'10px 0',borderTop:'1px solid #f5f5f5'}}>
+          <div style={{fontSize:11,fontWeight:800,color,textTransform:'uppercase',letterSpacing:'.3px',marginBottom:6}}>{label}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:8}}>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color}}>{fmt(earned)}</div></div>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
+            <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:bal>0?'#ef4444':'#16a34a'}}>{fmt(bal)}</div></div>
+          </div>
+          {bal>0&&(!isOpen?<button onClick={()=>setPayDoc(payKey)} style={{width:'100%',padding:'9px',background:color,color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Record payment</button>:<CommPayForm docName={cn.name} balance={bal} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:cat,amount:amt,description:'Dr. '+cn.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)}
+          {bal<=0&&<div style={{textAlign:'center',fontSize:11,color:'#16a34a',fontWeight:600}}>Fully paid</div>}
+        </div>)}
+        return(<Card key={cn.name} style={{border:(cfBal>0||pcBal>0)?'1px solid #d8b4fe':'1px solid #f0f0f0'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+            <div><div style={{fontSize:15,fontWeight:700}}>Dr. {cn.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(cn.income)}</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#7e22ce',fontWeight:600}}>Total owed</div><div style={{fontSize:20,fontWeight:700,color:'#7e22ce'}}>{fmt(cn.fee)}</div></div>
+          </div>
+          {cn.consultFee>0&&<SubRow label="Consultation fee" earned={cn.consultFee} paid={cfPaid} bal={cfBal} cat="consultant_fee" payKey={'CONSF:'+cn.name} color="#7e22ce"/>}
+          {cn.procComm>0&&<SubRow label="OP Procedure commission" earned={cn.procComm} paid={pcPaid} bal={pcBal} cat="consultant_proc_comm" payKey={'CONSP:'+cn.name} color="#0f766e"/>}
+        </Card>)})}</>)}
         <SecL>All visits (OP + IP)</SecL>
         {(()=>{
           const patName=(selPat||'').trim().toLowerCase()
@@ -2239,11 +2261,11 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
           </div>
           <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={exF.amt} onChange={e=>setExF({...exF,amt:e.target.value})}/>
         </div>
-        {exF.cat==='consultant_fee'&&<FSel label="Consultant (name goes into description)" value={exF.desc} onChange={e=>setExF({...exF,desc:e.target.value})}>
+        {(exF.cat==='consultant_fee'||exF.cat==='consultant_proc_comm')&&<FSel label="Consultant (name goes into description)" value={exF.desc} onChange={e=>setExF({...exF,desc:e.target.value})}>
           <option value="">- Select consultant -</option>
           {db.consultants.map(cn=><option key={cn.id} value={'Dr. '+cn.name}>Dr. {cn.name}</option>)}
         </FSel>}
-        <FInp label={exF.cat==='consultant_fee'?'Description (consultant name + details)':'Description'} type="text" placeholder={exF.cat==='consultant_fee'?'Dr. name — visit details':'Details'} value={exF.desc} onChange={e=>setExF({...exF,desc:e.target.value})}/>
+        <FInp label={(exF.cat==='consultant_fee'||exF.cat==='consultant_proc_comm')?'Description (consultant name + details)':'Description'} type="text" placeholder={(exF.cat==='consultant_fee'||exF.cat==='consultant_proc_comm')?'Dr. name — visit details':'Details'} value={exF.desc} onChange={e=>setExF({...exF,desc:e.target.value})}/>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,alignItems:'center'}}>
           <FSel label="Payment" value={exF.pay} onChange={e=>setExF({...exF,pay:e.target.value})}>
             {PMODES.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}
@@ -2604,7 +2626,7 @@ const ExpensesReport=({db,actions})=>{
         <FSel label="Category" value={addF.cat} onChange={e=>setAddF({...addF,cat:e.target.value})}>
           {ECATS.filter(x=>x.key!=='ref_paid').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
         </FSel>
-        {addF.cat==='consultant_fee'&&<FSel label="Consultant (name goes into description)" value={addF.desc} onChange={e=>setAddF({...addF,desc:e.target.value})}>
+        {(addF.cat==='consultant_fee'||addF.cat==='consultant_proc_comm')&&<FSel label="Consultant (name goes into description)" value={addF.desc} onChange={e=>setAddF({...addF,desc:e.target.value})}>
           <option value="">- Select consultant -</option>
           {db.consultants.map(cn=><option key={cn.id} value={'Dr. '+cn.name}>Dr. {cn.name}</option>)}
         </FSel>}
@@ -2836,7 +2858,7 @@ const RealIncomeReport=({db})=>{
   const clinGross=clinInc.reduce((a,e)=>a+(e.amount||0),0)
   const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
   const clinCons=clinInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
-  const segClinExp=expList.filter(e=>e.category!=='consultant_fee'&&expenseSegment(e.category)!=='lab')
+  const segClinExp=expList.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)!=='lab')
   const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
   const clinActual=clinGross-clinComm-clinCons-clinExpTotal
   const clinExpCats={}
@@ -4364,7 +4386,7 @@ const SegmentPL=({incList,expList})=>{
       const commSplit=Object.entries(commByDoc).map(([n,amt])=>({name:n,amt:Math.round(amt)})).sort((a,b)=>b.amt-a.amt)
       const consByName={};sInc.forEach(e=>{if((e.consultant_fee||0)>0){const n=e.consultant_name||'(unnamed)';if(!consByName[n])consByName[n]=0;consByName[n]+=e.consultant_fee||0}})
       const consSplit=Object.entries(consByName).map(([n,amt])=>({name:n,amt:Math.round(amt)})).sort((a,b)=>b.amt-a.amt)
-      const sExp=expList.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&expenseSegment(e.category)===seg)
+      const sExp=expList.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
       const expByCat={};sExp.forEach(e=>{if(!expByCat[e.category])expByCat[e.category]=0;expByCat[e.category]+=e.amount||0})
       const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt})).sort((a,b)=>b.amt-a.amt)
@@ -6313,7 +6335,7 @@ const ConsultantsTab=({db,actions})=>{
         const fEnts=(db.income||[]).filter(e=>e.consultant_name===d.name&&(e.consultant_fee||0)>0)
         const earned=fEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
         if(earned<=0)return null
-        const paid=(db.expenses||[]).filter(e=>e.category==='consultant_fee'&&(e.description||'').toLowerCase().includes(d.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const paid=(db.expenses||[]).filter(e=>(e.category==='consultant_fee'||e.category==='consultant_proc_comm')&&(e.description||'').toLowerCase().includes(d.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
         const bal=earned-paid
         return(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginTop:8,padding:'8px 0',borderTop:'1px solid #f5f5f5'}}>
           <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Fees earned</div><div style={{fontSize:13,fontWeight:700,color:'#7e22ce'}}>{fmt(earned)}</div></div>
