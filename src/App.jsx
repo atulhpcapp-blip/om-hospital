@@ -5628,7 +5628,7 @@ export default function App(){
       }
       if(error){alert('Could not save: '+error.message);return false}
       // Always update local state optimistically (works even if RLS blocks select)
-      setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...safe}:e)}))
+      setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...updates}:e)}))
       return true
     },
     addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
@@ -5670,8 +5670,8 @@ export default function App(){
     addPayment:async(pid,payment)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=[...(p.payments||[]),payment];const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePayment:async(pid,payid)=>{const p=db.ip_patients.find(x=>x.id===pid);const np=(p.payments||[]).filter(py=>py.id!==payid);const {data}=await supabase.from('ip_patients').update({payments:np}).eq('id',pid).select();if(data)setDb(d=>({...d,ip_patients:d.ip_patients.map(x=>x.id===pid?data[0]:x)}))},
     deletePatient:async id=>{await supabase.from('income').delete().eq('patient_id',id);await supabase.from('ip_patients').delete().eq('id',id);setDb(d=>({...d,ip_patients:d.ip_patients.filter(p=>p.id!==id),income:d.income.filter(e=>e.patient_id!==id)}))},
-    addRefDoctor:async form=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('ref_doctors').insert([{...form,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return}if(data)setDb(d=>({...d,ref_doctors:[...d.ref_doctors,data[0]].sort((a,b)=>a.name.localeCompare(b.name))}))},
-    updateRefDoctor:async(id,form)=>{const {data,error}=await supabase.from('ref_doctors').update(form).eq('id',id).select();if(error){alert('Update failed: '+error.message);return}if(data)setDb(d=>({...d,ref_doctors:d.ref_doctors.map(r=>r.id===id?data[0]:r)}))},
+    addRefDoctor:async form=>{const hid=profile?.hospital_id;let {data,error}=await supabase.from('ref_doctors').insert([{...form,hospital_id:hid}]).select();if(error&&/column|schema/i.test(error.message)){const {op_pct,op_p_pct,...rest}=form;const r2=await supabase.from('ref_doctors').insert([{...rest,hospital_id:hid}]).select();data=r2.data;error=r2.error;if(!error)alert('Saved, but OP Consultation % / OP Procedure % were NOT saved.\n\nPlease run the add_op_procedure_pct.sql script in Supabase to enable these fields.')}if(error){alert('Save failed: '+error.message);return}if(data)setDb(d=>({...d,ref_doctors:[...d.ref_doctors,data[0]].sort((a,b)=>a.name.localeCompare(b.name))}))},
+    updateRefDoctor:async(id,form)=>{let {data,error}=await supabase.from('ref_doctors').update(form).eq('id',id).select();if(error&&/column|schema/i.test(error.message)){const {op_pct,op_p_pct,...rest}=form;const r2=await supabase.from('ref_doctors').update(rest).eq('id',id).select();data=r2.data;error=r2.error;if(!error)alert('Saved, but OP Consultation % / OP Procedure % were NOT saved.\n\nPlease run the add_op_procedure_pct.sql script in Supabase to enable these fields.')}if(error){alert('Update failed: '+error.message);return}if(data)setDb(d=>({...d,ref_doctors:d.ref_doctors.map(r=>r.id===id?{...r,...form,...data[0]}:r)}))},
     deleteRefDoctor:async id=>{await supabase.from('ref_doctors').delete().eq('id',id);setDb(d=>({...d,ref_doctors:d.ref_doctors.filter(r=>r.id!==id)}))},
     addConsultant:async form=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('consultants').insert([{...form,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return}if(data)setDb(d=>({...d,consultants:[...d.consultants,data[0]].sort((a,b)=>a.name.localeCompare(b.name))}))},
     updateConsultant:async(id,form)=>{const {data,error}=await supabase.from('consultants').update(form).eq('id',id).select();if(error){alert('Update failed: '+error.message);return}if(data)setDb(d=>({...d,consultants:d.consultants.map(r=>r.id===id?data[0]:r)}))},
@@ -5868,7 +5868,7 @@ const RefDoctorsTab=({db,actions})=>{
     }
     setForm(blank);setShowAdd(false);setBusy(false)
   }
-  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',area:d.area||'',ip_pct:d.ip_pct??40,ip_r_pct:d.ip_r_pct??40,ip_l_pct:d.ip_l_pct??50,op_pct:d.op_pct??0,op_r_pct:d.op_r_pct??0,op_l_pct:d.op_l_pct??0,op_p_pct:d.op_p_pct??0});setEditId(d.id);setShowAdd(true)}
+  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',area:d.area||'',ip_pct:d.ip_pct??40,ip_r_pct:d.ip_r_pct??40,ip_l_pct:d.ip_l_pct??50,op_pct:d.op_pct??0,op_r_pct:d.op_r_pct??0,op_l_pct:d.op_l_pct??0,op_p_pct:d.op_p_pct??0});setEditId(d.id);setShowAdd(true);setTimeout(()=>window.scrollTo({top:0,behavior:'smooth'}),50)}
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add referral doctor</PBtn>}
     {showAdd&&<Card style={{border:'2px solid #e5e7eb'}}>
@@ -5924,7 +5924,7 @@ const RefDoctorsTab=({db,actions})=>{
           <div style={{fontSize:15,fontWeight:800,color:d[c.key]>0?c.color:'#ccc'}}>{d[c.key]}%</div>
         </div>))}
       </div>
-      {(d.op_r_pct>0||d.op_l_pct>0)&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+      {(d.op_pct>0||d.op_p_pct>0||d.op_r_pct>0||d.op_l_pct>0)&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
         {opCats.map(c=>(<div key={c.key} style={{background:'#f9f9f9',borderRadius:8,padding:'6px 8px',textAlign:'center'}}>
           <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{c.label.replace(' Pharmacy','OP Pharm').replace(' Lab','OP Lab')}</div>
           <div style={{fontSize:15,fontWeight:800,color:d[c.key]>0?c.color:'#ccc'}}>{d[c.key]}%</div>
