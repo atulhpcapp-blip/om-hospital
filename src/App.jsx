@@ -4541,8 +4541,9 @@ const PatientBreakdown=({incList,db,gotoIP,gotoOP,title,compact})=>{
 const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,gotoIP,gotoTimeline,gotoOP})=>{
   const dI=db.income.filter(e=>e.date===rd)
   const dExpAll=db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid')
-  const dExpNonLab=dExpAll.filter(e=>e.category!=='lab_to_lab')
-  const dExpLab=dExpAll.filter(e=>e.category==='lab_to_lab')
+  const dExpPnL=dExpAll.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm')
+  const dExpNonLab=dExpPnL.filter(e=>expenseSegment(e.category)!=='lab')
+  const dExpLab=dExpPnL.filter(e=>expenseSegment(e.category)==='lab')
 
   const ipMap={}
   db.ip_patients.forEach(p=>{ipMap[p.id]=p})
@@ -4618,7 +4619,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const vcProfit=vcInc-vcConsFee  // hospital keeps gross minus consultant's share
   const oprInc=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+e.amount,0)
   const oprComm=dI.filter(e=>e.type==='op_r').reduce((a,e)=>a+getComm(e),0)
-  const ipEnts=dI.filter(e=>['ip','ip_r'].includes(e.type))
+  const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type))
   const ipInc=ipEnts.reduce((a,e)=>a+e.amount,0)
   const ipComm=ipEnts.reduce((a,e)=>a+getComm(e),0)
   const labInc=opLabEnts.reduce((a,e)=>a+e.amount,0)+ipLabEnts.reduce((a,e)=>a+e.amount,0)
@@ -4627,11 +4628,13 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labToLab=dExpLab.reduce((a,e)=>a+e.amount,0)
   const labActual=labInc-labComm-labToLab
 
-  // OP+IP segment: (op+vc profit to hospital+op_r+ip+ip_r) - (non-lab expenses)
-  const opIpInc=opInc+vcProfit+oprInc+ipInc
-  const opIpComm=opComm+oprComm+ipComm
+  // OP+IP segment: ALL non-lab income minus commissions, consultant fees, and non-lab expenses
+  const opIpInc=opInc+opdInc+opdmInc+oppInc+vcProfit+oprInc+ipInc
+  const clinEntsAll=dI.filter(e=>!['op_l','ip_l'].includes(e.type))
+  const opIpComm=clinEntsAll.reduce((a,e)=>a+getComm(e),0)
+  const opIpConsFee=clinEntsAll.filter(e=>e.type!=='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const nonLabExpTotal=dExpNonLab.reduce((a,e)=>a+e.amount,0)
-  const opIpActual=opIpInc-opIpComm-nonLabExpTotal
+  const opIpActual=opIpInc-opIpComm-opIpConsFee-nonLabExpTotal
 
   const R=({l,v,bold,red,green,sub})=>(<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
     <div><span style={{fontSize:13,color:'#374151',fontWeight:bold?700:400}}>{l}</span>{sub&&<div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{sub}</div>}</div>
@@ -4842,7 +4845,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:'#0369a1'}}>OP and IP Income</div>
-            <div style={{fontSize:10,color:'#7dd3fc',marginTop:2,lineHeight:1.5}}>OP + OPD + OP Procedures + VC + OP Pharmacy + IP Charges + IP Pharmacy minus all non-lab expenses</div>
+            <div style={{fontSize:10,color:'#7dd3fc',marginTop:2,lineHeight:1.5}}>OP + OPD + OP Procedures + VC + OP Pharmacy + IP Charges + IP Pharmacy − ref comm − consultant fees − non-lab expenses <span style={{background:'#0369a1',color:'#fff',padding:'1px 6px',borderRadius:6,fontSize:9,fontWeight:800}}>v2</span></div>
           </div>
           <div style={{textAlign:'right',flexShrink:0,marginLeft:12}}>
             <div style={{fontSize:10,color:'#7dd3fc'}}>Actual income</div>
@@ -4907,7 +4910,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/></span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
             </div>)})()}
           </>}
-          {(opComm+oprComm+ipComm)>0&&<R l="Ref commissions" v={'- '+fmt(opComm+oprComm+ipComm)} red/>}
+          {opIpComm>0&&<R l="Ref commissions" v={'- '+fmt(opIpComm)} red/>}
+          {opIpConsFee>0&&<R l="Consultant fees" v={'- '+fmt(opIpConsFee)} red sub="Accrued on today's entries"/>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
