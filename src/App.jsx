@@ -2827,17 +2827,18 @@ const RealIncomeReport=({db})=>{
 
   const allInc=incList.reduce((a,e)=>a+(e.amount||0),0)
   const allComm=incList.reduce((a,e)=>a+getComm(e),0)
-  const allVCFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const allVCFees=incList.reduce((a,e)=>a+(e.consultant_fee||0),0)
   const allDeductions=allComm+allVCFees
   const allReal=allInc-allDeductions
   const allExp=expList.reduce((a,e)=>a+(e.amount||0),0)
 
-  const clinInc=incList.filter(e=>['op','op_r','ip','ip_r','ip_p'].includes(e.type))
+  const clinInc=incList.filter(e=>!['op_l','ip_l'].includes(e.type))
   const clinGross=clinInc.reduce((a,e)=>a+(e.amount||0),0)
   const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
-  const segClinExp=expList.filter(e=>e.category!=='lab_to_lab')
+  const clinCons=clinInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const segClinExp=expList.filter(e=>e.category!=='consultant_fee'&&expenseSegment(e.category)!=='lab')
   const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
-  const clinActual=clinGross-clinComm-clinExpTotal
+  const clinActual=clinGross-clinComm-clinCons-clinExpTotal
   const clinExpCats={}
   segClinExp.forEach(e=>{
     const k=e.category||'other'
@@ -2847,7 +2848,7 @@ const RealIncomeReport=({db})=>{
   const labInc=incList.filter(e=>['op_l','ip_l'].includes(e.type))
   const labGross=labInc.reduce((a,e)=>a+(e.amount||0),0)
   const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
-  const labToLab=expList.filter(e=>e.category==='lab_to_lab').reduce((a,e)=>a+(e.amount||0),0)
+  const labToLab=expList.filter(e=>expenseSegment(e.category)==='lab').reduce((a,e)=>a+(e.amount||0),0)
   const labActual=labGross-labComm-labToLab
 
   const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
@@ -2903,7 +2904,7 @@ const RealIncomeReport=({db})=>{
           <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderTop:'none',padding:'14px 18px',borderRadius:'0 0 18px 18px'}}>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(allInc)}</span></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Commissions + VC fees</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(allDeductions)}</span></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>Ref commissions + Consultant fees</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(allDeductions)}</span></div>
               <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#374151'}}>All expenses</span><span style={{fontWeight:700,color:'#dc2626'}}>- {fmt(allExp)}</span></div>
               <div style={{height:1,background:'#d1fae5'}}/>
               <div style={{display:'flex',justifyContent:'space-between',fontSize:14,fontWeight:800}}><span style={{color:'#065f46'}}>= Actual income</span><span style={{color:'#059669'}}>{fmt(allReal-allExp)}</span></div>
@@ -2919,6 +2920,7 @@ const RealIncomeReport=({db})=>{
           <div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:6}}>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(clinGross)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(clinComm)}</span></div>
+            {clinCons>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Consultant fees</span><span style={{fontWeight:700,color:'#7e22ce'}}>- {fmt(clinCons)}</span></div>}
             {Object.entries(clinExpCats).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}
             <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:clinActual>=0?'#0891b2':'#dc2626'}}>{fmt(clinActual)}</span></div>
