@@ -6298,8 +6298,8 @@ const ConsultantsTab=({db,actions})=>{
           <DBtn onClick={()=>{if(window.confirm('Delete Dr. '+d.name+'?'))actions.deleteConsultant(d.id)}}>Delete</DBtn>
         </div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-        {[{l:'Fee share',v:d.fee_share_pct+'%',c:'#7e22ce',sub:'of consultation'},{l:'Lab comm',v:d.op_l_pct+'%',c:d.op_l_pct>0?'#7e22ce':'#ccc'},{l:'Pharmacy comm',v:d.op_r_pct+'%',c:d.op_r_pct>0?'#c2410c':'#ccc'}].map((m,i)=>(
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6}}>
+        {[{l:'Fee share',v:d.fee_share_pct+'%',c:'#7e22ce',sub:'of consultation'},{l:'OP Proc comm',v:(d.op_p_pct||0)+'%',c:(d.op_p_pct||0)>0?'#0f766e':'#ccc'},{l:'Lab comm',v:d.op_l_pct+'%',c:d.op_l_pct>0?'#7e22ce':'#ccc'},{l:'Pharmacy comm',v:d.op_r_pct+'%',c:d.op_r_pct>0?'#c2410c':'#ccc'}].map((m,i)=>(
           <div key={i} style={{background:'#f9f9f9',borderRadius:8,padding:'8px',textAlign:'center'}}>
             <div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase',marginBottom:2}}>{m.l}</div>
             <div style={{fontSize:16,fontWeight:800,color:m.c}}>{m.v}</div>
@@ -6307,6 +6307,18 @@ const ConsultantsTab=({db,actions})=>{
           </div>
         ))}
       </div>
+      {(()=>{
+        const fEnts=(db.income||[]).filter(e=>e.consultant_name===d.name&&(e.consultant_fee||0)>0)
+        const earned=fEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
+        if(earned<=0)return null
+        const paid=(db.expenses||[]).filter(e=>e.category==='consultant_fee'&&(e.description||'').toLowerCase().includes(d.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const bal=earned-paid
+        return(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginTop:8,padding:'8px 0',borderTop:'1px solid #f5f5f5'}}>
+          <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Fees earned</div><div style={{fontSize:13,fontWeight:700,color:'#7e22ce'}}>{fmt(earned)}</div></div>
+          <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
+          <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:bal>0?'#ef4444':'#16a34a'}}>{fmt(bal)}</div></div>
+        </div>)
+      })()}
     </Card>))}
   </div>)
 }
