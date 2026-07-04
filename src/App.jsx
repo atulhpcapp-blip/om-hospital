@@ -4425,13 +4425,14 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
 
 
 /*  DAILY DETAIL REPORT  */
-const SegmentPL=({incList,expList})=>{
+const SegmentPL=({incList,expList,mtdIncList=null,mtdExpList=null,mtdLabel=''})=>{
     // For each segment: income = sum of revenue (paid + credit, excluding discount/written_off)
     //                    commission = sum of getComm() for that segment's entries
     //                    consultant = sum of consultant_fee for that segment's entries
     //                    expenses = sum of category expenses in that segment
-    const calcSeg=(seg)=>{
-      const sInc=incList.filter(e=>incomeSegment(e.type)===seg)
+    const calcSeg=(seg,iL,eL)=>{
+      const srcInc=iL||incList,srcExp=eL||expList
+      const sInc=srcInc.filter(e=>incomeSegment(e.type)===seg)
       const billed=sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
       const cash=sInc.filter(e=>e.payment!=='credit'&&e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
       const credit=sInc.filter(e=>e.payment==='credit').reduce((a,e)=>a+(e.amount||0),0)
@@ -4443,7 +4444,7 @@ const SegmentPL=({incList,expList})=>{
       const commSplit=Object.entries(commByDoc).map(([n,d2])=>({name:n,amt:Math.round(d2.amt),pats:Object.entries(d2.pats).map(([pn,a2])=>({n:pn,a:Math.round(a2)})).sort((x,y)=>y.a-x.a)})).sort((a,b)=>b.amt-a.amt)
       const consByName={};sInc.forEach(e=>{if((e.consultant_fee||0)>0){const n=e.consultant_name||'(unnamed)';if(!consByName[n])consByName[n]={amt:0,pats:{}};consByName[n].amt+=e.consultant_fee||0;const pn=(e.patient_name||'—').trim()||'—';consByName[n].pats[pn]=(consByName[n].pats[pn]||0)+(e.consultant_fee||0)}})
       const consSplit=Object.entries(consByName).map(([n,d2])=>({name:n,amt:Math.round(d2.amt),pats:Object.entries(d2.pats).map(([pn,a2])=>({n:pn,a:Math.round(a2)})).sort((x,y)=>y.a-x.a)})).sort((a,b)=>b.amt-a.amt)
-      const sExp=expList.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
+      const sExp=srcExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
       const expByCat={};sExp.forEach(e=>{if(!expByCat[e.category])expByCat[e.category]=0;expByCat[e.category]+=e.amount||0})
       const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt})).sort((a,b)=>b.amt-a.amt)
@@ -4495,6 +4496,21 @@ const SegmentPL=({incList,expList})=>{
         </div>
         <div style={{fontSize:28,fontWeight:900}}>{fmt(totalNet)}</div>
       </div>
+      {mtdIncList&&(()=>{
+        const mc=calcSeg('clinical',mtdIncList,mtdExpList||[])
+        const ml=calcSeg('lab',mtdIncList,mtdExpList||[])
+        const mTotal=mc.net+ml.net
+        return(<div style={{background:'linear-gradient(135deg,#7e22ce,#6d28d9)',color:'#fff',padding:'12px 18px',borderRadius:12,marginTop:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <div><div style={{fontSize:12.5,fontWeight:700,opacity:.9,textTransform:'uppercase',letterSpacing:'.5px'}}>Month to date net profit</div><div style={{fontSize:11,opacity:.8,marginTop:2}}>{mtdLabel}</div></div>
+            <div style={{fontSize:28,fontWeight:900}}>{fmt(mTotal)}</div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <div style={{background:'rgba(255,255,255,.14)',borderRadius:8,padding:'8px 12px'}}><div style={{fontSize:10.5,fontWeight:700,opacity:.85}}>🏥 CLINICAL</div><div style={{fontSize:17,fontWeight:800}}>{fmt(mc.net)}</div></div>
+            <div style={{background:'rgba(255,255,255,.14)',borderRadius:8,padding:'8px 12px'}}><div style={{fontSize:10.5,fontWeight:700,opacity:.85}}>🧪 LAB</div><div style={{fontSize:17,fontWeight:800}}>{fmt(ml.net)}</div></div>
+          </div>
+        </div>)
+      })()}
     </div>)
   }
 
@@ -4658,7 +4674,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
     </div>
 
     {/* OP CONSULTATION */}
-    <SegmentPL incList={dI} expList={dExpAll}/>
+    <SegmentPL incList={dI} expList={dExpAll} mtdIncList={db.income.filter(e=>e.date>=rd.slice(0,7)+'-01'&&e.date<=rd)} mtdExpList={db.expenses.filter(e=>e.date>=rd.slice(0,7)+'-01'&&e.date<=rd&&e.category!=='ref_paid')} mtdLabel={fmtD(rd.slice(0,7)+'-01')+' → '+fmtD(rd)}/>
       <PatientBreakdown incList={dI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Today patients" compact={false}/>
       <SecL>OP Consultation</SecL>
     {Object.keys(opByPat).length===0
