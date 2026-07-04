@@ -4910,8 +4910,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/></span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
             </div>)})()}
           </>}
-          {opIpComm>0&&<R l="Ref commissions" v={'- '+fmt(opIpComm)} red/>}
-          {opIpConsFee>0&&<R l="Consultant fees" v={'- '+fmt(opIpConsFee)} red sub="Accrued on today's entries"/>}
+          {opIpComm>0&&<>{<R l="Ref commissions" v={'- '+fmt(opIpComm)} red/>}{Object.entries(clinEntsAll.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
+          {opIpConsFee>0&&<>{<R l="Consultant fees" v={'- '+fmt(opIpConsFee)} red sub="Accrued on today's entries"/>}{Object.entries(clinEntsAll.filter(e=>e.type!=='vc').reduce((m,e)=>{const cm=(e.consultant_fee||0);if(cm>0&&e.consultant_name){m[e.consultant_name]=(m[e.consultant_name]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
@@ -4946,7 +4946,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           <R l="Lab income (OP-Lab + IP-Lab)" v={fmt(labInc)} green/>
-          <R l="Ref commissions" v={'- '+fmt(labComm)} red/>
+          <><R l="Ref commissions" v={'- '+fmt(labComm)} red/>{Object.entries(labRawEnts.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
