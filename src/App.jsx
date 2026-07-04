@@ -4459,25 +4459,25 @@ const SegmentPL=({incList,expList})=>{
     
     const Card1=({title,d,color})=>(<div style={{background:'#fff',border:'2px solid '+color.border,borderRadius:14,padding:'14px 16px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:800,color:color.dark,textTransform:'uppercase',letterSpacing:'.5px'}}>{title}</div>
-        <div style={{fontSize:10,fontWeight:600,color:'#94a3b8'}}>{d.count} entries</div>
+        <div style={{fontSize:12.5,fontWeight:800,color:color.dark,textTransform:'uppercase',letterSpacing:'.5px'}}>{title}</div>
+        <div style={{fontSize:11.5,fontWeight:600,color:'#94a3b8'}}>{d.count} entries</div>
       </div>
-      <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+      <table style={{width:'100%',borderCollapse:'collapse',fontSize:13.5}}>
         <tbody>
           <tr><td style={{padding:'4px 0',color:'#475569'}}>Income (billed)</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>{fmt(d.billed)}</td></tr>
-          {(d.incSplit||[]).map(s=>(<Fragment key={s.t}><tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0',color:'#16a34a'}}>{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:9,color:'#cbd5e1'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0,color:'#86efac'}}>{fmt(p.a)}</td></tr>))}</Fragment>))}
-          {d.credit>0&&<tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>}
+          {(d.incSplit||[]).map(s=>(<Fragment key={s.t}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0',color:'#16a34a'}}>{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0,color:'#86efac'}}>{fmt(p.a)}</td></tr>))}</Fragment>))}
+          {d.credit>0&&<tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>}
           <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
-          {(d.expSplit||[]).map(s=>(<tr key={s.cat} style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>))}
+          {(d.expSplit||[]).map(s=>(<tr key={s.cat} style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>))}
           {d.comm>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Commission</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.comm)}</td></tr>
-          {(d.commSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:9,color:'#cbd5e1'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
+          {(d.commSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
           {d.cons>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>
-          {(d.consSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:9,color:'#cbd5e1'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
+          {(d.consSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
           <tr style={{borderTop:'1.5px solid '+color.border}}>
-            <td style={{padding:'8px 0 2px',fontWeight:800,color:d.net>=0?'#15803d':'#dc2626',fontSize:13}}>NET PROFIT</td>
-            <td style={{textAlign:'right',padding:'8px 0 2px',fontWeight:900,fontSize:16,color:d.net>=0?'#15803d':'#dc2626'}}>{fmt(d.net)}</td>
+            <td style={{padding:'8px 0 2px',fontWeight:800,color:d.net>=0?'#15803d':'#dc2626',fontSize:14}}>NET PROFIT</td>
+            <td style={{textAlign:'right',padding:'8px 0 2px',fontWeight:900,fontSize:18,color:d.net>=0?'#15803d':'#dc2626'}}>{fmt(d.net)}</td>
           </tr>
-          <tr><td colSpan={2} style={{textAlign:'right',fontSize:10,color:'#94a3b8',fontWeight:600}}>Margin: {d.margin.toFixed(1)}%</td></tr>
+          <tr><td colSpan={2} style={{textAlign:'right',fontSize:11.5,color:'#94a3b8',fontWeight:600}}>Margin: {d.margin.toFixed(1)}%</td></tr>
         </tbody>
       </table>
     </div>)
@@ -4490,10 +4490,10 @@ const SegmentPL=({incList,expList})=>{
       </div>
       <div style={{background:totalNet>=0?'linear-gradient(135deg,#16a34a,#15803d)':'linear-gradient(135deg,#dc2626,#991b1b)',color:'#fff',padding:'12px 18px',borderRadius:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
-          <div style={{fontSize:11,fontWeight:700,opacity:.9,textTransform:'uppercase',letterSpacing:'.5px'}}>Total Net Profit</div>
-          <div style={{fontSize:11,opacity:.85,marginTop:2}}>Combined margin: {combinedMargin.toFixed(1)}%</div>
+          <div style={{fontSize:12.5,fontWeight:700,opacity:.9,textTransform:'uppercase',letterSpacing:'.5px'}}>Total Net Profit</div>
+          <div style={{fontSize:12,opacity:.85,marginTop:2}}>Combined margin: {combinedMargin.toFixed(1)}%</div>
         </div>
-        <div style={{fontSize:26,fontWeight:900}}>{fmt(totalNet)}</div>
+        <div style={{fontSize:28,fontWeight:900}}>{fmt(totalNet)}</div>
       </div>
     </div>)
   }
