@@ -4425,7 +4425,7 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
 
 
 /*  DAILY DETAIL REPORT  */
-const SegmentPL=({incList,expList,mtdIncList=null,mtdExpList=null,mtdLabel=''})=>{
+const SegmentPL=({incList,expList,mtdIncList=null,mtdExpList=null,mtdLabel='',monthlyOf=null})=>{
     // For each segment: income = sum of revenue (paid + credit, excluding discount/written_off)
     //                    commission = sum of getComm() for that segment's entries
     //                    consultant = sum of consultant_fee for that segment's entries
@@ -4509,6 +4509,38 @@ const SegmentPL=({incList,expList,mtdIncList=null,mtdExpList=null,mtdLabel=''})=
             <div style={{background:'rgba(255,255,255,.14)',borderRadius:8,padding:'8px 12px'}}><div style={{fontSize:10.5,fontWeight:700,opacity:.85}}>🏥 CLINICAL</div><div style={{fontSize:17,fontWeight:800}}>{fmt(mc.net)}</div></div>
             <div style={{background:'rgba(255,255,255,.14)',borderRadius:8,padding:'8px 12px'}}><div style={{fontSize:10.5,fontWeight:700,opacity:.85}}>🧪 LAB</div><div style={{fontSize:17,fontWeight:800}}>{fmt(ml.net)}</div></div>
           </div>
+        </div>)
+      })()}
+      {monthlyOf&&(()=>{
+        const months=[...new Set(incList.map(e=>e.date?.slice(0,7)).filter(Boolean))].sort()
+        if(months.length===0)return null
+        const MOSF=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+        const rows=months.map(ym=>{
+          const mi=incList.filter(e=>e.date?.startsWith(ym))
+          const me=expList.filter(e=>e.date?.startsWith(ym))
+          const mc=calcSeg('clinical',mi,me),ml=calcSeg('lab',mi,me)
+          return{ym,label:MOSF[parseInt(ym.split('-')[1])-1],clin:mc.net,lab:ml.net,total:mc.net+ml.net}
+        })
+        const yc=rows.reduce((a,r)=>a+r.clin,0),yl=rows.reduce((a,r)=>a+r.lab,0)
+        return(<div style={{background:'linear-gradient(135deg,#7e22ce,#6d28d9)',color:'#fff',padding:'14px 16px',borderRadius:12,marginTop:10}}>
+          <div style={{fontSize:12.5,fontWeight:700,opacity:.9,textTransform:'uppercase',letterSpacing:'.5px',marginBottom:10}}>Month-wise net profit — {monthlyOf}</div>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12.5}}>
+            <thead><tr style={{fontSize:10.5,opacity:.75,textTransform:'uppercase'}}><th style={{textAlign:'left',paddingBottom:6}}>Month</th><th style={{textAlign:'right',paddingBottom:6}}>🏥 Clinical</th><th style={{textAlign:'right',paddingBottom:6}}>🧪 Lab</th><th style={{textAlign:'right',paddingBottom:6}}>Total</th></tr></thead>
+            <tbody>
+              {rows.map(r=>(<tr key={r.ym} style={{borderTop:'1px solid rgba(255,255,255,.18)'}}>
+                <td style={{padding:'6px 0',fontWeight:700}}>{r.label}</td>
+                <td style={{textAlign:'right',padding:'6px 0'}}>{fmt(r.clin)}</td>
+                <td style={{textAlign:'right',padding:'6px 0'}}>{fmt(r.lab)}</td>
+                <td style={{textAlign:'right',padding:'6px 0',fontWeight:800}}>{fmt(r.total)}</td>
+              </tr>))}
+              <tr style={{borderTop:'2px solid rgba(255,255,255,.4)'}}>
+                <td style={{padding:'8px 0',fontWeight:900}}>YEAR</td>
+                <td style={{textAlign:'right',padding:'8px 0',fontWeight:800}}>{fmt(yc)}</td>
+                <td style={{textAlign:'right',padding:'8px 0',fontWeight:800}}>{fmt(yl)}</td>
+                <td style={{textAlign:'right',padding:'8px 0',fontWeight:900,fontSize:14.5}}>{fmt(yc+yl)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>)
       })()}
     </div>)
@@ -5446,7 +5478,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
       </div>
       {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
       {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><SegmentPL incList={mI} expList={mE}/><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><PatientBreakdown incList={mI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this month" compact={true}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
-      {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><SegmentPL incList={yI} expList={yE}/><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><PatientBreakdown incList={yI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this year" compact={true}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
+      {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><SegmentPL incList={yI} expList={yE} monthlyOf={ry}/><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><PatientBreakdown incList={yI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this year" compact={true}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><SegmentPL incList={incList} expList={expList}/><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><PatientBreakdown incList={incList} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients in range" compact={false}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} hospital={hospital}/>}
       {rv==='patdata'&&<PatientDataReport db={db}/>}
