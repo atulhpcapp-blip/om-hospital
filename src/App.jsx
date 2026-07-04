@@ -4341,9 +4341,11 @@ const SegmentPL=({incList,expList})=>{
       const cons=sInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
       const sExp=expList.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&expenseSegment(e.category)===seg)
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
+      const expByCat={};sExp.forEach(e=>{if(!expByCat[e.category])expByCat[e.category]=0;expByCat[e.category]+=e.amount||0})
+      const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt})).sort((a,b)=>b.amt-a.amt)
       const net=billed-comm-cons-expTotal
       const margin=billed>0?(net/billed*100):0
-      return{billed,cash,credit,comm,cons,expTotal,net,margin,count:sInc.length}
+      return{billed,cash,credit,comm,cons,expTotal,expSplit,net,margin,count:sInc.length}
     }
     const clinical=calcSeg('clinical')
     const lab=calcSeg('lab')
@@ -4361,6 +4363,7 @@ const SegmentPL=({incList,expList})=>{
           <tr><td style={{padding:'4px 0',color:'#475569'}}>Income (billed)</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>{fmt(d.billed)}</td></tr>
           {d.credit>0&&<tr style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>}
           <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
+          {(d.expSplit||[]).map(s=>(<tr key={s.cat} style={{fontSize:10,color:'#94a3b8'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>))}
           {d.comm>0&&<tr><td style={{padding:'4px 0',color:'#dc2626'}}>Commission</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.comm)}</td></tr>}
           {d.cons>0&&<tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>}
           <tr style={{borderTop:'1.5px solid '+color.border}}>
@@ -4407,13 +4410,13 @@ const PatientBreakdown=({incList,db,gotoIP,gotoOP,title,compact})=>{
   const isIPPatient=(p)=>p.patient_id&&db.ip_patients.some(ip=>ip.id===p.patient_id)
   const handleClick=(p)=>{if(isIPPatient(p)){gotoIP&&gotoIP(p.patient_id,'rep')}else{gotoOP&&gotoOP(p.name,'rep')}}
   return(<div style={{marginBottom:14}}>
-    <SecL>{'\uD83D\uDC65 '+(title||'Patients')+' ('+pats.length+')'}</SecL>
+    <SecL>{'👥 '+(title||'Patients')+' ('+pats.length+')'}</SecL>
     <Card>
       {pats.map((p,i)=>(<div key={p.name+i} style={{padding:'10px 0',borderBottom:i<pats.length-1?'1px solid #f1f5f9':'none'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:compact?0:6}}>
           <button onClick={()=>handleClick(p)} style={{background:'none',border:'none',padding:0,cursor:'pointer',textAlign:'left',flex:1,minWidth:0}}>
-            <div style={{fontSize:14,fontWeight:700,color:'#1d4ed8',textDecoration:'underline'}}>{p.name}{isIPPatient(p)?' \uD83C\uDFE5':''}</div>
-            <div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{p.reg_no?'Reg: '+p.reg_no:''}{p.entries.length>1?(p.reg_no?' \u00B7 ':'')+p.entries.length+' transactions':''}</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#1d4ed8',textDecoration:'underline'}}>{p.name}{isIPPatient(p)?' 🏥':''}</div>
+            <div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{p.reg_no?'Reg: '+p.reg_no:''}{p.entries.length>1?(p.reg_no?' · ':'')+p.entries.length+' transactions':''}</div>
           </button>
           <div style={{textAlign:'right'}}>
             <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{fmt(p.total)}</div>
@@ -4422,7 +4425,7 @@ const PatientBreakdown=({incList,db,gotoIP,gotoOP,title,compact})=>{
         </div>
         {!compact&&<div style={{paddingLeft:8,fontSize:11,color:'#64748b'}}>
           {p.entries.map((e,j)=>(<div key={e.id} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:j<p.entries.length-1?'1px dotted #f1f5f9':'none'}}>
-            <span><TypeTag t={e.type}/> {fmtD(e.date)} \u00B7 {e.payment}{e.notes?' \u00B7 '+e.notes:''}</span>
+            <span><TypeTag t={e.type}/> {fmtD(e.date)} · {e.payment}{e.notes?' · '+e.notes:''}</span>
             <span style={{color:e.payment==='credit'?'#c2410c':'#16a34a',fontWeight:600,whiteSpace:'nowrap',marginLeft:8}}>{fmt(e.amount)}</span>
           </div>))}
         </div>}
