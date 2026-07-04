@@ -4910,6 +4910,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/></span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
             </div>)})()}
           </>}
+          <R l="Gross OP + IP income" v={fmt(opIpInc)} bold green/>
           {opIpComm>0&&<>{<R l="Ref commissions" v={'- '+fmt(opIpComm)} red/>}{Object.entries(clinEntsAll.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
           {opIpConsFee>0&&<>{<R l="Consultant fees" v={'- '+fmt(opIpConsFee)} red sub="Accrued on today's entries"/>}{Object.entries(clinEntsAll.filter(e=>e.type!=='vc').reduce((m,e)=>{const cm=(e.consultant_fee||0);if(cm>0&&e.consultant_name){m[e.consultant_name]=(m[e.consultant_name]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
@@ -4945,7 +4946,22 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           </div>
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
-          <R l="Lab income (OP-Lab + IP-Lab)" v={fmt(labInc)} green/>
+          {(()=>{
+            const opL=dI.filter(e=>e.type==='op_l'&&!isCredit(e)),ipL=dI.filter(e=>e.type==='ip_l'&&!isCredit(e))
+            const opLT=opL.reduce((a,e)=>a+e.amount,0),ipLT=ipL.reduce((a,e)=>a+e.amount,0)
+            const MRow=({e,isIP})=>(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #e9d5ff',gap:8}}>
+              <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
+                <div>{isIP?'🏥 ':''}<NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={isIP}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+              </div>
+              <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
+            </div>)
+            return(<>
+              {opLT>0&&<><R l="OP Lab" v={fmt(opLT)} green/>{opL.map((e,i)=><MRow key={'o'+i} e={e} isIP={false}/>)}</>}
+              {ipLT>0&&<><R l="IP Lab" v={fmt(ipLT)} green/>{ipL.map((e,i)=><MRow key={'i'+i} e={e} isIP={true}/>)}</>}
+              <R l="Gross lab income" v={fmt(labInc)} bold green/>
+            </>)
+          })()}
           <><R l="Ref commissions" v={'- '+fmt(labComm)} red/>{Object.entries(labRawEnts.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
