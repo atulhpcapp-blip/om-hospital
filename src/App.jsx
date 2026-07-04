@@ -20,6 +20,8 @@ const PLANS=[{key:'trial',label:'Trial (7 days)',price:0},{key:'starter',label:'
 const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@easymedicalsolutions.in`
 
 const todayStr=()=>new Date().toISOString().split('T')[0]
+const consPct=(con,t)=>t==='op_p'?(con?.op_p_pct||0):(con?.fee_share_pct||0)
+
 const daysInMonth=(ym)=>{const [y,m]=ym.split('-').map(Number);return new Date(y,m,0).getDate()}
 const computeSalaryDeduction=(emp,month,attList)=>{
   // leave + absent both count toward allowance; half = 0.5
@@ -1255,10 +1257,10 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
       }
       for(const sp of activeSplits){
         const sa=parseFloat(sp.amount)||0
-        const r=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:sa,patient_id:pid,patient_name:pname,payment:sp.mode,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(sa*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
+        const r=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:sa,patient_id:pid,patient_name:pname,payment:sp.mode,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:(itype==='op'||itype==='op_p')?Math.round(sa*consPct(db.consultants.find(d=>d.name===iF.consultant_name),itype)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:(itype==='op'||itype==='op_p')?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')})
         if(!r)ok=false
       }
-    } else { const ok2=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:itype==='op'?Math.round(amt*(db.consultants.find(d=>d.name===iF.consultant_name)?.fee_share_pct||0)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:itype==='op'?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')});ok=ok2}
+    } else { const ok2=await actions.addIncome({id:uid(),date:eDate,type:itype,amount:amt,patient_id:pid,patient_name:pname,payment:iF.pay,ref_doctor:itype==='vc'?'':iF.ref.trim(),notes:cleanNotes(iF.notes)||'',patient_phone:(!isIP&&iF.phone?.trim())||'',consultant_fee:(itype==='op'||itype==='op_p')?Math.round(amt*consPct(db.consultants.find(d=>d.name===iF.consultant_name),itype)/100):(itype==='vc'?parseFloat(iF.consultant_fee||0):0),consultant_name:(itype==='op'||itype==='op_p')?iF.consultant_name:'',op_type:['op'].includes(itype)?iF.op_type:'',custom_commission:iF.custom_commission!==''?parseFloat(iF.custom_commission):null,reg_no:regNo,patient_area:iF.patient_area?.trim()||'',speciality:iF.speciality||'General Medicine',entered_by:profile?.name||profile?.username||'',conditions:(iF.conditions||[]).join(',')});ok=ok2}
     if(ok!==false)setIF({amount:'',pid:'',pname:'',ref:'',pay:'cash',notes:'',consultant_fee:0,consultant_name:'',phone:'',op_type:'New OP',custom_commission:'',patient_area:'',linkedIpId:'',conditions:[],newCondition:'',splits:[{amount:'',mode:'cash'}]})
   }
   return(
@@ -1333,12 +1335,12 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
           })()}
             {!isIP&&<FInp label="Patient area (optional)" type="text" placeholder="e.g. Kukatpally, Miyapur, KPHB" value={iF.patient_area||''} onChange={e=>setIF({...iF,patient_area:e.target.value})}/>}
             {itype==='op'&&<FSel label="OP type" value={iF.op_type} onChange={e=>setIF({...iF,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
-            {!isIP&&itype==='op'&&(<>
-              <FSel label="Visiting consultant (optional)" value={iF.consultant_name||''} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,consultant_name:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*con.fee_share_pct/100):0})}}>
+            {!isIP&&(itype==='op'||itype==='op_p')&&(<>
+              <FSel label="Visiting consultant (optional)" value={iF.consultant_name||''} onChange={e=>{const con=db.consultants.find(d=>d.name===e.target.value);setIF({...iF,consultant_name:e.target.value,consultant_fee:con&&iF.amount?Math.round(parseFloat(iF.amount||0)*consPct(con,itype)/100):0})}}>
                 <option value="">- No visiting consultant -</option>
                 {db.consultants.map(d=><option key={d.id} value={d.name}>Dr. {d.name}</option>)}
               </FSel>
-              {iF.consultant_name&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(con.fee_share_pct/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({con.fee_share_pct}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
+              {iF.consultant_name&&iF.amount&&(()=>{const con=db.consultants.find(d=>d.name===iF.consultant_name);if(!con)return null;const share=parseFloat(iF.amount||0)*(consPct(con,itype)/100);const hospital=parseFloat(iF.amount||0)-share;return(<div style={{background:'#f3e8ff',border:'1px solid #d8b4fe',borderRadius:8,padding:'10px 12px',marginBottom:8,fontSize:13}}><div style={{color:'#7e22ce',fontWeight:700,marginBottom:6}}>Dr. {con.name} - fee split</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><div style={{textAlign:'center',background:'#ede9fe',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Doctor gets ({consPct(con,itype)}%)</div><div style={{fontSize:20,fontWeight:800,color:'#7e22ce'}}>{fmt(share)}</div></div><div style={{textAlign:'center',background:'#f0fdf4',borderRadius:8,padding:'8px'}}><div style={{fontSize:9,color:'#15803d',fontWeight:700,textTransform:'uppercase'}}>Hospital keeps</div><div style={{fontSize:20,fontWeight:800,color:'#15803d'}}>{fmt(hospital)}</div></div></div></div>)})()}
               {canSeeReports&&(<><FSel label="Referring doctor (optional)" value={iF.ref} onChange={e=>{const sel=db.ref_doctors.find(d=>d.name===e.target.value);const pk={op:'op_pct',opd:'op_pct',op_p:'op_p_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[itype]||'op_pct';const pct=sel?sel[pk]:null;setIF({...iF,ref:e.target.value,custom_commission:pct!=null?String(pct):''})}}>
                 <option value="">- No referral / Self patient -</option>
                 {db.ref_doctors.map(d=><option key={d.id} value={d.name}>Dr. {d.name}{d.area?' ('+d.area+')':''}</option>)}
@@ -5673,8 +5675,8 @@ export default function App(){
     addRefDoctor:async form=>{const hid=profile?.hospital_id;let {data,error}=await supabase.from('ref_doctors').insert([{...form,hospital_id:hid}]).select();if(error&&/column|schema/i.test(error.message)){const {op_pct,op_p_pct,...rest}=form;const r2=await supabase.from('ref_doctors').insert([{...rest,hospital_id:hid}]).select();data=r2.data;error=r2.error;if(!error)alert('Saved, but OP Consultation % / OP Procedure % were NOT saved.\n\nPlease run the add_op_procedure_pct.sql script in Supabase to enable these fields.')}if(error){alert('Save failed: '+error.message);return}if(data)setDb(d=>({...d,ref_doctors:[...d.ref_doctors,data[0]].sort((a,b)=>a.name.localeCompare(b.name))}))},
     updateRefDoctor:async(id,form)=>{let {data,error}=await supabase.from('ref_doctors').update(form).eq('id',id).select();if(error&&/column|schema/i.test(error.message)){const {op_pct,op_p_pct,...rest}=form;const r2=await supabase.from('ref_doctors').update(rest).eq('id',id).select();data=r2.data;error=r2.error;if(!error)alert('Saved, but OP Consultation % / OP Procedure % were NOT saved.\n\nPlease run the add_op_procedure_pct.sql script in Supabase to enable these fields.')}if(error){alert('Update failed: '+error.message);return}if(data)setDb(d=>({...d,ref_doctors:d.ref_doctors.map(r=>r.id===id?{...r,...form,...data[0]}:r)}))},
     deleteRefDoctor:async id=>{await supabase.from('ref_doctors').delete().eq('id',id);setDb(d=>({...d,ref_doctors:d.ref_doctors.filter(r=>r.id!==id)}))},
-    addConsultant:async form=>{const hid=profile?.hospital_id;const {data,error}=await supabase.from('consultants').insert([{...form,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return}if(data)setDb(d=>({...d,consultants:[...d.consultants,data[0]].sort((a,b)=>a.name.localeCompare(b.name))}))},
-    updateConsultant:async(id,form)=>{const {data,error}=await supabase.from('consultants').update(form).eq('id',id).select();if(error){alert('Update failed: '+error.message);return}if(data)setDb(d=>({...d,consultants:d.consultants.map(r=>r.id===id?data[0]:r)}))},
+    addConsultant:async form=>{const hid=profile?.hospital_id;let {data,error}=await supabase.from('consultants').insert([{...form,hospital_id:hid}]).select();if(error&&/column|schema/i.test(error.message)){const {op_p_pct,...rest}=form;const r2=await supabase.from('consultants').insert([{...rest,hospital_id:hid}]).select();data=r2.data;error=r2.error;if(!error)alert('Saved, but OP Procedure % was NOT saved.\n\nPlease run add_op_procedure_pct_consultants.sql in Supabase.')}if(error){alert('Save failed: '+error.message);return}if(data)setDb(d=>({...d,consultants:[...d.consultants,data[0]].sort((a,b)=>a.name.localeCompare(b.name))}))},
+    updateConsultant:async(id,form)=>{let {data,error}=await supabase.from('consultants').update(form).eq('id',id).select();if(error&&/column|schema/i.test(error.message)){const {op_p_pct,...rest}=form;const r2=await supabase.from('consultants').update(rest).eq('id',id).select();data=r2.data;error=r2.error;if(!error)alert('Saved, but OP Procedure % was NOT saved.\n\nPlease run add_op_procedure_pct_consultants.sql in Supabase.')}if(error){alert('Update failed: '+error.message);return}if(data)setDb(d=>({...d,consultants:d.consultants.map(r=>r.id===id?{...r,...form,...data[0]}:r)}))},
     deleteConsultant:async id=>{await supabase.from('consultants').delete().eq('id',id);setDb(d=>({...d,consultants:d.consultants.filter(r=>r.id!==id)}))},
 
   }
@@ -6224,7 +6226,7 @@ const ConsultantsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
-  const blank={name:'',phone:'',fee_share_pct:0,op_l_pct:0,op_r_pct:0}
+  const blank={name:'',phone:'',fee_share_pct:0,op_p_pct:0,op_l_pct:0,op_r_pct:0}
   const [form,setForm]=useState(blank)
   const save=async()=>{
     if(!form.name.trim()){alert('Consultant name required');return}
@@ -6236,7 +6238,7 @@ const ConsultantsTab=({db,actions})=>{
     else{await actions.addConsultant(safeForm)}
     setForm(blank);setShowAdd(false);setBusy(false)
   }
-  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0});setEditId(d.id);setShowAdd(true)}
+  const startEdit=d=>{setForm({name:d.name,phone:d.phone||'',fee_share_pct:d.fee_share_pct||0,op_p_pct:d.op_p_pct||0,op_l_pct:d.op_l_pct||0,op_r_pct:d.op_r_pct||0});setEditId(d.id);setShowAdd(true);setTimeout(()=>window.scrollTo({top:0,behavior:'smooth'}),50)}
   return(<div>
     {!showAdd&&<PBtn onClick={()=>{setShowAdd(true);setEditId(null);setForm(blank)}} style={{marginBottom:14}}>+ Add visiting consultant</PBtn>}
     {showAdd&&<Card style={{border:'2px solid #7e22ce'}}>
@@ -6254,6 +6256,14 @@ const ConsultantsTab=({db,actions})=>{
         </div>
         <div style={{fontSize:11,color:'#9333ea',marginTop:6}}>Doctor takes this % of what is collected. Hospital keeps the rest.</div>
         {form.fee_share_pct>0&&<div style={{marginTop:8,fontSize:12,color:'#7e22ce',fontWeight:600}}>e.g. collect Rs 700 - Dr. gets {fmt(700*form.fee_share_pct/100)} - Hospital keeps {fmt(700*(1-form.fee_share_pct/100))}</div>}
+        <div style={{marginTop:12}}>
+          <label style={{display:'block',fontSize:10,color:'#0f766e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>OP Procedure commission %</label>
+          <div style={{position:'relative'}}>
+            <input style={{...S.inp,paddingRight:28,borderColor:'#99f6e4'}} type="number" inputMode="numeric" min="0" max="100" value={form.op_p_pct} onChange={e=>setForm({...form,op_p_pct:Math.min(100,parseFloat(e.target.value)||0)})}/>
+            <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:13,color:'#aaa',fontWeight:700}}>%</span>
+          </div>
+          <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>Commission the consultant gets on OP Procedure entries</div>
+        </div>
       </div>
       <div style={{fontSize:11,fontWeight:700,color:'#555',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Commission on investigations ordered</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
