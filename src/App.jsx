@@ -2345,6 +2345,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
   const [per,setPer]=useState('month')
   const [payDoc,setPayDoc]=useState(null)
   const [subTab,setSubTab]=useState('commission')
+  const [dlM,setDlM]=useState(todayStr().slice(0,7))
   const [selDoc,setSelDoc]=useState('')
   const [editPayId,setEditPayId]=useState(null)
   const [editPayForm,setEditPayForm]=useState({amount:'',date:'',payment:'cash'})
@@ -2362,8 +2363,62 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
   const allRefDocs=[...new Set(income.filter(e=>e.ref_doctor).map(e=>e.ref_doctor))].sort()
   return(<>
     <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
-      {[{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'},{k:'generate',l:'📄 Generate PDF'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
+      {[{k:'due',l:'⏳ Due Ledger'},{k:'commission',l:'Commission'},{k:'income',l:'Income by Doctor'},{k:'timeline',l:'Doctor Timeline'},{k:'generate',l:'📄 Generate PDF'}].map(v=>(<button key={v.k} onClick={()=>setSubTab(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:subTab===v.k?'none':'1.5px solid #e2e8f0',background:subTab===v.k?'linear-gradient(135deg,#0891b2,#06b6d4)':'#fff',color:subTab===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:subTab===v.k?'0 4px 12px rgba(8,145,178,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
     </div>
+    {subTab==='due'&&(()=>{
+      const dlMonth=dlM
+      const docsAll=buildRef(income)
+      const rows=docsAll.map(doc=>{
+        const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0)
+        const due=doc.total_commission-paid
+        const monthEarned=income.filter(e=>e.ref_doctor===doc.name&&e.date?.startsWith(dlMonth)).reduce((a,e)=>a+getComm(e),0)
+        return{...doc,paid,due,monthEarned}
+      })
+      const dueRows=rows.filter(r=>r.due>0.5).sort((a,b)=>b.due-a.due)
+      const paidRows=rows.filter(r=>r.due<=0.5)
+      const consRows=(db.consultants||[]).map(cn=>{
+        const fEnts=income.filter(e=>e.consultant_name===cn.name&&(e.consultant_fee||0)>0)
+        const consultFee=fEnts.filter(e=>e.type!=='op_p').reduce((a,e)=>a+(e.consultant_fee||0),0)
+        const procComm=fEnts.filter(e=>e.type==='op_p').reduce((a,e)=>a+(e.consultant_fee||0),0)
+        const cfPaid=(db.expenses||[]).filter(e=>e.category==='consultant_fee'&&(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const pcPaid=(db.expenses||[]).filter(e=>e.category==='consultant_proc_comm'&&(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const monthEarned=fEnts.filter(e=>e.date?.startsWith(dlMonth)).reduce((a,e)=>a+(e.consultant_fee||0),0)
+        return{name:cn.name,cfDue:consultFee-cfPaid,pcDue:procComm-pcPaid,earned:consultFee+procComm,paid:cfPaid+pcPaid,monthEarned}
+      }).filter(r=>r.earned>0)
+      const consDue=consRows.filter(r=>r.cfDue>0.5||r.pcDue>0.5)
+      const totalDue=dueRows.reduce((a,r)=>a+r.due,0)+consDue.reduce((a,r)=>a+Math.max(0,r.cfDue)+Math.max(0,r.pcDue),0)
+      return(<>
+        <div style={{background:totalDue>0?'linear-gradient(135deg,#c2410c,#ea580c)':'linear-gradient(135deg,#16a34a,#15803d)',color:'#fff',padding:'14px 18px',borderRadius:12,marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div><div style={{fontSize:11,fontWeight:700,opacity:.9,textTransform:'uppercase',letterSpacing:'.5px'}}>Total commission due</div><div style={{fontSize:11,opacity:.85,marginTop:2}}>{dueRows.length} doctors · {consDue.length} consultants pending</div></div>
+          <div style={{fontSize:26,fontWeight:900}}>{fmt(totalDue)}</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+          <span style={{fontSize:12,color:'#64748b',fontWeight:600}}>Earned in month:</span>
+          <input type="month" value={dlMonth} onChange={e=>setDlM(e.target.value)} style={{padding:'7px 10px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,outline:'none'}}/>
+        </div>
+        <SecL>Referral doctors — due ({dueRows.length})</SecL>
+        {dueRows.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#16a34a',fontSize:13,fontWeight:600}}>✓ All doctors fully paid</div>}
+        {dueRows.map(r=>{const isOpen=payDoc==='DUE:'+r.name;return(<Card key={r.name} style={{border:'1px solid #fed7aa'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+            <div><div style={{fontSize:14,fontWeight:700}}>Dr. {r.name}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Earned {fmt(r.total_commission)} · Paid {fmt(r.paid)} · {dlMonth}: {fmt(r.monthEarned)}</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#c2410c',fontWeight:700,textTransform:'uppercase'}}>Due</div><div style={{fontSize:18,fontWeight:800,color:'#c2410c'}}>{fmt(r.due)}</div></div>
+          </div>
+          {!isOpen?<button onClick={()=>setPayDoc('DUE:'+r.name)} style={{width:'100%',padding:'9px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Record payment</button>:<CommPayForm docName={r.name} balance={r.due} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:r.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}
+        </Card>)})}
+        {consRows.length>0&&<><SecL>Consultants — due ({consDue.length})</SecL>
+        {consDue.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#16a34a',fontSize:13,fontWeight:600}}>✓ All consultants fully paid</div>}
+        {consDue.map(r=>(<Card key={r.name} style={{border:'1px solid #d8b4fe'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+            <div><div style={{fontSize:14,fontWeight:700}}>Dr. {r.name}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Earned {fmt(r.earned)} · Paid {fmt(r.paid)} · {dlMonth}: {fmt(r.monthEarned)}</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#7e22ce',fontWeight:700,textTransform:'uppercase'}}>Due</div><div style={{fontSize:18,fontWeight:800,color:'#7e22ce'}}>{fmt(Math.max(0,r.cfDue)+Math.max(0,r.pcDue))}</div></div>
+          </div>
+          {r.cfDue>0.5&&(payDoc==='DUEC:'+r.name?<CommPayForm docName={r.name} balance={r.cfDue} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'consultant_fee',amount:amt,description:'Dr. '+r.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>:<button onClick={()=>setPayDoc('DUEC:'+r.name)} style={{width:'100%',padding:'8px',background:'#7e22ce',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer',marginBottom:6}}>+ Pay consultation fee ({fmt(r.cfDue)})</button>)}
+          {r.pcDue>0.5&&(payDoc==='DUEP:'+r.name?<CommPayForm docName={r.name} balance={r.pcDue} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'consultant_proc_comm',amount:amt,description:'Dr. '+r.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>:<button onClick={()=>setPayDoc('DUEP:'+r.name)} style={{width:'100%',padding:'8px',background:'#0f766e',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Pay procedure commission ({fmt(r.pcDue)})</button>)}
+        </Card>))}</>}
+        {paidRows.length>0&&<><SecL>Fully paid ({paidRows.length})</SecL>
+        <Card>{paidRows.map(r=>(<div key={r.name} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f8fafc',fontSize:12}}><span style={{color:'#475569'}}>Dr. {r.name}</span><span style={{color:'#16a34a',fontWeight:600}}>✓ {fmt(r.paid)} paid</span></div>))}</Card></>}
+      </>)
+    })()}
     {subTab==='commission'&&<>
     <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center'}}>
       <span style={{fontSize:13,color:'#888',fontWeight:600}}>Show:</span>
@@ -5881,6 +5936,7 @@ export default function App(){
 /*  REF DOCTORS TAB  */
 const RefDoctorsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
+  const [payDocR,setPayDocR]=useState(null)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
   const blank={name:'',phone:'',area:'',ip_pct:40,ip_r_pct:40,ip_l_pct:50,op_pct:0,op_r_pct:0,op_l_pct:0,op_p_pct:0}
@@ -5944,6 +6000,21 @@ const RefDoctorsTab=({db,actions})=>{
           {d.area&&<div style={{fontSize:11,fontWeight:700,color:'#1d4ed8',marginTop:3}}>Area: {d.area}</div>}
         </div>
         <div style={{display:'flex',gap:8}}>
+          {(()=>{
+            const earned=(db.income||[]).filter(e=>e.ref_doctor===d.name).reduce((a,e)=>a+getComm(e),0)
+            if(earned<=0)return null
+            const paid=(db.expenses||[]).filter(e=>e.category==='ref_paid'&&e.description===d.name).reduce((a,e)=>a+e.amount,0)
+            const due=earned-paid
+            const isOpen=payDocR===d.name
+            return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:due>0?8:0}}>
+                <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(earned)}</div></div>
+                <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
+                <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Due</div><div style={{fontSize:13,fontWeight:700,color:due>0?'#ef4444':'#16a34a'}}>{fmt(due)}</div></div>
+              </div>
+              {due>0&&(!isOpen?<button onClick={()=>setPayDocR(d.name)} style={{width:'100%',padding:'9px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Record payment</button>:<CommPayForm docName={d.name} balance={due} onCancel={()=>setPayDocR(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:d.name,payment:pay,is_monthly:false});setPayDocR(null)}}/>)}
+            </div>)
+          })()}
           <button onClick={()=>startEdit(d)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
           <DBtn onClick={()=>{if(window.confirm('Delete Dr. '+d.name+'?'))actions.deleteRefDoctor(d.id)}}>Delete</DBtn>
         </div>
@@ -6252,6 +6323,7 @@ const EmployeesTab=({db,actions})=>{
 
 const ConsultantsTab=({db,actions})=>{
   const [showAdd,setShowAdd]=useState(false)
+  const [payDocC,setPayDocC]=useState(null)
   const [editId,setEditId]=useState(null)
   const [busy,setBusy]=useState(false)
   const blank={name:'',phone:'',fee_share_pct:0,op_p_pct:0,op_l_pct:0,op_r_pct:0}
@@ -6335,12 +6407,20 @@ const ConsultantsTab=({db,actions})=>{
         const fEnts=(db.income||[]).filter(e=>e.consultant_name===d.name&&(e.consultant_fee||0)>0)
         const earned=fEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
         if(earned<=0)return null
-        const paid=(db.expenses||[]).filter(e=>(e.category==='consultant_fee'||e.category==='consultant_proc_comm')&&(e.description||'').toLowerCase().includes(d.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
-        const bal=earned-paid
-        return(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginTop:8,padding:'8px 0',borderTop:'1px solid #f5f5f5'}}>
+        const cf=fEnts.filter(e=>e.type!=='op_p').reduce((a,e)=>a+(e.consultant_fee||0),0)
+        const pc=fEnts.filter(e=>e.type==='op_p').reduce((a,e)=>a+(e.consultant_fee||0),0)
+        const cfPaid=(db.expenses||[]).filter(e=>e.category==='consultant_fee'&&(e.description||'').toLowerCase().includes(d.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const pcPaid=(db.expenses||[]).filter(e=>e.category==='consultant_proc_comm'&&(e.description||'').toLowerCase().includes(d.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
+        const paid=cfPaid+pcPaid
+        const bal=earned-paid,cfBal=cf-cfPaid,pcBal=pc-pcPaid
+        return(<div style={{marginTop:8,padding:'8px 0',borderTop:'1px solid #f5f5f5'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:(cfBal>0||pcBal>0)?8:0}}>
           <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Fees earned</div><div style={{fontSize:13,fontWeight:700,color:'#7e22ce'}}>{fmt(earned)}</div></div>
           <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
           <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:bal>0?'#ef4444':'#16a34a'}}>{fmt(bal)}</div></div>
+          </div>
+          {cfBal>0&&(payDocC==='CF:'+d.name?<CommPayForm docName={d.name} balance={cfBal} onCancel={()=>setPayDocC(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'consultant_fee',amount:amt,description:'Dr. '+d.name,payment:pay,is_monthly:false});setPayDocC(null)}}/>:<button onClick={()=>setPayDocC('CF:'+d.name)} style={{width:'100%',padding:'8px',background:'#7e22ce',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer',marginBottom:6}}>+ Pay consultation fee ({fmt(cfBal)})</button>)}
+          {pcBal>0&&(payDocC==='PC:'+d.name?<CommPayForm docName={d.name} balance={pcBal} onCancel={()=>setPayDocC(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'consultant_proc_comm',amount:amt,description:'Dr. '+d.name,payment:pay,is_monthly:false});setPayDocC(null)}}/>:<button onClick={()=>setPayDocC('PC:'+d.name)} style={{width:'100%',padding:'8px',background:'#0f766e',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Pay procedure commission ({fmt(pcBal)})</button>)}
         </div>)
       })()}
     </Card>))}
