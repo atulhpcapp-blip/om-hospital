@@ -5759,7 +5759,7 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
-  const [recoveryMode,setRecoveryMode]=useState(false)
+  const [recoveryMode,setRecoveryMode]=useState(()=>{try{const h=(window.location.hash||'')+(window.location.search||'');return /type=recovery/.test(h)}catch(e){return false}})
   const [newPwd,setNewPwd]=useState('')
   const [newPwd2,setNewPwd2]=useState('')
   const [pwdMsg,setPwdMsg]=useState('')
@@ -5770,7 +5770,7 @@ export default function App(){
   const [editIPPatient,setEditIPPatient]=useState(null)
   const [showRegister,setShowRegister]=useState(false)
   const [showPayment,setShowPayment]=useState(()=>new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1')
-  const [loading,setLoading]=useState(true)
+  const [loading,setLoading]=useState(()=>{try{return !/type=recovery/.test((window.location.hash||'')+(window.location.search||''))}catch(e){return true}})
   const [db,setDb]=useState({income:[],expenses:[],ip_patients:[],ref_doctors:[],consultants:[]})
   const [dbLoading,setDbLoading]=useState(false)
   const [tab,setTab]=useState('dash')
@@ -5795,13 +5795,17 @@ export default function App(){
     supabase.from('hospitals').select('id').limit(1).then(()=>{})
     const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1'
     if(upgradeParam)sessionStorage.removeItem('pendingUpgrade')
+    // If this is a password-recovery link, show the reset screen and do NOT run normal session load
+    let isRecovery=false
+    try{isRecovery=/type=recovery/.test((window.location.hash||'')+(window.location.search||''))}catch(e){}
+    if(isRecovery){setRecoveryMode(true);setLoading(false)}
     let settled=false
     // Safety timeout: if getSession hangs (stale/corrupt token), stop waiting and show login
     const failsafe=setTimeout(()=>{if(!settled){settled=true;console.warn('Session load timed out — showing login');setSession(null);setLoading(false)}},10000)
-    supabase.auth.getSession().then(({data:{session}})=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)}).catch(()=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(null);setLoading(false)})
-    // Detect password-recovery link (Supabase puts type=recovery in the URL hash)
-    try{const h=window.location.hash||'';if(/type=recovery/.test(h)){setRecoveryMode(true);setLoading(false)}}catch(e){}
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((evt,session)=>{if(evt==='PASSWORD_RECOVERY'){setRecoveryMode(true);setLoading(false);return};setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
+    if(!isRecovery){
+      supabase.auth.getSession().then(({data:{session}})=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)}).catch(()=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(null);setLoading(false)})
+    }else{settled=true;clearTimeout(failsafe)}
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((evt,session)=>{if(evt==='PASSWORD_RECOVERY'){setRecoveryMode(true);setLoading(false);return};if(isRecovery)return;setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
     return()=>{clearTimeout(failsafe);subscription.unsubscribe()}
   },[])
 
