@@ -5504,7 +5504,7 @@ const SlowLoadWarning=()=>{
   const [showSlow,setShowSlow]=useState(false)
   const [showOffline,setShowOffline]=useState(!navigator.onLine)
   useEffect(()=>{
-    const t=setTimeout(()=>setShowSlow(true),8000) // show after 8 sec
+    const t=setTimeout(()=>setShowSlow(true),5000) // show after 5 sec
     const onOffline=()=>setShowOffline(true)
     const onOnline=()=>setShowOffline(false)
     window.addEventListener('offline',onOffline)
@@ -5519,12 +5519,24 @@ const SlowLoadWarning=()=>{
       <button onClick={()=>window.location.reload()} style={{marginTop:12,padding:'8px 20px',background:'#dc2626',border:'none',borderRadius:8,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Retry</button>
     </div>
   )
+  const hardReset=()=>{
+    try{
+      // Clear all Supabase auth tokens + any cached app state (fixes stale/corrupt token hangs)
+      Object.keys(localStorage).forEach(k=>{if(/^sb-|supabase|auth/i.test(k))localStorage.removeItem(k)})
+      Object.keys(sessionStorage||{}).forEach(k=>{try{sessionStorage.removeItem(k)}catch(e){}})
+    }catch(e){}
+    window.location.reload()
+  }
   if(showSlow)return(
-    <div style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:14,padding:'16px 20px',maxWidth:320,textAlign:'center'}}>
+    <div style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:14,padding:'16px 20px',maxWidth:340,textAlign:'center'}}>
       <div style={{fontSize:24,marginBottom:8}}>☕</div>
       <div style={{fontSize:13,fontWeight:700,color:'rgba(255,255,255,0.8)',marginBottom:6}}>Taking longer than usual...</div>
-      <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',marginBottom:12}}>The server is waking up. This happens after periods of inactivity. Usually ready in 10-15 seconds.</div>
-      <button onClick={()=>window.location.reload()} style={{padding:'8px 20px',background:'rgba(0,192,107,0.2)',border:'1px solid rgba(0,192,107,0.3)',borderRadius:8,color:'#00c06b',fontSize:13,fontWeight:700,cursor:'pointer'}}>Refresh</button>
+      <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',marginBottom:14}}>The server is waking up. Usually ready in 10-15 seconds. If it stays stuck, tap Reset &amp; reload below.</div>
+      <div style={{display:'flex',gap:8,justifyContent:'center'}}>
+        <button onClick={()=>window.location.reload()} style={{padding:'8px 18px',background:'rgba(0,192,107,0.2)',border:'1px solid rgba(0,192,107,0.3)',borderRadius:8,color:'#00c06b',fontSize:13,fontWeight:700,cursor:'pointer'}}>Refresh</button>
+        <button onClick={hardReset} style={{padding:'8px 18px',background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.35)',borderRadius:8,color:'#fca5a5',fontSize:13,fontWeight:700,cursor:'pointer'}}>Reset &amp; reload</button>
+      </div>
+      <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:10}}>Reset clears saved login and fixes stuck screens</div>
     </div>
   )
   return null
@@ -5731,9 +5743,12 @@ export default function App(){
     supabase.from('hospitals').select('id').limit(1).then(()=>{})
     const upgradeParam=new URLSearchParams(window.location.search).get('upgrade')==='true'||sessionStorage.getItem('pendingUpgrade')==='1'
     if(upgradeParam)sessionStorage.removeItem('pendingUpgrade')
-    supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
+    let settled=false
+    // Safety timeout: if getSession hangs (stale/corrupt token), stop waiting and show login
+    const failsafe=setTimeout(()=>{if(!settled){settled=true;console.warn('Session load timed out — showing login');setSession(null);setLoading(false)}},10000)
+    supabase.auth.getSession().then(({data:{session}})=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)}).catch(()=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(null);setLoading(false)})
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
-    return()=>subscription.unsubscribe()
+    return()=>{clearTimeout(failsafe);subscription.unsubscribe()}
   },[])
 
   useEffect(()=>{
