@@ -2096,6 +2096,49 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {pat.reg_no&&<div style={{fontSize:12,color:'#1d4ed8',fontWeight:700,marginTop:2}}>Reg: {pat.reg_no}</div>}
           <div style={{fontSize:12,color:'#aaa',marginTop:4}}>{ents.length} visit{ents.length!==1?'s':''}</div>
           {canSeeReports&&<>
+            <div style={{marginTop:14}}/><SecL>➕ Add income for this patient</SecL>
+        <Card style={{marginBottom:14,border:'1px solid #bbf7d0'}}>
+          {!addInc?<div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+            {[{k:'op',l:'OP Consultation'},{k:'op_p',l:'OP Procedure'},{k:'op_r',l:'OP Pharmacy'},{k:'op_l',l:'OP Lab'},{k:'opd',l:'OPD Services'},{k:'op_dm',l:'OP Disch. Medicine'}].map(t=>(
+              <button key={t.k} onClick={()=>setAddInc({type:t.k,amount:'',payment:'cash',ref_doctor:'',consultant_name:'',date:todayStr(),op_type:'New OP'})} style={{padding:'9px 14px',background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:10,fontSize:13,fontWeight:700,color:'#15803d',cursor:'pointer'}}>+ {t.l}</button>
+            ))}
+          </div>:(()=>{
+            const TL={op:'OP Consultation',op_p:'OP Procedure',op_r:'OP Pharmacy',op_l:'OP Lab',opd:'OPD Services',op_dm:'OP Discharge Medicine'}[addInc.type]
+            const selRef=db.ref_doctors.find(d=>d.name===addInc.ref_doctor)
+            const pk={op:'op_pct',opd:'op_pct',op_p:'op_p_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[addInc.type]||'op_pct'
+            const commPct=selRef?(selRef[pk]||0):0
+            const commPrev=addInc.payment!=='credit'&&addInc.payment!=='discount'&&addInc.payment!=='written_off'?Math.round((parseFloat(addInc.amount||0))*commPct/100):0
+            const selCon=db.consultants.find(cn=>cn.name===addInc.consultant_name)
+            const consPctV=selCon?(addInc.type==='op_p'?(selCon.op_p_pct||0):(selCon.fee_share_pct||0)):0
+            const consFeePrev=selCon?Math.round(parseFloat(addInc.amount||0)*consPctV/100):0
+            return(<div>
+              <div style={{fontSize:14,fontWeight:800,color:'#15803d',marginBottom:12}}>{TL} — {pat.name}</div>
+              <FInp label="Amount (Rs)" type="number" value={addInc.amount} onChange={e=>setAddInc({...addInc,amount:e.target.value})}/>
+              <FInp label="Date" type="date" value={addInc.date} onChange={e=>setAddInc({...addInc,date:e.target.value})}/>
+              {addInc.type==='op'&&<FSel label="OP type" value={addInc.op_type} onChange={e=>setAddInc({...addInc,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
+              <FSel label="Payment" value={addInc.payment} onChange={e=>setAddInc({...addInc,payment:e.target.value})}>
+                {['cash','upi','card','bank','credit','discount'].map(p=><option key={p} value={p}>{p[0].toUpperCase()+p.slice(1)}</option>)}
+              </FSel>
+              <FSel label="Referring doctor (optional)" value={addInc.ref_doctor} onChange={e=>setAddInc({...addInc,ref_doctor:e.target.value})}>
+                <option value="">- None -</option>{db.ref_doctors.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}
+              </FSel>
+              {commPrev>0&&<div style={{fontSize:12,color:'#c2410c',fontWeight:600,marginBottom:8,marginTop:-4}}>Commission to Dr. {addInc.ref_doctor}: {fmt(commPrev)} ({commPct}%)</div>}
+              {(addInc.type==='op'||addInc.type==='op_p')&&<FSel label="Consultant (optional)" value={addInc.consultant_name} onChange={e=>setAddInc({...addInc,consultant_name:e.target.value})}>
+                <option value="">- None -</option>{db.consultants.map(cn=><option key={cn.id} value={cn.name}>Dr. {cn.name}</option>)}
+              </FSel>}
+              {consFeePrev>0&&<div style={{fontSize:12,color:'#7e22ce',fontWeight:600,marginBottom:8,marginTop:-4}}>Consultant fee: {fmt(consFeePrev)} ({consPctV}%)</div>}
+              <div style={{display:'flex',gap:8,marginTop:8}}>
+                <button onClick={()=>setAddInc(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+                <button onClick={async()=>{
+                  const amt=parseFloat(addInc.amount);if(!amt||amt<=0){alert('Enter amount');return}
+                  const row={id:uid(),date:addInc.date,type:addInc.type,amount:amt,patient_id:pat.entries[0]?.patient_id||null,patient_name:pat.name,payment:addInc.payment,ref_doctor:addInc.ref_doctor||'',reg_no:pat.reg_no||'',patient_phone:pat.phone||'',op_type:addInc.type==='op'?addInc.op_type:'',consultant_name:((addInc.type==='op'||addInc.type==='op_p')?addInc.consultant_name:'')||'',consultant_fee:consFeePrev||0,notes:''}
+                  const ok=await actions.addIncome(row)
+                  if(ok!==false)setAddInc(null)
+                }} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add {TL}</button>
+              </div>
+            </div>)
+          })()}
+        </Card>
             <div style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
               <button onClick={()=>setBulkRefDoc({reg_no:pat.reg_no||pat.name,name:pat.name,currentRef:ents.find(e=>e.ref_doctor)?.ref_doctor||''})} style={{padding:'9px 14px',background:'#fff7ed',border:'1.5px solid #f59e0b',borderRadius:8,fontSize:12,color:'#c2410c',cursor:'pointer',fontWeight:700}}>👨‍⚕️ Set Ref Doctor for all visits</button>
             </div>
@@ -2196,49 +2239,6 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {cn.consultFee>0&&<SubRow label="Consultation fee" earned={cn.consultFee} paid={cfPaid} bal={cfBal} cat="consultant_fee" payKey={'CONSF:'+cn.name} color="#7e22ce"/>}
           {cn.procComm>0&&<SubRow label="OP Procedure commission" earned={cn.procComm} paid={pcPaid} bal={pcBal} cat="consultant_proc_comm" payKey={'CONSP:'+cn.name} color="#0f766e"/>}
         </Card>)})}</>)}
-        {canSeeReports&&<><SecL>➕ Add income for this patient</SecL>
-        <Card style={{marginBottom:14,border:'1px solid #bbf7d0'}}>
-          {!addInc?<div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-            {[{k:'op',l:'OP Consultation'},{k:'op_p',l:'OP Procedure'},{k:'op_r',l:'OP Pharmacy'},{k:'op_l',l:'OP Lab'},{k:'opd',l:'OPD Services'},{k:'op_dm',l:'OP Disch. Medicine'}].map(t=>(
-              <button key={t.k} onClick={()=>setAddInc({type:t.k,amount:'',payment:'cash',ref_doctor:'',consultant_name:'',date:todayStr(),op_type:'New OP'})} style={{padding:'9px 14px',background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:10,fontSize:13,fontWeight:700,color:'#15803d',cursor:'pointer'}}>+ {t.l}</button>
-            ))}
-          </div>:(()=>{
-            const TL={op:'OP Consultation',op_p:'OP Procedure',op_r:'OP Pharmacy',op_l:'OP Lab',opd:'OPD Services',op_dm:'OP Discharge Medicine'}[addInc.type]
-            const selRef=db.ref_doctors.find(d=>d.name===addInc.ref_doctor)
-            const pk={op:'op_pct',opd:'op_pct',op_p:'op_p_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[addInc.type]||'op_pct'
-            const commPct=selRef?(selRef[pk]||0):0
-            const commPrev=addInc.payment!=='credit'&&addInc.payment!=='discount'&&addInc.payment!=='written_off'?Math.round((parseFloat(addInc.amount||0))*commPct/100):0
-            const selCon=db.consultants.find(cn=>cn.name===addInc.consultant_name)
-            const consPctV=selCon?(addInc.type==='op_p'?(selCon.op_p_pct||0):(selCon.fee_share_pct||0)):0
-            const consFeePrev=selCon?Math.round(parseFloat(addInc.amount||0)*consPctV/100):0
-            return(<div>
-              <div style={{fontSize:14,fontWeight:800,color:'#15803d',marginBottom:12}}>{TL} — {pat.name}</div>
-              <FInp label="Amount (Rs)" type="number" value={addInc.amount} onChange={e=>setAddInc({...addInc,amount:e.target.value})}/>
-              <FInp label="Date" type="date" value={addInc.date} onChange={e=>setAddInc({...addInc,date:e.target.value})}/>
-              {addInc.type==='op'&&<FSel label="OP type" value={addInc.op_type} onChange={e=>setAddInc({...addInc,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
-              <FSel label="Payment" value={addInc.payment} onChange={e=>setAddInc({...addInc,payment:e.target.value})}>
-                {['cash','upi','card','bank','credit','discount'].map(p=><option key={p} value={p}>{p[0].toUpperCase()+p.slice(1)}</option>)}
-              </FSel>
-              <FSel label="Referring doctor (optional)" value={addInc.ref_doctor} onChange={e=>setAddInc({...addInc,ref_doctor:e.target.value})}>
-                <option value="">- None -</option>{db.ref_doctors.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}
-              </FSel>
-              {commPrev>0&&<div style={{fontSize:12,color:'#c2410c',fontWeight:600,marginBottom:8,marginTop:-4}}>Commission to Dr. {addInc.ref_doctor}: {fmt(commPrev)} ({commPct}%)</div>}
-              {(addInc.type==='op'||addInc.type==='op_p')&&<FSel label="Consultant (optional)" value={addInc.consultant_name} onChange={e=>setAddInc({...addInc,consultant_name:e.target.value})}>
-                <option value="">- None -</option>{db.consultants.map(cn=><option key={cn.id} value={cn.name}>Dr. {cn.name}</option>)}
-              </FSel>}
-              {consFeePrev>0&&<div style={{fontSize:12,color:'#7e22ce',fontWeight:600,marginBottom:8,marginTop:-4}}>Consultant fee: {fmt(consFeePrev)} ({consPctV}%)</div>}
-              <div style={{display:'flex',gap:8,marginTop:8}}>
-                <button onClick={()=>setAddInc(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
-                <button onClick={async()=>{
-                  const amt=parseFloat(addInc.amount);if(!amt||amt<=0){alert('Enter amount');return}
-                  const row={id:uid(),date:addInc.date,type:addInc.type,amount:amt,patient_id:pat.entries[0]?.patient_id||null,patient_name:pat.name,payment:addInc.payment,ref_doctor:addInc.ref_doctor||'',reg_no:pat.reg_no||'',patient_phone:pat.phone||'',op_type:addInc.type==='op'?addInc.op_type:'',consultant_name:((addInc.type==='op'||addInc.type==='op_p')?addInc.consultant_name:'')||'',consultant_fee:consFeePrev||0,notes:''}
-                  const ok=await actions.addIncome(row)
-                  if(ok!==false)setAddInc(null)
-                }} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add {TL}</button>
-              </div>
-            </div>)
-          })()}
-        </Card></>}
         <SecL>All visits (OP + IP)</SecL>
         {(()=>{
           const patName=(selPat||'').trim().toLowerCase()
