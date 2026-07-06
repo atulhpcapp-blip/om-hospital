@@ -1586,6 +1586,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [collectEntry,setCollectEntry]=useState(null)
   const [showRefModal,setShowRefModal]=useState(false)
   const [bulkRefDoc,setBulkRefDoc]=useState(null)
+  const [addInc,setAddInc]=useState(null)  // {type,amount,payment,ref_doctor,consultant_name,date,op_type}
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('active')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
@@ -2195,6 +2196,49 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {cn.consultFee>0&&<SubRow label="Consultation fee" earned={cn.consultFee} paid={cfPaid} bal={cfBal} cat="consultant_fee" payKey={'CONSF:'+cn.name} color="#7e22ce"/>}
           {cn.procComm>0&&<SubRow label="OP Procedure commission" earned={cn.procComm} paid={pcPaid} bal={pcBal} cat="consultant_proc_comm" payKey={'CONSP:'+cn.name} color="#0f766e"/>}
         </Card>)})}</>)}
+        {canSeeReports&&<><SecL>➕ Add income for this patient</SecL>
+        <Card style={{marginBottom:14,border:'1px solid #bbf7d0'}}>
+          {!addInc?<div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+            {[{k:'op',l:'OP Consultation'},{k:'op_p',l:'OP Procedure'},{k:'op_r',l:'OP Pharmacy'},{k:'op_l',l:'OP Lab'},{k:'opd',l:'OPD Services'},{k:'op_dm',l:'OP Disch. Medicine'}].map(t=>(
+              <button key={t.k} onClick={()=>setAddInc({type:t.k,amount:'',payment:'cash',ref_doctor:'',consultant_name:'',date:todayStr(),op_type:'New OP'})} style={{padding:'9px 14px',background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:10,fontSize:13,fontWeight:700,color:'#15803d',cursor:'pointer'}}>+ {t.l}</button>
+            ))}
+          </div>:(()=>{
+            const TL={op:'OP Consultation',op_p:'OP Procedure',op_r:'OP Pharmacy',op_l:'OP Lab',opd:'OPD Services',op_dm:'OP Discharge Medicine'}[addInc.type]
+            const selRef=db.ref_doctors.find(d=>d.name===addInc.ref_doctor)
+            const pk={op:'op_pct',opd:'op_pct',op_p:'op_p_pct',op_r:'op_r_pct',op_l:'op_l_pct',op_dm:'op_r_pct'}[addInc.type]||'op_pct'
+            const commPct=selRef?(selRef[pk]||0):0
+            const commPrev=addInc.payment!=='credit'&&addInc.payment!=='discount'&&addInc.payment!=='written_off'?Math.round((parseFloat(addInc.amount||0))*commPct/100):0
+            const selCon=db.consultants.find(cn=>cn.name===addInc.consultant_name)
+            const consPctV=selCon?(addInc.type==='op_p'?(selCon.op_p_pct||0):(selCon.fee_share_pct||0)):0
+            const consFeePrev=selCon?Math.round(parseFloat(addInc.amount||0)*consPctV/100):0
+            return(<div>
+              <div style={{fontSize:14,fontWeight:800,color:'#15803d',marginBottom:12}}>{TL} — {pat.name}</div>
+              <FInp label="Amount (Rs)" type="number" value={addInc.amount} onChange={e=>setAddInc({...addInc,amount:e.target.value})}/>
+              <FInp label="Date" type="date" value={addInc.date} onChange={e=>setAddInc({...addInc,date:e.target.value})}/>
+              {addInc.type==='op'&&<FSel label="OP type" value={addInc.op_type} onChange={e=>setAddInc({...addInc,op_type:e.target.value})}>{OP_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</FSel>}
+              <FSel label="Payment" value={addInc.payment} onChange={e=>setAddInc({...addInc,payment:e.target.value})}>
+                {['cash','upi','card','bank','credit','discount'].map(p=><option key={p} value={p}>{p[0].toUpperCase()+p.slice(1)}</option>)}
+              </FSel>
+              <FSel label="Referring doctor (optional)" value={addInc.ref_doctor} onChange={e=>setAddInc({...addInc,ref_doctor:e.target.value})}>
+                <option value="">- None -</option>{db.ref_doctors.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}
+              </FSel>
+              {commPrev>0&&<div style={{fontSize:12,color:'#c2410c',fontWeight:600,marginBottom:8,marginTop:-4}}>Commission to Dr. {addInc.ref_doctor}: {fmt(commPrev)} ({commPct}%)</div>}
+              {(addInc.type==='op'||addInc.type==='op_p')&&<FSel label="Consultant (optional)" value={addInc.consultant_name} onChange={e=>setAddInc({...addInc,consultant_name:e.target.value})}>
+                <option value="">- None -</option>{db.consultants.map(cn=><option key={cn.id} value={cn.name}>Dr. {cn.name}</option>)}
+              </FSel>}
+              {consFeePrev>0&&<div style={{fontSize:12,color:'#7e22ce',fontWeight:600,marginBottom:8,marginTop:-4}}>Consultant fee: {fmt(consFeePrev)} ({consPctV}%)</div>}
+              <div style={{display:'flex',gap:8,marginTop:8}}>
+                <button onClick={()=>setAddInc(null)} style={{flex:1,padding:'11px',background:'#f3f4f6',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+                <button onClick={async()=>{
+                  const amt=parseFloat(addInc.amount);if(!amt||amt<=0){alert('Enter amount');return}
+                  const row={id:uid(),date:addInc.date,type:addInc.type,amount:amt,patient_id:pat.entries[0]?.patient_id||null,patient_name:pat.name,payment:addInc.payment,ref_doctor:addInc.ref_doctor||'',reg_no:pat.reg_no||'',patient_phone:pat.phone||'',op_type:addInc.type==='op'?addInc.op_type:'',consultant_name:((addInc.type==='op'||addInc.type==='op_p')?addInc.consultant_name:'')||'',consultant_fee:consFeePrev||0,notes:''}
+                  const ok=await actions.addIncome(row)
+                  if(ok!==false)setAddInc(null)
+                }} style={{flex:2,padding:'11px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Add {TL}</button>
+              </div>
+            </div>)
+          })()}
+        </Card></>}
         <SecL>All visits (OP + IP)</SecL>
         {(()=>{
           const patName=(selPat||'').trim().toLowerCase()
@@ -4543,6 +4587,45 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
 
 
 /*  DAILY DETAIL REPORT  */
+const DatewiseNetCard=({incList,expList})=>{
+  const days=[...new Set(incList.map(e=>e.date).filter(Boolean))].sort()
+  if(days.length===0)return null
+  const calc=(dayInc,dayExp)=>{
+    const seg=(s)=>{
+      const si=dayInc.filter(e=>incomeSegment(e.type)===s)
+      const billed=si.filter(e=>e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
+      const comm=si.reduce((a,e)=>a+getComm(e),0)
+      const cons=si.reduce((a,e)=>a+(e.consultant_fee||0),0)
+      const exp=dayExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===s).reduce((a,e)=>a+(e.amount||0),0)
+      return billed-comm-cons-exp
+    }
+    return{clin:seg('clinical'),lab:seg('lab')}
+  }
+  const rows=days.map(d=>{const di=incList.filter(e=>e.date===d);const de=expList.filter(e=>e.date===d);const r=calc(di,de);return{d,clin:r.clin,lab:r.lab,net:r.clin+r.lab}}).reverse()
+  const tC=rows.reduce((a,r)=>a+r.clin,0),tL=rows.reduce((a,r)=>a+r.lab,0)
+  return(<div style={{background:'#fff',border:'1px solid #eef2f7',borderRadius:14,padding:'14px 16px',marginBottom:14}}>
+    <div style={{fontSize:13,fontWeight:800,color:'#0f172a',marginBottom:10,textTransform:'uppercase',letterSpacing:'.4px'}}>📅 Date-wise net profit</div>
+    <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+      <thead><tr style={{fontSize:10.5,color:'#94a3b8',textTransform:'uppercase',borderBottom:'2px solid #f1f5f9'}}>
+        <th style={{textAlign:'left',padding:'6px 4px'}}>Date</th><th style={{textAlign:'right',padding:'6px 4px'}}>🏥 Clinical</th><th style={{textAlign:'right',padding:'6px 4px'}}>🧪 Lab</th><th style={{textAlign:'right',padding:'6px 4px'}}>Net</th>
+      </tr></thead>
+      <tbody>
+        {rows.map(r=>(<tr key={r.d} style={{borderBottom:'1px solid #f8fafc'}}>
+          <td style={{padding:'7px 4px',fontWeight:700,color:'#334155'}}>{fmtD(r.d)}</td>
+          <td style={{padding:'7px 4px',textAlign:'right',color:r.clin>=0?'#1d4ed8':'#dc2626'}}>{fmt(r.clin)}</td>
+          <td style={{padding:'7px 4px',textAlign:'right',color:r.lab>=0?'#c2410c':'#dc2626'}}>{fmt(r.lab)}</td>
+          <td style={{padding:'7px 4px',textAlign:'right',fontWeight:800,color:r.net>=0?'#15803d':'#dc2626'}}>{fmt(r.net)}</td>
+        </tr>))}
+        <tr style={{borderTop:'2px solid #e2e8f0'}}>
+          <td style={{padding:'8px 4px',fontWeight:900}}>TOTAL</td>
+          <td style={{padding:'8px 4px',textAlign:'right',fontWeight:800,color:'#1d4ed8'}}>{fmt(tC)}</td>
+          <td style={{padding:'8px 4px',textAlign:'right',fontWeight:800,color:'#c2410c'}}>{fmt(tL)}</td>
+          <td style={{padding:'8px 4px',textAlign:'right',fontWeight:900,fontSize:14.5,color:(tC+tL)>=0?'#15803d':'#dc2626'}}>{fmt(tC+tL)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>)
+}
 const SegmentPL=({incList,expList,mtdIncList=null,mtdExpList=null,mtdLabel='',mtdTitle='Month to date net profit',monthlyOf=null})=>{
     // For each segment: income = sum of revenue (paid + credit, excluding discount/written_off)
     //                    commission = sum of getComm() for that segment's entries
@@ -5595,7 +5678,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
       {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
-      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><SegmentPL incList={mI} expList={mE} mtdIncList={mI} mtdExpList={mE} mtdTitle="Month net profit" mtdLabel={new Date(rm+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})}/><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><PatientBreakdown incList={mI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this month" compact={true}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
+      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm)&&e.category!=='ref_paid');const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><SegmentPL incList={mI} expList={mE} mtdIncList={mI} mtdExpList={mE} mtdTitle="Month net profit" mtdLabel={new Date(rm+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})}/><DatewiseNetCard incList={mI} expList={mE}/><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><PatientBreakdown incList={mI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this month" compact={true}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry)&&e.category!=='ref_paid');const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><SegmentPL incList={yI} expList={yE} monthlyOf={ry}/><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><PatientBreakdown incList={yI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this year" compact={true}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo&&e.category!=='ref_paid');const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><SegmentPL incList={incList} expList={expList}/><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><PatientBreakdown incList={incList} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients in range" compact={false}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} hospital={hospital}/>}
