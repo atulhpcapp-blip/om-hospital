@@ -4,8 +4,9 @@ import { supabase } from './supabase.js'
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'op_p',label:'OP-P',full:'OP Procedures'},{key:'op_dm',label:'OP-DM',full:'OP Discharge Medicine'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
 const ECATS=[{key:'ref_paid',label:'Referral commission paid',segment:'skip'},{key:'consultant_fee',label:'Consultant fee (OP Consult)',segment:'skip'},{key:'consultant_proc_comm',label:'Consultant commission (OP Procedure)',segment:'skip'},{key:'lab_to_lab',label:'Lab to lab expenses',segment:'lab'},{key:'lab_grbs',label:'GRBS strips',segment:'lab'},{key:'lab_ecg',label:'ECG strips/rolls',segment:'lab'},{key:'lab_reagents',label:'Lab reagents & kits',segment:'lab'},{key:'lab_consumables',label:'Lab consumables',segment:'lab'},{key:'rent',label:'Hospital rent',segment:'clinical'},{key:'electricity',label:'Electricity',segment:'clinical'},{key:'water',label:'Water',segment:'clinical'},{key:'salary',label:'Staff salary',segment:'clinical'},{key:'supplies',label:'Medical supplies',segment:'clinical'},{key:'municipality',label:'Municipality',segment:'clinical'},{key:'biomedical_bags',label:'Biomedical waste bags',segment:'clinical'},{key:'stationary',label:'Stationary',segment:'clinical'},{key:'washroom_cleaner',label:'Washroom cleaner',segment:'clinical'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)',segment:'clinical'},{key:'misc',label:'Miscellaneous',segment:'clinical'}]
 const LAB_INCOME_TYPES=new Set(['op_l','ip_l'])
-const expenseSegment=(catKey)=>{const found=ECATS.find(c=>c.key===catKey);if(found)return found.segment;if(catKey&&/lab|grbs|ecg|strip|reagent|kit/i.test(catKey))return 'lab';return 'clinical'}
+let CUSTOM_CAT_REG={};const expenseSegment=(catKey)=>{const found=ECATS.find(c=>c.key===catKey);if(found)return found.segment;if(CUSTOM_CAT_REG[catKey])return CUSTOM_CAT_REG[catKey];if(catKey&&/lab|grbs|ecg|strip|reagent|kit/i.test(catKey))return 'lab';return 'clinical'}
 const incomeSegment=(type)=>LAB_INCOME_TYPES.has(type)?'lab':'clinical'
+const getCats=(db)=>{const custom=(db&&db.hospital&&Array.isArray(db.hospital.custom_expense_cats))?db.hospital.custom_expense_cats:[];const keys=new Set(ECATS.map(x=>x.key));return[...ECATS,...custom.filter(cc=>cc&&cc.key&&!keys.has(cc.key)).map(cc=>({key:cc.key,label:cc.label,segment:cc.segment==='lab'?'lab':'clinical',custom:true}))]}
 const PMODES=['cash','upi','card','bank','credit','insurance','discount','written_off']
 const MOS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MOFULL=['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -389,7 +390,7 @@ const PreviewApp=({db,hospital,onExit})=>{
   const gotoOP=useCallback((name,from=null)=>{if(from)setOpPrevTab(from);setOpNavSearch(name||'');setTab('op')},[])
   const yrs=[...new Set((db.income||[]).map(e=>e.date?.slice(0,4)).filter(Boolean))].sort((a,b)=>b.localeCompare(a))
   const allPaidComm=useMemo(()=>(db.expenses||[]).filter(e=>e.category==='ref_paid'),[db.expenses])
-  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},undoDischarge:async()=>{alert('Read-only preview')},updateIPPatient:async()=>{alert('Read-only preview');return false},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')},addEmployee:async()=>{alert('Read-only preview');return false},updateEmployee:async()=>{alert('Read-only preview');return false},deleteEmployee:async()=>{alert('Read-only preview');return false},markAttendance:async()=>{alert('Read-only preview');return false},paySalary:async()=>{alert('Read-only preview');return false},deleteSalaryPayment:async()=>{alert('Read-only preview');return false}}
+  const fakeActions={editIncome:async()=>false,addIncome:async()=>{alert('Read-only preview');return false},admitPatient:async()=>{alert('Read-only preview');return false},dischargePatient:async()=>{alert('Read-only preview')},undoDischarge:async()=>{alert('Read-only preview')},updateIPPatient:async()=>{alert('Read-only preview');return false},deleteIncome:async()=>{alert('Read-only preview')},addExpense:async()=>{alert('Read-only preview');return false},addCustomCategory:async()=>{alert('Read-only preview');return false},delExpense:async()=>{alert('Read-only preview')},updateExpense:async()=>{alert('Read-only preview')},addEmployee:async()=>{alert('Read-only preview');return false},updateEmployee:async()=>{alert('Read-only preview');return false},deleteEmployee:async()=>{alert('Read-only preview');return false},markAttendance:async()=>{alert('Read-only preview');return false},paySalary:async()=>{alert('Read-only preview');return false},deleteSalaryPayment:async()=>{alert('Read-only preview');return false}}
   const PTABS=[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'},{k:'ip',l:'IP Patients'},{k:'op',l:'OP Patients'}]
   return(
     <div style={{background:'#f8fafc',minHeight:'100vh'}}>
@@ -2242,7 +2243,7 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
       <Card>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
           <div>
-            <FSel label="Category" value={exF.cat} onChange={e=>{
+            <FSel label="Category" value={exF.cat} onChange={async e=>{
               const v=e.target.value
               if(v==='__add__'){
                 const name=prompt('New category name (e.g. "Pharmacy stock"):')
@@ -2250,11 +2251,11 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
                 const seg=prompt('Segment? Type "lab" for lab P&L, anything else for clinical P&L:','clinical')
                 const isLab=seg&&seg.toLowerCase().trim()==='lab'
                 const key=name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||('custom_'+Date.now())
-                setExF({...exF,cat:key,_customCats:[...(exF._customCats||[]),{key,label:name.trim(),segment:isLab?'lab':'clinical'}]})
+                const ok=await actions.addCustomCategory({key,label:name.trim(),segment:isLab?'lab':'clinical'})
+                if(ok!==false)setExF({...exF,cat:key})
               }else{setExF({...exF,cat:v})}
             }}>
-              {ECATS.filter(c=>c.key!=='ref_paid').map(c=><option key={c.key} value={c.key}>{c.segment==='lab'?'🧪 ':''}{c.label}</option>)}
-              {(exF._customCats||[]).map(c=><option key={c.key} value={c.key}>{c.segment==='lab'?'🧪 ':''}{c.label} (custom)</option>)}
+              {getCats(db).filter(c=>c.key!=='ref_paid').map(c=><option key={c.key} value={c.key}>{c.segment==='lab'?'🧪 ':''}{c.label}{c.custom?' (custom)':''}</option>)}
               <option disabled>──────────</option>
               <option value="__add__">+ Add new category…</option>
             </FSel>
@@ -2326,7 +2327,7 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
           <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Edit Expense</div>
           <FInp label="Date" type="date" value={editExp.date} onChange={e=>setEditExp({...editExp,date:e.target.value})}/>
           <FSel label="Category" value={editExp.category} onChange={e=>setEditExp({...editExp,category:e.target.value})}>
-            {ECATS.filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
+            {getCats(db).filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
           </FSel>
           <FInp label="Description" value={editExp.description||''} onChange={e=>setEditExp({...editExp,description:e.target.value})}/>
           <FInp label="Amount (Rs)" type="number" value={editExp.amount} onChange={e=>setEditExp({...editExp,amount:e.target.value})}/>
@@ -2678,8 +2679,21 @@ const ExpensesReport=({db,actions})=>{
       <div style={{background:'#fff',borderRadius:14,width:'100%',maxWidth:460,padding:'20px 18px',maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>+ Add Expense</div>
         <FInp label="Date" type="date" value={addF.date} onChange={e=>setAddF({...addF,date:e.target.value})}/>
-        <FSel label="Category" value={addF.cat} onChange={e=>setAddF({...addF,cat:e.target.value})}>
-          {ECATS.filter(x=>x.key!=='ref_paid').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
+        <FSel label="Category" value={addF.cat} onChange={async e=>{
+          const v=e.target.value
+          if(v==='__add__'){
+            const name=prompt('New category name (e.g. "Pharmacy stock"):')
+            if(!name||!name.trim())return
+            const seg=prompt('Segment? Type "lab" for lab P&L, anything else for clinical P&L:','clinical')
+            const isLab=seg&&seg.toLowerCase().trim()==='lab'
+            const key=name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||('custom_'+Date.now())
+            const ok=await actions.addCustomCategory({key,label:name.trim(),segment:isLab?'lab':'clinical'})
+            if(ok!==false)setAddF({...addF,cat:key})
+          }else{setAddF({...addF,cat:v})}
+        }}>
+          {getCats(db).filter(x=>x.key!=='ref_paid').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}{x.custom?' (custom)':''}</option>)}
+          <option disabled>──────────</option>
+          <option value="__add__">+ Add new category…</option>
         </FSel>
         {(addF.cat==='consultant_fee'||addF.cat==='consultant_proc_comm')&&<FSel label="Consultant (name goes into description)" value={addF.desc} onChange={e=>setAddF({...addF,desc:e.target.value})}>
           <option value="">- Select consultant -</option>
@@ -2700,7 +2714,7 @@ const ExpensesReport=({db,actions})=>{
         <div style={{fontSize:16,fontWeight:800,marginBottom:14}}>Edit Expense</div>
         <FInp label="Date" type="date" value={editExp.date} onChange={e=>setEditExp({...editExp,date:e.target.value})}/>
         <FSel label="Category" value={editExp.category} onChange={e=>setEditExp({...editExp,category:e.target.value})}>
-          {ECATS.filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
+          {getCats(db).filter(x=>x.segment!=='skip').map(x=><option key={x.key} value={x.key}>{x.segment==='lab'?'🧪 ':''}{x.label}</option>)}
         </FSel>
         <FInp label="Description" value={editExp.description||''} onChange={e=>setEditExp({...editExp,description:e.target.value})}/>
         <FInp label="Amount (Rs)" type="number" value={editExp.amount} onChange={e=>setEditExp({...editExp,amount:e.target.value})}/>
@@ -5775,7 +5789,7 @@ export default function App(){
       setProfile(prof)
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
-      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[],hospital:hosp})
+      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[],hospital:hosp});try{CUSTOM_CAT_REG={};(Array.isArray(hosp?.custom_expense_cats)?hosp.custom_expense_cats:[]).forEach(cc=>{if(cc&&cc.key)CUSTOM_CAT_REG[cc.key]=cc.segment==='lab'?'lab':'clinical'})}catch(e){}
       setLoading(false)
       if(!tabInitialized){
         if(prof?.role==='admin'||prof?.role==='management')setTab('rep');else setTab('entry')
@@ -5802,6 +5816,15 @@ export default function App(){
       setDb(d=>({...d,income:d.income.map(e=>e.id===row.id?{...e,...updates}:e)}))
       return true
     },
+    addCustomCategory:async(cat)=>{const hid=profile?.hospital_id;if(!hid)return false;
+      const cur=Array.isArray(hospital?.custom_expense_cats)?hospital.custom_expense_cats:[]
+      if(cur.some(x=>x.key===cat.key)||ECATS.some(x=>x.key===cat.key)){return true}
+      const next=[...cur,cat]
+      const {error}=await supabase.from('hospitals').update({custom_expense_cats:next}).eq('id',hid)
+      if(error){alert('Could not save category: '+error.message);return false}
+      setHospital(h=>({...(h||{}),custom_expense_cats:next}))
+      setDb(d=>({...d,hospital:{...(d.hospital||{}),custom_expense_cats:next}}))
+      return true},
     addExpense:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded, please wait');return false}const {data,error}=await supabase.from('expenses').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,expenses:[data[0],...d.expenses]}));return true},
     delExpense:async id=>{await supabase.from('expenses').delete().eq('id',id);setDb(d=>({...d,expenses:d.expenses.filter(e=>e.id!==id)}))},
     updateExpense:async(id,updates)=>{await supabase.from('expenses').update(updates).eq('id',id);setDb(d=>({...d,expenses:d.expenses.map(e=>e.id===id?{...e,...updates}:e)}))},
