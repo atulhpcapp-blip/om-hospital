@@ -1678,6 +1678,27 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           </div>
         </Card>
         <MetGrid items={[{label:'Total billed',value:fmt(b.total)},{label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},{label:'Credit (due)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},{label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'}]}/>
+        {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FInp label="Date" type="date" value={cF.date} onChange={e=>setCF({...cF,date:e.target.value})}/>
+            <FSel label="Type" value={cF.type} onChange={e=>{const newType=e.target.value;const newPay=newType==='ip_l'?'cash':'credit';setCF({...cF,type:newType,pay:newPay})}}>
+              <option value="ip">IP Charges</option><option value="ip_r">IP Pharmacy</option><option value="ip_l">IP Lab</option><option value="ip_p">IP Package</option><option value="op_dm">OP Discharge Medicine</option><option value="vc">Visiting Consultant</option>
+            </FSel>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={cF.amt} onChange={e=>setCF({...cF,amt:e.target.value})}/>
+            <FSel label="Payment" value={cF.pay} onChange={e=>setCF({...cF,pay:e.target.value})}>
+              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Credit':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
+            </FSel>
+          </div>
+          {cF.type==='vc'&&<FInp label="Visiting consultant name" type="text" placeholder="e.g. Dr. Rao (Cardiologist)" value={cF.vcName||''} onChange={e=>setCF({...cF,vcName:e.target.value})}/> }
+          {cF.type==='vc'&&<FInp label="Consultant fee to pay (Rs)" type="number" inputMode="numeric" placeholder="Amount you pay to consultant" value={cF.vcFee||''} onChange={e=>setCF({...cF,vcFee:e.target.value})}/> }
+          {cF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit</div>}
+          {canSeeReports&&cF.amt&&p.ref_doctor&&cF.type!=='vc'&&(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[cF.type];const rate=doc&&pctKey?doc[pctKey]/100:(p.custom_commission!=null?p.custom_commission/100:(COMM[cF.type]||0));const comm=parseFloat(cF.amt||0)*rate;const typeLabel={'ip':'IP Charges','ip_r':'IP Pharmacy','ip_l':'IP Lab','ip_p':'IP Package','op_dm':'OP Discharge Medicine'}[cF.type]||cF.type;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}><div style={{fontWeight:600,marginBottom:2}}>Commission to Dr. {p.ref_doctor}</div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:11,color:'#b45309'}}>{typeLabel}: {Math.round(rate*100)}%</span><span style={{fontSize:15,fontWeight:700,color:'#c2410c'}}>{fmt(comm)}</span></div></div>)})()}
+          {cF.type==='vc'&&cF.amt&&cF.vcFee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#065f46'}}>Your income: <strong>{fmt(parseFloat(cF.amt||0)-parseFloat(cF.vcFee||0))}</strong></div>}
+          <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
+          <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};const isVC=cF.type==='vc';const ok=await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:isVC?(cF.vcName||''):(p.ref_doctor||''),notes:cF.notes,custom_commission:(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[cF.type];const isVC=cF.type==='vc';if(isVC)return null;if(doc&&pctKey)return doc[pctKey];if(p.custom_commission!=null)return p.custom_commission;return null})(),consultant_fee:isVC?parseFloat(cF.vcFee||0):0,reg_no:p.reg_no||''});if(ok!==false)setCF({...cF,amt:'',notes:'',vcName:'',vcFee:''})}}>Add charge</PBtn>
+        </Card></>)}
         {/* Charges breakdown */}
         {canSeeReports&&<Card style={{marginBottom:12}}>
           <div style={{fontSize:11,fontWeight:700,color:'#aaa',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:10}}>Charges breakdown</div>
@@ -1743,27 +1764,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
         
         </Card></>)}
-        {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            <FInp label="Date" type="date" value={cF.date} onChange={e=>setCF({...cF,date:e.target.value})}/>
-            <FSel label="Type" value={cF.type} onChange={e=>{const newType=e.target.value;const newPay=newType==='ip_l'?'cash':'credit';setCF({...cF,type:newType,pay:newPay})}}>
-              <option value="ip">IP Charges</option><option value="ip_r">IP Pharmacy</option><option value="ip_l">IP Lab</option><option value="ip_p">IP Package</option><option value="op_dm">OP Discharge Medicine</option><option value="vc">Visiting Consultant</option>
-            </FSel>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            <FInp label="Amount (Rs)" type="number" inputMode="numeric" placeholder="0" value={cF.amt} onChange={e=>setCF({...cF,amt:e.target.value})}/>
-            <FSel label="Payment" value={cF.pay} onChange={e=>setCF({...cF,pay:e.target.value})}>
-              {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Credit':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
-            </FSel>
-          </div>
-          {cF.type==='vc'&&<FInp label="Visiting consultant name" type="text" placeholder="e.g. Dr. Rao (Cardiologist)" value={cF.vcName||''} onChange={e=>setCF({...cF,vcName:e.target.value})}/> }
-          {cF.type==='vc'&&<FInp label="Consultant fee to pay (Rs)" type="number" inputMode="numeric" placeholder="Amount you pay to consultant" value={cF.vcFee||''} onChange={e=>setCF({...cF,vcFee:e.target.value})}/> }
-          {cF.pay==='credit'&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#92400e'}}>Recording as credit</div>}
-          {canSeeReports&&cF.amt&&p.ref_doctor&&cF.type!=='vc'&&(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[cF.type];const rate=doc&&pctKey?doc[pctKey]/100:(p.custom_commission!=null?p.custom_commission/100:(COMM[cF.type]||0));const comm=parseFloat(cF.amt||0)*rate;const typeLabel={'ip':'IP Charges','ip_r':'IP Pharmacy','ip_l':'IP Lab','ip_p':'IP Package','op_dm':'OP Discharge Medicine'}[cF.type]||cF.type;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}><div style={{fontWeight:600,marginBottom:2}}>Commission to Dr. {p.ref_doctor}</div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:11,color:'#b45309'}}>{typeLabel}: {Math.round(rate*100)}%</span><span style={{fontSize:15,fontWeight:700,color:'#c2410c'}}>{fmt(comm)}</span></div></div>)})()}
-          {cF.type==='vc'&&cF.amt&&cF.vcFee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#065f46'}}>Your income: <strong>{fmt(parseFloat(cF.amt||0)-parseFloat(cF.vcFee||0))}</strong></div>}
-          <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
-          <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};const isVC=cF.type==='vc';const ok=await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:isVC?(cF.vcName||''):(p.ref_doctor||''),notes:cF.notes,custom_commission:(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[cF.type];const isVC=cF.type==='vc';if(isVC)return null;if(doc&&pctKey)return doc[pctKey];if(p.custom_commission!=null)return p.custom_commission;return null})(),consultant_fee:isVC?parseFloat(cF.vcFee||0):0,reg_no:p.reg_no||''});if(ok!==false)setCF({...cF,amt:'',notes:'',vcName:'',vcFee:''})}}>Add charge</PBtn>
-        </Card></>)}
+
         {!p.discharge_date&&p.is_package&&(<><SecL>Package payment received</SecL><Card style={{border:'1px solid #d1fae5',background:'#f0fdf4'}}>
           <div style={{fontSize:11,color:'#065f46',fontWeight:600,marginBottom:10}}>Package payment - commission: {p.custom_commission!=null?p.custom_commission+'%':'40% (default)'}. Referral commission auto-calculated.</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
