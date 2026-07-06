@@ -678,6 +678,24 @@ const LoginPage=({onRegister=()=>{}})=>{
   const [err,setErr]=useState('')
   const [busy,setBusy]=useState(false)
   const [show,setShow]=useState(false)
+  const [showForgot,setShowForgot]=useState(false)
+  const [fpEmail,setFpEmail]=useState('')
+  const [fpMsg,setFpMsg]=useState('')
+  const [fpBusy,setFpBusy]=useState(false)
+  const sendReset=async()=>{
+    const em=fpEmail.trim()
+    if(!em){setFpMsg('Enter your email or username');return}
+    const isRealEmail=em.includes('@')&&!/@(omhospital\.app|easymedicalsolutions\.in)$/i.test(em)
+    if(!isRealEmail){
+      setFpMsg('⚠️ This looks like a username or an internal login (not a real inbox). Password reset links can only be sent to a real email address. Please ask your hospital admin to reset it, or if you are the admin, reset it from the Users section after logging in.')
+      return
+    }
+    setFpBusy(true);setFpMsg('')
+    const {error}=await supabase.auth.resetPasswordForEmail(em,{redirectTo:window.location.origin})
+    setFpBusy(false)
+    if(error){setFpMsg('Could not send: '+error.message)}
+    else{setFpMsg('✅ If an account exists for '+em+', a password reset link has been sent. Check your inbox (and spam).')}
+  }
   const go=async()=>{
     if(!username.trim()||!pass){setErr('Enter username and password');return}
     setBusy(true);setErr('')
@@ -768,7 +786,22 @@ const LoginPage=({onRegister=()=>{}})=>{
                 Signing in...
               </span>:'Sign in to EasyMedical'}
             </button>
+            <button onClick={()=>{setShowForgot(true);setFpEmail(username.includes('@')?username:'');setFpMsg('')}} style={{fontSize:12.5,color:'rgba(255,255,255,0.55)',background:'none',border:'none',cursor:'pointer',fontWeight:600,padding:'2px',marginTop:2}}>Forgot password?</button>
           </div>
+
+          {showForgot&&<div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.7)',zIndex:400,display:'flex',alignItems:'center',justifyContent:'center',padding:18}} onClick={()=>setShowForgot(false)}>
+            <div onClick={e=>e.stopPropagation()} style={{background:'#0f2044',border:'1px solid rgba(255,255,255,0.12)',borderRadius:16,width:'100%',maxWidth:400,padding:'24px 22px'}}>
+              <div style={{fontSize:17,fontWeight:800,color:'#fff',marginBottom:6}}>Reset password</div>
+              <div style={{fontSize:12.5,color:'rgba(255,255,255,0.5)',marginBottom:16,lineHeight:1.5}}>Enter the email address for your account. We'll send a reset link if it's a real inbox.</div>
+              <input type="email" placeholder="you@example.com" value={fpEmail} onChange={e=>setFpEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendReset()} style={{width:'100%',padding:'13px 14px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,fontSize:15,color:'#fff',fontFamily:'inherit',outline:'none',boxSizing:'border-box',marginBottom:12}}/>
+              {fpMsg&&<div style={{fontSize:12,color:fpMsg.startsWith('✅')?'#00e87f':fpMsg.startsWith('⚠️')?'#fcd34d':'#fca5a5',marginBottom:12,lineHeight:1.5,background:'rgba(255,255,255,0.04)',padding:'10px 12px',borderRadius:8}}>{fpMsg}</div>}
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setShowForgot(false)} style={{flex:1,padding:'12px',background:'rgba(255,255,255,0.08)',border:'none',borderRadius:10,fontSize:13.5,fontWeight:700,color:'#fff',cursor:'pointer'}}>Close</button>
+                <button onClick={sendReset} disabled={fpBusy} style={{flex:2,padding:'12px',background:fpBusy?'rgba(0,192,107,0.3)':'linear-gradient(135deg,#00c06b,#00e87f)',color:'#0a1628',border:'none',borderRadius:10,fontSize:13.5,fontWeight:800,cursor:fpBusy?'not-allowed':'pointer'}}>{fpBusy?'Sending...':'Send reset link'}</button>
+              </div>
+              <div style={{fontSize:10.5,color:'rgba(255,255,255,0.3)',marginTop:14,lineHeight:1.5}}>Staff with internal usernames (no real email): ask your hospital admin to reset your password from the Users section.</div>
+            </div>
+          </div>}
 
           {/* REGISTER LINK */}
           <div style={{textAlign:'center',marginTop:24}}>
