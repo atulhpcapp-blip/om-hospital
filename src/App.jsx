@@ -5759,6 +5759,11 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
 export default function App(){
   const [session,setSession]=useState(null)
   const [profile,setProfile]=useState(null)
+  const [recoveryMode,setRecoveryMode]=useState(false)
+  const [newPwd,setNewPwd]=useState('')
+  const [newPwd2,setNewPwd2]=useState('')
+  const [pwdMsg,setPwdMsg]=useState('')
+  const [pwdBusy,setPwdBusy]=useState(false)
   const [hospital,setHospital]=useState(null)
   const [isSuperAdmin,setIsSuperAdmin]=useState(false)
   const [previewHospital,setPreviewHospital]=useState(null)  // {hospital, db} - super admin preview mode
@@ -5794,7 +5799,9 @@ export default function App(){
     // Safety timeout: if getSession hangs (stale/corrupt token), stop waiting and show login
     const failsafe=setTimeout(()=>{if(!settled){settled=true;console.warn('Session load timed out — showing login');setSession(null);setLoading(false)}},10000)
     supabase.auth.getSession().then(({data:{session}})=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(session);setLoading(false);if(session&&upgradeParam)setShowPayment(true)}).catch(()=>{if(settled)return;settled=true;clearTimeout(failsafe);setSession(null);setLoading(false)})
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
+    // Detect password-recovery link (Supabase puts type=recovery in the URL hash)
+    try{const h=window.location.hash||'';if(/type=recovery/.test(h)){setRecoveryMode(true);setLoading(false)}}catch(e){}
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((evt,session)=>{if(evt==='PASSWORD_RECOVERY'){setRecoveryMode(true);setLoading(false);return};setSession(session);if(!session){setProfile(null);setHospital(null);setIsSuperAdmin(false)};setLoading(false);if(session&&upgradeParam)setShowPayment(true)})
     return()=>{clearTimeout(failsafe);subscription.unsubscribe()}
   },[])
 
@@ -6014,6 +6021,30 @@ export default function App(){
   if(loading)return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{textAlign:'center',color:'#94a3b8'}}><div style={{fontSize:40,marginBottom:8}}>🏥</div><div style={{fontSize:14,fontWeight:600}}>Loading...</div></div></div>)
   if(showPayment||new URLSearchParams(window.location.search).get('upgrade')==='true')return<PaymentPage session={session} onBack={()=>{setShowPayment(false);window.history.replaceState({},'',window.location.pathname)}}/>
   if(!session&&showRegister)return<HospitalOnboarding onBack={()=>setShowRegister(false)}/>
+  if(recoveryMode){
+    const doSetPwd=async()=>{
+      if(newPwd.length<6){setPwdMsg('Password must be at least 6 characters');return}
+      if(newPwd!==newPwd2){setPwdMsg('Passwords do not match');return}
+      setPwdBusy(true);setPwdMsg('')
+      const {error}=await supabase.auth.updateUser({password:newPwd})
+      setPwdBusy(false)
+      if(error){setPwdMsg('Error: '+error.message);return}
+      setPwdMsg('✅ Password updated! Redirecting to login...')
+      setTimeout(async()=>{await supabase.auth.signOut();try{window.location.hash='';window.location.href=window.location.pathname}catch(e){window.location.reload()}},1500)
+    }
+    return(<div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,background:'linear-gradient(160deg,#0a1628 0%,#0f2044 60%,#0a1628 100%)'}}>
+      <div style={{background:'#0f2044',border:'1px solid rgba(255,255,255,0.12)',borderRadius:16,width:'100%',maxWidth:400,padding:'28px 24px'}}>
+        <div style={{fontSize:34,textAlign:'center',marginBottom:8}}>🔑</div>
+        <div style={{fontSize:19,fontWeight:800,color:'#fff',textAlign:'center',marginBottom:6}}>Set a new password</div>
+        <div style={{fontSize:12.5,color:'rgba(255,255,255,0.5)',textAlign:'center',marginBottom:20,lineHeight:1.5}}>Choose a new password for your account.</div>
+        <input type="password" placeholder="New password (min 6 chars)" value={newPwd} onChange={e=>setNewPwd(e.target.value)} style={{width:'100%',padding:'13px 14px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,fontSize:15,color:'#fff',fontFamily:'inherit',outline:'none',boxSizing:'border-box',marginBottom:10}}/>
+        <input type="password" placeholder="Confirm new password" value={newPwd2} onChange={e=>setNewPwd2(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doSetPwd()} style={{width:'100%',padding:'13px 14px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,fontSize:15,color:'#fff',fontFamily:'inherit',outline:'none',boxSizing:'border-box',marginBottom:12}}/>
+        {pwdMsg&&<div style={{fontSize:12.5,color:pwdMsg.startsWith('✅')?'#00e87f':'#fca5a5',marginBottom:12,lineHeight:1.5,background:'rgba(255,255,255,0.04)',padding:'10px 12px',borderRadius:8}}>{pwdMsg}</div>}
+        <button onClick={doSetPwd} disabled={pwdBusy} style={{width:'100%',padding:'14px',background:pwdBusy?'rgba(0,192,107,0.3)':'linear-gradient(135deg,#00c06b,#00e87f)',color:'#0a1628',border:'none',borderRadius:12,fontSize:15,fontWeight:800,cursor:pwdBusy?'not-allowed':'pointer'}}>{pwdBusy?'Updating...':'Update password'}</button>
+        <button onClick={async()=>{await supabase.auth.signOut();window.location.hash='';window.location.href=window.location.pathname}} style={{width:'100%',padding:'10px',marginTop:8,background:'none',border:'none',color:'rgba(255,255,255,0.5)',fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel — back to login</button>
+      </div>
+    </div>)
+  }
   if(!session)return<LoginPage onRegister={()=>setShowRegister(true)}/>
   if(isSuperAdmin&&!previewHospital)return<SuperAdminDashboard onPreview={(hosp,db)=>setPreviewHospital({hospital:hosp,db})}/>
   // Super admin previewing a hospital - render full app with their data
