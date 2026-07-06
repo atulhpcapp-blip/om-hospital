@@ -5811,11 +5811,18 @@ export default function App(){
 
   useEffect(()=>{
     if(!session)return
+    let initDone=false
+    // Failsafe: if any startup query hangs, stop the spinner so the user isn't stuck forever
+    const initFailsafe=setTimeout(()=>{if(!initDone){console.warn('Post-login init timed out');setLoading(false)}},12000)
     const init=async()=>{
-      const {data:sa}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
-      if(sa){setIsSuperAdmin(true);setLoading(false);return}
-      const {data:prof}=await supabase.from('profiles').select('*').eq('id',session.user.id).single()
-      if(!prof?.hospital_id){setProfile(prof);setLoading(false);return}
+     try{
+      const {data:sa,error:saErr}=await supabase.from('super_admins').select('id').eq('id',session.user.id).maybeSingle()
+      if(saErr)console.warn('super_admins check error',saErr)
+      if(sa){setIsSuperAdmin(true);initDone=true;clearTimeout(initFailsafe);setLoading(false);return}
+      const {data:prof,error:pErr}=await supabase.from('profiles').select('*').eq('id',session.user.id).maybeSingle()
+      if(pErr)console.warn('profile fetch error',pErr)
+      if(!prof){setProfile(null);initDone=true;clearTimeout(initFailsafe);setLoading(false);alert('No profile found for this account. If you are the super admin, you should have landed on the dashboard — please contact support if this persists.');return}
+      if(!prof?.hospital_id){setProfile(prof);initDone=true;clearTimeout(initFailsafe);setLoading(false);return}
       const hid=prof.hospital_id
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR,empR,attR,salR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
@@ -5834,13 +5841,15 @@ export default function App(){
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
       setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[],hospital:hosp});try{CUSTOM_CAT_REG={};(Array.isArray(hosp?.custom_expense_cats)?hosp.custom_expense_cats:[]).forEach(cc=>{if(cc&&cc.key)CUSTOM_CAT_REG[cc.key]=cc.segment==='lab'?'lab':'clinical'})}catch(e){}
-      setLoading(false)
+      initDone=true;clearTimeout(initFailsafe);setLoading(false)
       if(!tabInitialized){
         if(prof?.role==='admin'||prof?.role==='management')setTab('rep');else setTab('entry')
         setTabInitialized(true)
       }
+     }catch(err){console.error('Init failed',err);initDone=true;clearTimeout(initFailsafe);setLoading(false);alert('Could not load data: '+(err?.message||err)+'\n\nTap Reset & reload if the screen is stuck.')}
     }
     init()
+    return()=>clearTimeout(initFailsafe)
   },[session])
 
   const actions={
