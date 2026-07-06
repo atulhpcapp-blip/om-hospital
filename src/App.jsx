@@ -415,6 +415,11 @@ const PreviewApp=({db,hospital,onExit})=>{
 const SuperAdminDashboard=({onPreview=null})=>{
   const [hospitals,setHospitals]=useState([])
   const [loading,setLoading]=useState(true)
+  const [isWide,setIsWide]=useState(()=>typeof window!=='undefined'&&window.innerWidth>=900)
+  useEffect(()=>{const on=()=>setIsWide(window.innerWidth>=900);window.addEventListener('resize',on);return()=>window.removeEventListener('resize',on)},[])
+  const [sortBy,setSortBy]=useState('created')
+  const [sortDir,setSortDir]=useState('desc')
+  const daysLeft=(h)=>{if(!h.plan_end)return null;return Math.ceil((new Date(h.plan_end+'T00:00:00').getTime()-Date.now())/86400000)}
   const [view,setView]=useState('list')
   const [sel,setSel]=useState(null)
   const [selUsers,setSelUsers]=useState([])
@@ -443,6 +448,9 @@ const SuperAdminDashboard=({onPreview=null})=>{
   }
   const updatePlan=async(id,plan)=>{const planEnd=plan==='trial'?new Date(Date.now()+7*86400000).toISOString().split('T')[0]:'2099-12-31';await supabase.from('hospitals').update({plan,plan_end:planEnd,is_active:true}).eq('id',id);load();if(sel)setSel({...sel,plan,plan_end:planEnd})}
   const toggleActive=async(id,cur)=>{await supabase.from('hospitals').update({is_active:!cur}).eq('id',id);load();if(sel)setSel({...sel,is_active:!cur})}
+  const grantTrialDays=async(id,days)=>{const end=new Date(Date.now()+days*86400000).toISOString().split('T')[0];await supabase.from('hospitals').update({plan:'trial',plan_end:end,is_active:true,comped:false}).eq('id',id);load();if(sel)setSel({...sel,plan:'trial',plan_end:end,is_active:true,comped:false})}
+  const setComped=async(id,val,note)=>{const upd={comped:val,is_active:true};if(note!=null)upd.override_note=note;if(val)upd.plan_end='2099-12-31';await supabase.from('hospitals').update(upd).eq('id',id);load();if(sel)setSel({...sel,...upd})}
+  const saveOverrideNote=async(id,note)=>{await supabase.from('hospitals').update({override_note:note}).eq('id',id);if(sel)setSel({...sel,override_note:note})}
   const create=async()=>{
     if(!nH.name.trim()||!nH.adminName.trim()||!nH.adminUser.trim()||!nH.adminPass.trim()){setMsg({ok:false,t:'Fill all fields'});return}
     if(nH.adminPass.length<6){setMsg({ok:false,t:'Password min 6 chars'});return}
@@ -509,7 +517,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
     </div>
   )
   if(view==='detail'&&sel)return(
-    <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
+    <div style={{maxWidth:isWide?900:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div><div style={{fontWeight:700,fontSize:15}}> {sel.name}</div><div style={{fontSize:11,color:'#9ca3af'}}>{sel.city} - Super Admin</div></div>
         <button onClick={()=>setView('list')} style={{color:'#9ca3af',background:'none',border:'1px solid #374151',borderRadius:8,padding:'5px 10px',fontSize:12,cursor:'pointer'}}> Back</button>
@@ -521,6 +529,30 @@ const SuperAdminDashboard=({onPreview=null})=>{
         <button onClick={()=>toggleActive(sel.id,sel.is_active)} style={{width:'100%',padding:'12px',background:sel.is_active?'#fef2f2':'#f0fdf4',color:sel.is_active?'#dc2626':'#16a34a',border:`1px solid ${sel.is_active?'#fecaca':'#bbf7d0'}`,borderRadius:12,fontSize:14,fontWeight:600,cursor:'pointer',marginBottom:14}}>{sel.is_active?' Suspend':' Activate'}</button>
         <SecL>Staff ({selUsers.length})</SecL>
         <Card>{selUsers.length===0?<div style={{textAlign:'center',padding:'12px 0',color:'#ccc',fontSize:13}}>No staff</div>:selUsers.map(u=><Row key={u.id} left={u.name||'-'} sub={`@${u.username||'-'}`} right={<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'#f0f0f0',color:'#555',fontWeight:600}}>{u.role}</span>}/>)}</Card>
+        <SecL>⏳ Trial / Access override</SecL>
+        <Card style={{marginBottom:14,border:'1px solid #e0e7ff'}}>
+          {(()=>{const dl=sel.plan_end?Math.ceil((new Date(sel.plan_end+'T00:00:00').getTime()-Date.now())/86400000):null;return(
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,paddingBottom:12,borderBottom:'1px solid #f1f5f9'}}>
+              <div><div style={{fontSize:11,color:'#94a3b8',fontWeight:700,textTransform:'uppercase'}}>Current access</div><div style={{fontSize:13,fontWeight:700,color:'#0f172a',marginTop:2}}>{sel.comped?'Free (comped)':sel.plan+' · ends '+fmtD(sel.plan_end)}</div></div>
+              <div style={{textAlign:'right'}}><div style={{fontSize:22,fontWeight:900,color:sel.comped?'#4338ca':dl==null?'#cbd5e1':dl<0?'#dc2626':dl<=7?'#d97706':'#16a34a'}}>{sel.comped?'∞':dl==null?'—':dl<0?'Expired':dl+'d'}</div><div style={{fontSize:9,color:'#94a3b8',fontWeight:600}}>{sel.comped?'unlimited':'days left'}</div></div>
+            </div>)})()}
+          <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:6}}>Grant trial from today:</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
+            {[7,14,30,45,60,90].map(d=>(<button key={d} onClick={()=>{if(window.confirm('Grant '+d+'-day trial to '+sel.name+'? Access will run from today for '+d+' days.'))grantTrialDays(sel.id,d)}} style={{padding:'8px 14px',background:'#eef2ff',border:'1.5px solid #c7d2fe',borderRadius:10,fontSize:13,fontWeight:700,color:'#4338ca',cursor:'pointer'}}>+{d}d</button>))}
+          </div>
+          <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:6}}>Or set custom end date:</div>
+          <div style={{display:'flex',gap:8,marginBottom:12}}>
+            <input id="ovDate" type="date" defaultValue={sel.plan_end||''} style={{flex:1,padding:'9px 12px',border:'1.5px solid #cbd5e1',borderRadius:10,fontSize:14}}/>
+            <button onClick={async()=>{const d=document.getElementById('ovDate').value;if(!d){alert('Pick a date');return}await supabase.from('hospitals').update({plan_end:d,is_active:true,comped:false}).eq('id',sel.id);setSel({...sel,plan_end:d,is_active:true,comped:false});load();alert('Access extended to '+fmtD(d))}} style={{padding:'9px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Set</button>
+          </div>
+          <div style={{display:'flex',gap:8,marginBottom:12}}>
+            {!sel.comped?<button onClick={()=>{if(window.confirm('Grant FREE unlimited access to '+sel.name+'?\n\nThey will never be asked to pay and access never expires until you turn this off.'))setComped(sel.id,true,null)}} style={{flex:1,padding:'11px',background:'#4338ca',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>🎁 Grant free unlimited access</button>
+            :<button onClick={()=>{if(window.confirm('Remove free access for '+sel.name+'? They will go back to normal plan/trial expiry.'))setComped(sel.id,false,null)}} style={{flex:1,padding:'11px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>Remove free access</button>}
+          </div>
+          <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:4}}>Override note (why comped/extended):</div>
+          <textarea id="ovNote" defaultValue={sel.override_note||''} placeholder="e.g. Partner hospital, 3-month pilot agreed with Dr X" rows={2} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #cbd5e1',borderRadius:10,fontSize:13,fontFamily:'inherit',outline:'none',boxSizing:'border-box',resize:'vertical'}}/>
+          <button onClick={()=>{const n=document.getElementById('ovNote').value;saveOverrideNote(sel.id,n);alert('Note saved')}} style={{marginTop:8,padding:'8px 14px',background:'#f1f5f9',border:'none',borderRadius:8,fontSize:12,fontWeight:700,color:'#475569',cursor:'pointer'}}>Save note</button>
+        </Card>
         <SecL>Extend plan</SecL>
         <div style={{display:'flex',gap:8,marginBottom:8}}>
           <input id="extDate" type="date" defaultValue={sel.plan_end||''} style={{flex:1,padding:'10px 12px',border:'1px solid #e5e7eb',borderRadius:10,fontSize:14}} placeholder="Pick end date"/>
@@ -546,7 +578,7 @@ const SuperAdminDashboard=({onPreview=null})=>{
     </div>
   )
   return(
-    <div style={{maxWidth:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
+    <div style={{maxWidth:isWide?1200:520,margin:'0 auto',background:'#f8fafc',minHeight:'100vh'}}>
       <div style={{background:'#111',color:'#fff',padding:'14px 16px 0',position:'sticky',top:0,zIndex:10}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
           <div><div style={{fontWeight:700,fontSize:15}}> Super Admin</div><div style={{fontSize:11,color:'#9ca3af',marginTop:2}}>All hospitals</div></div>
@@ -567,14 +599,53 @@ const SuperAdminDashboard=({onPreview=null})=>{
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
             {[{label:'Total',value:hospitals.length},{label:'Active',value:hospitals.filter(h=>h.is_active).length,color:'#16a34a'},{label:'Trial',value:hospitals.filter(h=>h.plan==='trial').length,color:'#b45309'},{label:'Paid',value:hospitals.filter(h=>h.plan!=='trial'&&h.is_active).length,color:'#1d4ed8'}].map((m,i)=>(<div key={i} style={{background:'#f9f9f9',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:10,color:'#aaa',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>{m.label}</div><div style={{fontSize:22,fontWeight:700,color:m.color||'#111'}}>{m.value}</div></div>))}
           </div>
-          {loading?<div style={{textAlign:'center',padding:32,color:'#ccc'}}>Loading...</div>:hospitals.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No hospitals yet</div>:hospitals.filter(h=>{const q=(saSearch||'').toLowerCase();return(!q||h.name?.toLowerCase().includes(q)||h.city?.toLowerCase().includes(q))&&(cityFilter==='all'||h.city===cityFilter)}).map(h=>(
-            <Card key={h.id} style={{cursor:'pointer'}} >
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>openHosp(h)}>
-                <div><div style={{fontSize:14,fontWeight:700}}>{h.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{h.city||'-'} - {fmtD(h.created_at?.split('T')[0])}</div><div style={{marginTop:6,display:'flex',gap:6,flexWrap:'wrap'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:(planClr[h.plan]||planClr.trial)[0],color:(planClr[h.plan]||planClr.trial)[1],fontWeight:700}}>{h.plan}</span>{!h.is_active&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>Suspended</span>}</div></div>
-                <span style={{fontSize:18,color:'#aaa'}}></span>
-              </div>
-            </Card>
-          ))}
+          {(()=>{
+            if(loading)return<div style={{textAlign:'center',padding:32,color:'#ccc'}}>Loading...</div>
+            const q=(saSearch||'').toLowerCase()
+            let rows=hospitals.filter(h=>(!q||h.name?.toLowerCase().includes(q)||h.city?.toLowerCase().includes(q))&&(cityFilter==='all'||h.city===cityFilter))
+            const dir=sortDir==='asc'?1:-1
+            rows=[...rows].sort((a,b)=>{
+              let av,bv
+              if(sortBy==='name'){av=(a.name||'').toLowerCase();bv=(b.name||'').toLowerCase()}
+              else if(sortBy==='city'){av=(a.city||'').toLowerCase();bv=(b.city||'').toLowerCase()}
+              else if(sortBy==='plan'){av=a.plan||'';bv=b.plan||''}
+              else if(sortBy==='days'){av=daysLeft(a)??-99999;bv=daysLeft(b)??-99999}
+              else if(sortBy==='status'){av=a.is_active?1:0;bv=b.is_active?1:0}
+              else{av=a.created_at||'';bv=b.created_at||''}
+              return av<bv?-1*dir:av>bv?1*dir:0
+            })
+            if(rows.length===0)return<div style={{textAlign:'center',padding:'40px 0',color:'#ccc',fontSize:13}}>No hospitals found</div>
+            if(!isWide){
+              return rows.map(h=>{const dl=daysLeft(h);return(
+                <Card key={h.id} style={{cursor:'pointer'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}} onClick={()=>openHosp(h)}>
+                    <div><div style={{fontSize:14,fontWeight:700}}>{h.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{h.city||'-'} · {fmtD(h.created_at?.split('T')[0])}</div><div style={{marginTop:6,display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}><span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:(planClr[h.plan]||planClr.trial)[0],color:(planClr[h.plan]||planClr.trial)[1],fontWeight:700}}>{h.plan}</span>{h.comped&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#e0e7ff',color:'#4338ca',fontWeight:700}}>COMPED</span>}{!h.is_active&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontWeight:700}}>Suspended</span>}{dl!=null&&!h.comped&&<span style={{fontSize:10,fontWeight:700,color:dl<0?'#dc2626':dl<=7?'#d97706':'#16a34a'}}>{dl<0?'Expired '+(-dl)+'d ago':dl+'d left'}</span>}</div></div>
+                    <span style={{fontSize:18,color:'#aaa'}}>›</span>
+                  </div>
+                </Card>)})
+            }
+            // DESKTOP TABLE
+            const Th=({k,label,align})=>(<th onClick={()=>{if(sortBy===k)setSortDir(sortDir==='asc'?'desc':'asc');else{setSortBy(k);setSortDir('asc')}}} style={{textAlign:align||'left',padding:'10px 12px',fontSize:11,fontWeight:800,color:'#64748b',textTransform:'uppercase',letterSpacing:'.4px',cursor:'pointer',userSelect:'none',whiteSpace:'nowrap'}}>{label}{sortBy===k?(sortDir==='asc'?' ▲':' ▼'):''}</th>)
+            return(<div style={{background:'#fff',borderRadius:14,overflow:'hidden',border:'1px solid #eef2f7'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                <thead><tr style={{borderBottom:'2px solid #f1f5f9',background:'#fafbfc'}}>
+                  <Th k="name" label="Hospital"/><Th k="city" label="City"/><Th k="plan" label="Plan"/><Th k="status" label="Status"/>
+                  <Th k="days" label="Days left" align="right"/><th style={{textAlign:'right',padding:'10px 12px',fontSize:11,fontWeight:800,color:'#64748b',textTransform:'uppercase'}}>Plan end</th><Th k="created" label="Created" align="right"/>
+                </tr></thead>
+                <tbody>
+                  {rows.map(h=>{const dl=daysLeft(h);return(<tr key={h.id} onClick={()=>openHosp(h)} style={{borderBottom:'1px solid #f5f7fa',cursor:'pointer'}} onMouseEnter={e=>e.currentTarget.style.background='#f8fafc'} onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                    <td style={{padding:'11px 12px',fontWeight:700,color:'#0f172a'}}>{h.name}{h.comped&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:20,background:'#e0e7ff',color:'#4338ca',fontWeight:700,marginLeft:6}}>COMPED</span>}</td>
+                    <td style={{padding:'11px 12px',color:'#64748b'}}>{h.city||'—'}</td>
+                    <td style={{padding:'11px 12px'}}><span style={{fontSize:11,padding:'3px 9px',borderRadius:20,background:(planClr[h.plan]||planClr.trial)[0],color:(planClr[h.plan]||planClr.trial)[1],fontWeight:700}}>{h.plan}</span></td>
+                    <td style={{padding:'11px 12px'}}>{h.is_active?<span style={{color:'#16a34a',fontWeight:700,fontSize:12}}>● Active</span>:<span style={{color:'#dc2626',fontWeight:700,fontSize:12}}>● Suspended</span>}</td>
+                    <td style={{padding:'11px 12px',textAlign:'right',fontWeight:700,color:h.comped?'#4338ca':dl==null?'#cbd5e1':dl<0?'#dc2626':dl<=7?'#d97706':'#16a34a'}}>{h.comped?'∞':dl==null?'—':dl<0?'Expired':dl+'d'}</td>
+                    <td style={{padding:'11px 12px',textAlign:'right',color:'#64748b'}}>{fmtD(h.plan_end)}</td>
+                    <td style={{padding:'11px 12px',textAlign:'right',color:'#94a3b8'}}>{fmtD(h.created_at?.split('T')[0])}</td>
+                  </tr>)})}
+                </tbody>
+              </table>
+            </div>)
+          })()}
         </>)}
         {view==='add'&&(
           <Card>
@@ -6070,7 +6141,7 @@ export default function App(){
       <PreviewApp db={previewHospital.db} hospital={previewHospital.hospital} onExit={()=>setPreviewHospital(null)}/>
     </div>
   )
-  if(hospital&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
+  if(hospital&&!hospital.comped&&hospital.plan_end&&hospital.plan_end<todayStr()&&hospital.plan!=='pro'&&hospital.plan!=='enterprise'){
     return <PaymentPage session={session}/>
   }
 
