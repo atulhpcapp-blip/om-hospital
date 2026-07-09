@@ -1225,6 +1225,8 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
   const [pay,setPay]=useState(entry.payment||'cash')
   const [splits,setSplits]=useState([{amount:String(entry.amount||''),mode:entry.payment||'cash'}])
   const [notes,setNotes]=useState(entry.notes||'')
+  const [conds,setConds]=useState((entry.conditions||'').split(',').map(x=>x.trim()).filter(Boolean))
+  const [newCond,setNewCond]=useState('')
   const [date,setDate]=useState(entry.date||todayStr())
   const [opType,setOpType]=useState(entry.op_type||'New OP')
   const [type,setType]=useState(entry.type)
@@ -1252,7 +1254,7 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
         if(!ref.trim()&&ipPat.ref_doctor){setRef(ipPat.ref_doctor)}
       }
     }
-    await onSave({...entry,type,amount:amt,patient_id:linkedPatientId,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:entry.consultant_name,consultant_fee:isVC?parseFloat(vcFee||0):(opConsFee!==''?parseFloat(opConsFee||0):entry.consultant_fee)})
+    await onSave({...entry,type,amount:amt,patient_id:linkedPatientId,patient_name:patName,patient_phone:patPhone||'',patient_area:patArea||'',ref_doctor:ref.trim(),payment:pay,notes,date,op_type:opType,custom_commission:custComm!==''?parseFloat(custComm):null,consultant_name:isVC?vcConsultant:entry.consultant_name,consultant_fee:isVC?parseFloat(vcFee||0):(opConsFee!==''?parseFloat(opConsFee||0):entry.consultant_fee),conditions:conds.join(',')})
     setBusy(false)
   }
   return(
@@ -1303,6 +1305,20 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
         <FInp label="Correct consultant fee (Rs) — leave blank to keep current" type="number" value={opConsFee} onChange={e=>setOpConsFee(e.target.value)}/>
       </div>}
         <FInp label="Notes (optional)" type="text" placeholder="Optional" value={notes} onChange={e=>setNotes(e.target.value)}/>
+        <div style={{marginBottom:14}}>
+          <label style={{display:'block',fontSize:10,color:'#7c3aed',fontWeight:700,textTransform:'uppercase',marginBottom:6}}>Conditions / Comorbidities</label>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+            {['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease',...(db.income.flatMap(e=>(e.conditions||'').split(',').map(x=>x.trim()).filter(x=>x&&!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(x)))).filter((v,i,a)=>a.indexOf(v)===i),...conds.filter(cd=>!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(cd))].filter((v,i,a)=>a.indexOf(v)===i).map(cond=>{
+              const sel=conds.includes(cond)
+              return(<button key={cond} type="button" onClick={()=>setConds(sel?conds.filter(x=>x!==cond):[...conds,cond])} style={{padding:'4px 12px',borderRadius:20,border:sel?'none':'1.5px solid #e8e2d9',background:sel?'#1a1a2e':'#fff',color:sel?'#c9a84c':'#555',fontSize:12,fontWeight:sel?700:400,cursor:'pointer'}}>{cond}</button>)
+            })}
+          </div>
+          <div style={{display:'flex',gap:6}}>
+            <input type="text" placeholder="Add other condition..." value={newCond} onChange={e=>setNewCond(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newCond.trim()){setConds([...conds,newCond.trim()]);setNewCond('')}}} style={{flex:1,padding:'8px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,fontSize:13,outline:'none'}}/>
+            <button type="button" onClick={()=>{if(newCond.trim()){setConds([...conds.filter(x=>x!==newCond.trim()),newCond.trim()]);setNewCond('')}}} style={{padding:'7px 14px',background:'#1a1a2e',color:'#c9a84c',border:'none',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>+ Add</button>
+          </div>
+          {conds.length>0&&<div style={{marginTop:6,fontSize:11,color:'#7c3aed',fontWeight:600}}>Selected: {conds.join(', ')}</div>}
+        </div>
         <PBtn onClick={go} disabled={busy} style={{marginTop:8}}>{busy?'Saving...':'Save changes'}</PBtn>
         <button onClick={onCancel} style={{width:'100%',padding:'12px',background:'none',border:'1px solid #e5e7eb',borderRadius:12,fontSize:14,color:'#aaa',cursor:'pointer',marginTop:8}}>Cancel</button>
       </div>
@@ -6025,7 +6041,7 @@ export default function App(){
     addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{
-      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||''}
+      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||'',conditions:row.conditions??''}
       const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
       let {error}=await supabase.from('income').update(updates).eq('id',row.id)
       if(error){
