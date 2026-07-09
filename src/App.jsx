@@ -7059,26 +7059,35 @@ const SmartReminders=({db})=>{
 const QuickAttendance=({db,actions})=>{
   const [collapsed,setCollapsed]=useState(false)
   const today=todayStr()
+  const [attD,setAttD]=useState(today)
+  const monthStart=today.slice(0,8)+'01'
   const emps=(db.employees||[]).filter(e=>e.active!==false)
   const att=db.attendance||[]
   if(emps.length===0)return null
-  const dayAtt={};att.filter(a=>a.date===today).forEach(a=>{dayAtt[a.employee_id]=a.status})
+  const dayAtt={};att.filter(a=>a.date===attD).forEach(a=>{dayAtt[a.employee_id]=a.status})
   const markedCount=Object.keys(dayAtt).length
+  const isToday=attD===today
   const ATT={present:{l:'P',c:'#16a34a',bg:'#dcfce7'},absent:{l:'A',c:'#dc2626',bg:'#fee2e2'},half:{l:'½',c:'#d97706',bg:'#fef3c7'},leave:{l:'L',c:'#7c3aed',bg:'#ede9fe'}}
   return(<div style={{background:'#fff',border:'2px solid #e0e7ff',borderRadius:16,padding:'14px 16px',marginBottom:14}}>
     <div onClick={()=>setCollapsed(!collapsed)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',marginBottom:collapsed?0:12}}>
-      <div style={{fontSize:14,fontWeight:800,color:'#1a1a2e'}}>📋 Today's Attendance <span style={{fontSize:11,fontWeight:600,color:markedCount===emps.length?'#16a34a':'#f59e0b',marginLeft:6}}>{markedCount}/{emps.length} marked</span></div>
+      <div style={{fontSize:14,fontWeight:800,color:'#1a1a2e'}}>📋 {isToday?"Today's Attendance":'Attendance — '+fmtD(attD)} <span style={{fontSize:11,fontWeight:600,color:markedCount===emps.length?'#16a34a':'#f59e0b',marginLeft:6}}>{markedCount}/{emps.length} marked</span></div>
       <span style={{fontSize:13,color:'#94a3b8'}}>{collapsed?'▶':'▼'}</span>
     </div>
     {!collapsed&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
-      <button onClick={async()=>{for(const emp of emps){if(dayAtt[emp.id]!=='present')await actions.markAttendance(emp.id,today,'present')}}} style={{padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:800,cursor:'pointer',marginBottom:2}}>✓ Mark all Present ({emps.length})</button>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+        <span style={{fontSize:11,color:'#64748b',fontWeight:700,whiteSpace:'nowrap'}}>Date:</span>
+        <input type="date" value={attD} min={monthStart} max={today} onChange={e=>{const v=e.target.value;if(v>=monthStart&&v<=today)setAttD(v)}} style={{flex:1,padding:'8px 10px',border:'1.5px solid #cbd5e1',borderRadius:8,fontSize:13,outline:'none'}}/>
+        {!isToday&&<button onClick={()=>setAttD(today)} style={{padding:'8px 12px',background:'#eef2ff',border:'1px solid #c7d2fe',borderRadius:8,fontSize:11,fontWeight:700,color:'#4338ca',cursor:'pointer',whiteSpace:'nowrap'}}>Today</button>}
+      </div>
+      {!isToday&&<div style={{fontSize:11,color:'#d97706',fontWeight:600,background:'#fffbeb',border:'1px solid #fde68a',borderRadius:8,padding:'6px 10px'}}>⏪ Back-filling attendance for {fmtD(attD)}</div>}
+      <button onClick={async()=>{for(const emp of emps){if(dayAtt[emp.id]!=='present')await actions.markAttendance(emp.id,attD,'present')}}} style={{padding:'10px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:800,cursor:'pointer',marginBottom:2}}>✓ Mark all Present ({emps.length})</button>
       {emps.map(emp=>{
         const cur=dayAtt[emp.id]
         return(<div key={emp.id} style={{display:'flex',alignItems:'center',gap:8}}>
           <div style={{flex:1,minWidth:0,fontSize:13,fontWeight:600,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{emp.name}<span style={{fontSize:10,color:'#94a3b8',fontWeight:500,marginLeft:4}}>{emp.role}</span></div>
           <div style={{display:'flex',gap:4}}>
             {Object.entries(ATT).map(([k,s])=>(
-              <button key={k} onClick={()=>actions.markAttendance(emp.id,today,k)} title={k} style={{width:34,height:34,borderRadius:8,border:cur===k?'2px solid '+s.c:'1.5px solid #e5e7eb',background:cur===k?s.bg:'#fff',color:cur===k?s.c:'#cbd5e1',fontSize:13,fontWeight:800,cursor:'pointer',padding:0}}>{s.l}</button>
+              <button key={k} onClick={()=>actions.markAttendance(emp.id,attD,k)} title={k} style={{width:34,height:34,borderRadius:8,border:cur===k?'2px solid '+s.c:'1.5px solid #e5e7eb',background:cur===k?s.bg:'#fff',color:cur===k?s.c:'#cbd5e1',fontSize:13,fontWeight:800,cursor:'pointer',padding:0}}>{s.l}</button>
             ))}
           </div>
         </div>)
