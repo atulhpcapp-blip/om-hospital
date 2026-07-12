@@ -1640,6 +1640,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
   const [collectEntry,setCollectEntry]=useState(null)
   const [showRefModal,setShowRefModal]=useState(false)
   const [bulkRefDoc,setBulkRefDoc]=useState(null)
+  const [payDocI,setPayDocI]=useState(null)
   const [ipSearch,setIpSearch]=useState('')
   const [ipView,setIpView]=useState('active')
   const [ipMonth,setIpMonth]=useState(todayStr().slice(0,7))
@@ -1814,6 +1815,23 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         </div>}
         </Card></>)}
         {p.ref_doctor&&!p.is_package&&ents.length>0&&canSeeReports&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
+        {(()=>{
+          const dn=p.ref_doctor
+          const gEarned=db.income.filter(e=>e.ref_doctor===dn).reduce((a,e)=>a+getComm(e),0)
+          const gPaid=db.expenses.filter(e=>e.category==='ref_paid'&&e.description===dn).reduce((a,e)=>a+e.amount,0)
+          const gRet=db.expenses.filter(e=>isRetainedCat(e.category)&&e.description===dn).reduce((a,e)=>a+e.amount,0)
+          const gDue=gEarned-gPaid-gRet
+          return(<div style={{marginTop:10}}>
+            <div style={{fontSize:10.5,color:'#94a3b8',fontWeight:600,marginBottom:8}}>Dr. {dn} account (all patients): Earned {fmt(gEarned)} · Paid {fmt(gPaid)}{gRet>0?' · Retained '+fmt(gRet):''} · <span style={{color:gDue>0?'#c2410c':'#16a34a',fontWeight:800}}>Due {fmt(Math.max(0,gDue))}</span></div>
+            {payDocI==='PAY'?<CommPayForm docName={dn} balance={Math.max(0,Math.min(b.commission,gDue))||b.commission} onCancel={()=>setPayDocI(null)} onSave={async(amt,date,pay)=>{await settleRefPayment(db,actions,dn,amt,date,pay,0);setPayDocI(null)}}/>
+             :payDocI==='DED'?<DeductCommForm docName={dn} balance={Math.max(0,gDue)} onCancel={()=>setPayDocI(null)} onSave={async(amt,date)=>{await settleRefPayment(db,actions,dn,0,date,'adjustment',amt);setPayDocI(null)}}/>
+             :gDue>0.5?<div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setPayDocI('PAY')} style={{flex:2,padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>
+                <button onClick={()=>setPayDocI('DED')} style={{flex:1,padding:'10px',background:'#fffbeb',color:'#b45309',border:'1.5px solid #fcd34d',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>− Deduct</button>
+              </div>
+             :<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>✓ Doctor fully settled</div>}
+          </div>)
+        })()}
         {canSeeReports&&<button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>}
         {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
         
