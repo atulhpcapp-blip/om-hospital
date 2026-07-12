@@ -5235,40 +5235,40 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           {opInc>0&&<>
             <R l="OP Consultation" v={fmt(opInc)} green/>
-            {dI.filter(e=>e.type==='op'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+            {dI.filter(e=>e.type==='op').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
               <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
                 <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/>{e.op_type?' — '+e.op_type:''}</div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={isCredit(e)}/></div>
               </div>
               <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {opdInc>0&&<>
             <R l="OPD Services" v={fmt(opdInc)} green/>
-            {dI.filter(e=>e.type==='opd'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+            {dI.filter(e=>e.type==='opd').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
               <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
                 <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={isCredit(e)}/></div>
               </div>
               <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {oppInc>0&&<>
             <R l="OP Procedures" v={fmt(oppInc)} green/>
-            {dI.filter(e=>e.type==='op_p'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+            {dI.filter(e=>e.type==='op_p').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
               <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
                 <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={isCredit(e)}/></div>
               </div>
               <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {opdmInc>0&&<>
             <R l="OP Discharge Medicine" v={fmt(opdmInc)} green/>
-            {dI.filter(e=>e.type==='op_dm'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #f9a8d4',gap:8}}>
+            {dI.filter(e=>e.type==='op_dm').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #f9a8d4',gap:8}}>
               <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
                 <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={isCredit(e)}/></div>
               </div>
               <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
@@ -5276,18 +5276,18 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           {vcProfit>0&&<R l="VC hospital profit" v={fmt(vcProfit)} green sub={'Collected '+fmt(vcInc)+' - Cons fee '+fmt(vcConsFee)}/>}
           {oprInc>0&&<>
             <R l="OP Pharmacy" v={fmt(oprInc)} green/>
-            {dI.filter(e=>e.type==='op_r'&&!isCredit(e)).map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
+            {dI.filter(e=>e.type==='op_r').map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #bae6fd',gap:8}}>
               <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
                 <div><NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={false}/></div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={isCredit(e)}/></div>
               </div>
               <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)}
           </>}
           {ipInc>0&&<>
             <R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>
-            {(()=>{const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type)&&!isCredit(e));const byPat={};ipEnts.forEach(e=>{const k=e.patient_name||'—';if(!byPat[k])byPat[k]={amt:0,pid:e.patient_id||null};byPat[k].amt+=e.amount});return Object.entries(byPat).map(([name,d],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
-              <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/></span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
+            {(()=>{const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type));const byPat={};ipEnts.forEach(e=>{const k=e.patient_name||'—';if(!byPat[k])byPat[k]={amt:0,cr:0,pid:e.patient_id||null};byPat[k].amt+=e.amount;if(isCredit(e))byPat[k].cr+=e.amount});return Object.entries(byPat).map(([name,d],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
+              <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/>{d.cr>0&&<span style={{fontSize:9.5,padding:'1px 7px',borderRadius:20,background:'#fff7ed',color:'#c2410c',fontWeight:700,marginLeft:5}}>Credit {fmt(d.cr)}</span>}</span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
             </div>)})()}
           </>}
           <R l="Gross OP + IP income" v={fmt(opIpInc)} bold green/>
@@ -5327,12 +5327,12 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         </div>
         <div style={{background:'rgba(255,255,255,0.8)',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
           {(()=>{
-            const opL=dI.filter(e=>e.type==='op_l'&&!isCredit(e)),ipL=dI.filter(e=>e.type==='ip_l'&&!isCredit(e))
+            const opL=dI.filter(e=>e.type==='op_l'),ipL=dI.filter(e=>e.type==='ip_l')
             const opLT=opL.reduce((a,e)=>a+e.amount,0),ipLT=ipL.reduce((a,e)=>a+e.amount,0)
             const MRow=({e,isIP})=>(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'#374151',padding:'4px 0 4px 10px',borderLeft:'2px solid #e9d5ff',gap:8}}>
               <div style={{display:'flex',flexDirection:'column',gap:2,flex:1,minWidth:0}}>
                 <div>{isIP?'🏥 ':''}<NameBtn name={e.patient_name||'—'} pid={e.patient_id||null} isIP={isIP}/></div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={false}/></div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}><PayBadges e={e} cr={isCredit(e)}/></div>
               </div>
               <span style={{fontWeight:700,color:'#16a34a',whiteSpace:'nowrap'}}>{fmt(e.amount)}</span>
             </div>)
