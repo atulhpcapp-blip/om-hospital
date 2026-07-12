@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
 import { supabase } from './supabase.js'
 
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'op_p',label:'OP-P',full:'OP Procedures'},{key:'op_dm',label:'OP-DM',full:'OP Discharge Medicine'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
-const ECATS=[{key:'ref_paid',label:'Referral commission paid',segment:'skip'},{key:'consultant_fee',label:'Consultant fee (OP Consult)',segment:'skip'},{key:'consultant_proc_comm',label:'Consultant commission (OP Procedure)',segment:'skip'},{key:'lab_to_lab',label:'Lab to lab expenses',segment:'lab'},{key:'lab_grbs',label:'GRBS strips',segment:'lab'},{key:'lab_ecg',label:'ECG strips/rolls',segment:'lab'},{key:'lab_reagents',label:'Lab reagents & kits',segment:'lab'},{key:'lab_consumables',label:'Lab consumables',segment:'lab'},{key:'rent',label:'Hospital rent',segment:'clinical'},{key:'electricity',label:'Electricity',segment:'clinical'},{key:'water',label:'Water',segment:'clinical'},{key:'salary',label:'Staff salary',segment:'clinical'},{key:'supplies',label:'Medical supplies',segment:'clinical'},{key:'municipality',label:'Municipality',segment:'clinical'},{key:'biomedical_bags',label:'Biomedical waste bags',segment:'clinical'},{key:'stationary',label:'Stationary',segment:'clinical'},{key:'washroom_cleaner',label:'Washroom cleaner',segment:'clinical'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)',segment:'clinical'},{key:'misc',label:'Miscellaneous',segment:'clinical'}]
+const ECATS=[{key:'ref_paid',label:'Referral commission paid',segment:'skip'},{key:'consultant_fee',label:'Consultant fee (OP Consult)',segment:'skip'},{key:'consultant_proc_comm',label:'Consultant commission (OP Procedure)',segment:'skip'},{key:'comm_retained_clinical',label:'Commission retained (Clinical)',segment:'skip'},{key:'comm_retained_lab',label:'Commission retained (Lab)',segment:'skip'},{key:'lab_to_lab',label:'Lab to lab expenses',segment:'lab'},{key:'lab_grbs',label:'GRBS strips',segment:'lab'},{key:'lab_ecg',label:'ECG strips/rolls',segment:'lab'},{key:'lab_reagents',label:'Lab reagents & kits',segment:'lab'},{key:'lab_consumables',label:'Lab consumables',segment:'lab'},{key:'rent',label:'Hospital rent',segment:'clinical'},{key:'electricity',label:'Electricity',segment:'clinical'},{key:'water',label:'Water',segment:'clinical'},{key:'salary',label:'Staff salary',segment:'clinical'},{key:'supplies',label:'Medical supplies',segment:'clinical'},{key:'municipality',label:'Municipality',segment:'clinical'},{key:'biomedical_bags',label:'Biomedical waste bags',segment:'clinical'},{key:'stationary',label:'Stationary',segment:'clinical'},{key:'washroom_cleaner',label:'Washroom cleaner',segment:'clinical'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)',segment:'clinical'},{key:'misc',label:'Miscellaneous',segment:'clinical'}]
 const LAB_INCOME_TYPES=new Set(['op_l','ip_l'])
 let CUSTOM_CAT_REG={};const expenseSegment=(catKey)=>{const found=ECATS.find(c=>c.key===catKey);if(found)return found.segment;if(CUSTOM_CAT_REG[catKey])return CUSTOM_CAT_REG[catKey];if(catKey&&/lab|grbs|ecg|strip|reagent|kit/i.test(catKey))return 'lab';return 'clinical'}
 const incomeSegment=(type)=>LAB_INCOME_TYPES.has(type)?'lab':'clinical'
@@ -51,7 +51,7 @@ const isExcluded=e=>e.payment==='credit'||e.payment==='written_off'||e.payment==
 const isPaid=e=>!isExcluded(e)
 const getComm=e=>{if(e.payment==='written_off'||e.payment==='discount')return 0;if(!e.ref_doctor||e.ref_doctor.trim()==='')return 0;const rate=e.custom_commission!=null?(parseFloat(e.custom_commission)/100):(COMM[e.type]||0);return e.amount*rate}
 const sumInc=list=>{const r={};ITYPES.forEach(t=>{r[t.key]=list.filter(e=>e.type===t.key).reduce((a,e)=>a+e.amount,0)});r.total=Object.values(r).reduce((a,b)=>a+b,0);return r}
-const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=ECATS.filter(c=>c.key!=='ref_paid').reduce((a,c)=>a+(r[c.key]||0),0);return r}
+const sumExp=list=>{const r={};ECATS.forEach(c=>{r[c.key]=list.filter(e=>e.category===c.key).reduce((a,e)=>a+e.amount,0)});r.total=ECATS.filter(c=>c.key!=='ref_paid'&&!isRetainedCat(c.key)).reduce((a,c)=>a+(r[c.key]||0),0);return r}
 const totalRef=list=>list.reduce((a,e)=>a+getComm(e),0)
 const cashTotal=list=>list.filter(e=>!isExcluded(e)).reduce((a,e)=>a+e.amount,0)
 const credTotal=list=>list.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
@@ -243,14 +243,32 @@ const DonutChart=({segments,title,centerLabel})=>{
 }
 
 /*  COMMISSION PAYMENT FORM  standalone to prevent keyboard close */
+const RETAINED_CATS=['comm_retained_clinical','comm_retained_lab']
+const isRetainedCat=(k)=>k==='comm_retained_clinical'||k==='comm_retained_lab'
+const settleRefPayment=async(db,actions,docName,amt,date,pay,settleAmt)=>{
+  if(amt>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:docName,payment:pay,is_monthly:false})
+  if(settleAmt>0){
+    const dEnts=(db.income||[]).filter(e=>e.ref_doctor===docName)
+    const cl=dEnts.filter(e=>incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0)
+    const lb=dEnts.filter(e=>incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0)
+    const tot=cl+lb
+    const clAmt=tot>0?Math.round(settleAmt*cl/tot):Math.round(settleAmt)
+    const lbAmt=Math.round(settleAmt)-clAmt
+    if(clAmt>0)await actions.addExpense({id:uid(),date,category:'comm_retained_clinical',amount:clAmt,description:docName,payment:'adjustment',is_monthly:false})
+    if(lbAmt>0)await actions.addExpense({id:uid(),date,category:'comm_retained_lab',amount:lbAmt,description:docName,payment:'adjustment',is_monthly:false})
+  }
+}
 const CommPayForm=({docName,balance,onSave,onCancel})=>{
   const [date,setDate]=useState(todayStr())
   const [amount,setAmount]=useState(String(Math.round(balance)))
   const [pay,setPay]=useState('cash')
   const [busy,setBusy]=useState(false)
+  const [settle,setSettle]=useState(true)
+  const amtNum=parseFloat(amount)||0
+  const remainder=Math.max(0,Math.round(balance-amtNum))
   const go=async()=>{
     const amt=parseFloat(amount);if(!amt||amt<=0){alert('Enter amount');return}
-    setBusy(true);await onSave(amt,date,pay);setBusy(false)
+    setBusy(true);await onSave(amt,date,pay,(remainder>0&&settle)?remainder:0);setBusy(false)
   }
   return(
     <div style={{background:'#f9fafb',borderRadius:10,padding:'12px 14px',border:'1px solid #e5e7eb',marginTop:10}}>
@@ -2233,7 +2251,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {Object.entries(byType).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(<div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span><span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(v.inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{v.comm>0?'-'+fmt(v.comm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(v.inc-v.comm)}</span></div>)})}
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(totalInc)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totalComm>0?'-'+fmt(totalComm):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(totalInc-totalComm)}</span></div>
         </Card>
-        {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{balance>0&&(!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}</Card>)})}</>)}
+        {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const waived=db.expenses.filter(e=>isRetainedCat(e.category)&&e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid-waived;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{waived>0&&<div style={{fontSize:10.5,color:'#92400e',background:'#fffbeb',borderRadius:6,padding:'4px 8px',marginBottom:8,fontWeight:600}}>Settled/retained (not paid): {fmt(waived)}</div>}{balance>0&&(!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay,settleAmt=0)=>{await settleRefPayment(db,actions,doc.name,amt,date,pay,settleAmt);setPayDoc(null)}}/>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}</Card>)})}</>)}
         {consList.length>0&&canSeeReports&&(<><SecL>Consultants</SecL>{consList.map(cn=>{
         const cfPaid=consPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
         const pcPaid=procPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
@@ -2406,7 +2424,7 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const exp=db.expenses.filter(e=>e.category!=='ref_paid').filter(e=>e.date===exD);const etot=exp.reduce((a,e)=>a+e.amount,0)
   const [selMonth,setSelMonth]=useState(todayStr().slice(0,7))
   const [editExp,setEditExp]=useState(null)
-  const monthExp=db.expenses.filter(e=>e.category!=='ref_paid'&&e.date?.startsWith(selMonth)).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+  const monthExp=db.expenses.filter(e=>e.category!=='ref_paid'&&!isRetainedCat(e.category)&&e.date?.startsWith(selMonth)).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
   const monthTot=monthExp.reduce((a,e)=>a+e.amount,0)
   const monthByCat={};monthExp.forEach(e=>{if(!monthByCat[e.category])monthByCat[e.category]={total:0,entries:[]};monthByCat[e.category].total+=e.amount;monthByCat[e.category].entries.push(e)})
   const monthCatSorted=Object.entries(monthByCat).sort((a,b)=>b[1].total-a[1].total)
@@ -2550,9 +2568,10 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
       const docsAll=buildRef(income)
       const rows=docsAll.map(doc=>{
         const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0)
-        const due=doc.total_commission-paid
+        const waived=(db.expenses||[]).filter(e=>isRetainedCat(e.category)&&e.description===doc.name).reduce((a,e)=>a+e.amount,0)
+        const due=doc.total_commission-paid-waived
         const monthEarned=income.filter(e=>e.ref_doctor===doc.name&&e.date?.startsWith(dlMonth)).reduce((a,e)=>a+getComm(e),0)
-        return{...doc,paid,due,monthEarned}
+        return{...doc,paid,waived,due,monthEarned}
       })
       const dueRows=rows.filter(r=>r.due>0.5).sort((a,b)=>b.due-a.due)
       const paidRows=rows.filter(r=>r.due<=0.5)
@@ -2580,10 +2599,10 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
         {dueRows.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#16a34a',fontSize:13,fontWeight:600}}>✓ All doctors fully paid</div>}
         {dueRows.map(r=>{const isOpen=payDoc==='DUE:'+r.name;return(<Card key={r.name} style={{border:'1px solid #fed7aa'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-            <div><div style={{fontSize:14,fontWeight:700}}>Dr. {r.name}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Earned {fmt(r.total_commission)} · Paid {fmt(r.paid)} · {dlMonth}: {fmt(r.monthEarned)}</div></div>
+            <div><div style={{fontSize:14,fontWeight:700}}>Dr. {r.name}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Earned {fmt(r.total_commission)} · Paid {fmt(r.paid)}{r.waived>0?' · Retained '+fmt(r.waived):''} · {dlMonth}: {fmt(r.monthEarned)}</div></div>
             <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#c2410c',fontWeight:700,textTransform:'uppercase'}}>Due</div><div style={{fontSize:18,fontWeight:800,color:'#c2410c'}}>{fmt(r.due)}</div></div>
           </div>
-          {!isOpen?<button onClick={()=>setPayDoc('DUE:'+r.name)} style={{width:'100%',padding:'9px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Record payment</button>:<CommPayForm docName={r.name} balance={r.due} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:r.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}
+          {!isOpen?<button onClick={()=>setPayDoc('DUE:'+r.name)} style={{width:'100%',padding:'9px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Record payment</button>:<CommPayForm docName={r.name} balance={r.due} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay,settleAmt=0)=>{await settleRefPayment(db,actions,r.name,amt,date,pay,settleAmt);setPayDoc(null)}}/>}
         </Card>)})}
         {consRows.length>0&&<><SecL>Consultants — due ({consDue.length})</SecL>
         {consDue.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#16a34a',fontSize:13,fontWeight:600}}>✓ All consultants fully paid</div>}
@@ -2612,7 +2631,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
         <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#92400e',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Commission earned</div><div style={{fontSize:22,fontWeight:700,color:'#c2410c'}}>{fmt(tc)}</div></div>
         <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'12px 14px'}}><div style={{fontSize:10,color:'#15803d',fontWeight:700,textTransform:'uppercase',marginBottom:4}}>Total paid out</div><div style={{fontSize:22,fontWeight:700,color:'#15803d'}}>{fmt(totalPaid)}</div></div>
       </div>
-      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid;const isOpen=payDoc===doc.name;return(
+      {docs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const waivedC=(db.expenses||[]).filter(e=>isRetainedCat(e.category)&&e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.total_commission-paid-waivedC;const isOpen=payDoc===doc.name;return(
         <Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.total_income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission earned</div><div style={{fontSize:18,fontWeight:700,color:'#c2410c'}}>{fmt(doc.total_commission)}</div></div></div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'10px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}>
@@ -2651,7 +2670,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
               </div>)
             })}
           </div>)}
-          {balance>0&&(<div style={{marginTop:10}}>{!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:doc.name,payment:pay,is_monthly:false});setPayDoc(null)}}/>}</div>)}
+          {balance>0&&(<div style={{marginTop:10}}>{!isOpen?<button onClick={()=>setPayDoc(doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>+ Record commission payment</button>:<CommPayForm docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(amt,date,pay,settleAmt=0)=>{await settleRefPayment(db,actions,doc.name,amt,date,pay,settleAmt);setPayDoc(null)}}/>}</div>)}
           {balance<=0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8,padding:'8px 12px',background:'#f0fdf4',borderRadius:10}}><span style={{fontSize:12,color:'#16a34a',fontWeight:700}}>Fully paid</span><button onClick={()=>setPayDoc(doc.name)} style={{fontSize:11,color:'#6366f1',background:'none',border:'1px solid #e5e7eb',borderRadius:8,padding:'4px 10px',fontWeight:600,cursor:'pointer'}}>+ Add payment</button></div>}
         </Card>
       )})}
@@ -2756,7 +2775,7 @@ const ExpensesReport=({db,actions})=>{
   const [addF,setAddF]=useState({date:todayStr(),cat:'supplies',amt:'',desc:'',pay:'cash'})
   const yrs=[...new Set(db.expenses.map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry2))yrs.unshift(ry2)
-  const allExp=db.expenses.filter(e=>e.category!=='ref_paid')
+  const allExp=db.expenses.filter(e=>e.category!=='ref_paid'&&!isRetainedCat(e.category))
   const expList=(per==='month'?allExp.filter(e=>e.date?.startsWith(rm2)):per==='year'?allExp.filter(e=>e.date?.startsWith(ry2)):allExp.filter(e=>e.date>=from&&e.date<=to))
   const total=expList.reduce((a,e)=>a+e.amount,0)
   const byCat={};expList.forEach(e=>{if(!byCat[e.category])byCat[e.category]=0;byCat[e.category]+=e.amount})
@@ -3106,9 +3125,11 @@ const RealIncomeReport=({db})=>{
   const clinGross=clinInc.reduce((a,e)=>a+(e.amount||0),0)
   const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
   const clinCons=clinInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
-  const segClinExp=expList.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)!=='lab')
+  const segClinExp=expList.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)&&expenseSegment(e.category)!=='lab')
   const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
-  const clinActual=clinGross-clinComm-clinCons-clinExpTotal
+  const riRetC=expList.filter(e=>e.category==='comm_retained_clinical').reduce((a,e)=>a+(e.amount||0),0)
+  const riRetL=expList.filter(e=>e.category==='comm_retained_lab').reduce((a,e)=>a+(e.amount||0),0)
+  const clinActual=clinGross-clinComm-clinCons-clinExpTotal+riRetC
   const clinExpCats={}
   segClinExp.forEach(e=>{
     const k=e.category||'other'
@@ -3119,7 +3140,7 @@ const RealIncomeReport=({db})=>{
   const labGross=labInc.reduce((a,e)=>a+(e.amount||0),0)
   const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
   const labToLab=expList.filter(e=>expenseSegment(e.category)==='lab').reduce((a,e)=>a+(e.amount||0),0)
-  const labActual=labGross-labComm-labToLab
+  const labActual=labGross-labComm-labToLab+dRetainedLab
 
   const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
   const hasData=incList.length>0||expList.length>0
@@ -3191,6 +3212,7 @@ const RealIncomeReport=({db})=>{
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(clinGross)}</span></div>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(clinComm)}</span></div>
             {clinCons>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Consultant fees</span><span style={{fontWeight:700,color:'#7e22ce'}}>- {fmt(clinCons)}</span></div>}
+            {riRetC>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Commission retained</span><span style={{fontWeight:700,color:'#16a34a'}}>+ {fmt(riRetC)}</span></div>}
             {Object.entries(clinExpCats).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}
             <div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/>
             <div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:clinActual>=0?'#0891b2':'#dc2626'}}>{fmt(clinActual)}</span></div>
@@ -4628,7 +4650,8 @@ const DatewiseNetCard=({incList,expList})=>{
       const comm=si.reduce((a,e)=>a+getComm(e),0)
       const cons=si.reduce((a,e)=>a+(e.consultant_fee||0),0)
       const exp=dayExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===s).reduce((a,e)=>a+(e.amount||0),0)
-      return billed-comm-cons-exp
+      const ret=dayExp.filter(e=>e.category===(s==='lab'?'comm_retained_lab':'comm_retained_clinical')).reduce((a,e)=>a+(e.amount||0),0)
+      return billed-comm-cons-exp+ret
     }
     return{clin:seg('clinical'),lab:seg('lab')}
   }
@@ -4680,9 +4703,10 @@ const SegmentPL=({incList,expList,mtdIncList=null,mtdExpList=null,mtdLabel='',mt
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
       const expByCat={};sExp.forEach(e=>{if(!expByCat[e.category])expByCat[e.category]=0;expByCat[e.category]+=e.amount||0})
       const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt})).sort((a,b)=>b.amt-a.amt)
-      const net=billed-comm-cons-expTotal
+      const retained=srcExp.filter(e=>e.category===(seg==='lab'?'comm_retained_lab':'comm_retained_clinical')).reduce((a,e)=>a+(e.amount||0),0)
+      const net=billed-comm-cons-expTotal+retained
       const margin=billed>0?(net/billed*100):0
-      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,net,margin,count:sInc.length}
+      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,retained,net,margin,count:sInc.length}
     }
     const clinical=calcSeg('clinical')
     const lab=calcSeg('lab')
@@ -4706,6 +4730,7 @@ const SegmentPL=({incList,expList,mtdIncList=null,mtdExpList=null,mtdLabel='',mt
           {(d.commSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
           {d.cons>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>
           {(d.consSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
+          {(d.retained||0)>0&&<tr><td style={{padding:'4px 0',color:'#166534',fontWeight:600}}>Commission retained</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>+{fmt(d.retained)}</td></tr>}
           <tr style={{borderTop:'1.5px solid '+color.border}}>
             <td style={{padding:'8px 0 2px',fontWeight:800,color:d.net>=0?'#15803d':'#dc2626',fontSize:14}}>NET PROFIT</td>
             <td style={{textAlign:'right',padding:'8px 0 2px',fontWeight:900,fontSize:18,color:d.net>=0?'#15803d':'#dc2626'}}>{fmt(d.net)}</td>
@@ -4824,7 +4849,9 @@ const PatientBreakdown=({incList,db,gotoIP,gotoOP,title,compact})=>{
 const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,gotoIP,gotoTimeline,gotoOP})=>{
   const dI=db.income.filter(e=>e.date===rd)
   const dExpAll=db.expenses.filter(e=>e.date===rd&&e.category!=='ref_paid')
-  const dExpPnL=dExpAll.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm')
+  const dRetainedClin=dExpAll.filter(e=>e.category==='comm_retained_clinical').reduce((a,e)=>a+e.amount,0)
+  const dRetainedLab=dExpAll.filter(e=>e.category==='comm_retained_lab').reduce((a,e)=>a+e.amount,0)
+  const dExpPnL=dExpAll.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category))
   const dExpNonLab=dExpPnL.filter(e=>expenseSegment(e.category)!=='lab')
   const dExpLab=dExpPnL.filter(e=>expenseSegment(e.category)==='lab')
 
@@ -4909,7 +4936,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labRawEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
   const labComm=labRawEnts.reduce((a,e)=>a+getComm(e),0)
   const labToLab=dExpLab.reduce((a,e)=>a+e.amount,0)
-  const labActual=labInc-labComm-labToLab
+  const labActual=labInc-labComm-labToLab+riRetL
 
   // OP+IP segment: ALL non-lab income minus commissions, consultant fees, and non-lab expenses
   const opIpInc=opInc+opdInc+opdmInc+oppInc+vcProfit+oprInc+ipInc
@@ -4917,7 +4944,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const opIpComm=clinEntsAll.reduce((a,e)=>a+getComm(e),0)
   const opIpConsFee=clinEntsAll.filter(e=>e.type!=='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
   const nonLabExpTotal=dExpNonLab.reduce((a,e)=>a+e.amount,0)
-  const opIpActual=opIpInc-opIpComm-opIpConsFee-nonLabExpTotal
+  const opIpActual=opIpInc-opIpComm-opIpConsFee-nonLabExpTotal+dRetainedClin
 
   const R=({l,v,bold,red,green,sub})=>(<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'6px 0',borderBottom:'1px solid #f5f5f5'}}>
     <div><span style={{fontSize:13,color:'#374151',fontWeight:bold?700:400}}>{l}</span>{sub&&<div style={{fontSize:10,color:'#94a3b8',marginTop:1}}>{sub}</div>}</div>
@@ -5195,7 +5222,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           </>}
           <R l="Gross OP + IP income" v={fmt(opIpInc)} bold green/>
           {opIpComm>0&&<>{<R l="Ref commissions" v={'- '+fmt(opIpComm)} red/>}{Object.entries(clinEntsAll.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
-          {opIpConsFee>0&&<>{<R l="Consultant fees" v={'- '+fmt(opIpConsFee)} red sub="Accrued on today's entries"/>}{Object.entries(clinEntsAll.filter(e=>e.type!=='vc').reduce((m,e)=>{const cm=(e.consultant_fee||0);if(cm>0&&e.consultant_name){m[e.consultant_name]=(m[e.consultant_name]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
+          {dRetainedClin>0&&<R l="Commission retained" v={'+ '+fmt(dRetainedClin)} green sub="Kept back from commission payout"/>}{opIpConsFee>0&&<>{<R l="Consultant fees" v={'- '+fmt(opIpConsFee)} red sub="Accrued on today's entries"/>}{Object.entries(clinEntsAll.filter(e=>e.type!=='vc').reduce((m,e)=>{const cm=(e.consultant_fee||0);if(cm>0&&e.consultant_name){m[e.consultant_name]=(m[e.consultant_name]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
@@ -5245,7 +5272,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <R l="Gross lab income" v={fmt(labInc)} bold green/>
             </>)
           })()}
-          <><R l="Ref commissions" v={'- '+fmt(labComm)} red/>{Object.entries(labRawEnts.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>
+          <>{dRetainedLab>0&&<R l="Commission retained" v={'+ '+fmt(dRetainedLab)} green/>}<R l="Ref commissions" v={'- '+fmt(labComm)} red/>{Object.entries(labRawEnts.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor){m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
@@ -6375,7 +6402,8 @@ const RefDoctorsTab=({db,actions})=>{
             const earned=(db.income||[]).filter(e=>e.ref_doctor===d.name).reduce((a,e)=>a+getComm(e),0)
             if(earned<=0)return null
             const paid=(db.expenses||[]).filter(e=>e.category==='ref_paid'&&e.description===d.name).reduce((a,e)=>a+e.amount,0)
-            const due=earned-paid
+            const waivedR=(db.expenses||[]).filter(e=>isRetainedCat(e.category)&&e.description===d.name).reduce((a,e)=>a+e.amount,0)
+            const due=earned-paid-waivedR
             const isOpen=payDocR===d.name
             return(<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5'}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:due>0?8:0}}>
@@ -6383,7 +6411,7 @@ const RefDoctorsTab=({db,actions})=>{
                 <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
                 <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Due</div><div style={{fontSize:13,fontWeight:700,color:due>0?'#ef4444':'#16a34a'}}>{fmt(due)}</div></div>
               </div>
-              {due>0&&(!isOpen?<button onClick={()=>setPayDocR(d.name)} style={{width:'100%',padding:'9px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Record payment</button>:<CommPayForm docName={d.name} balance={due} onCancel={()=>setPayDocR(null)} onSave={async(amt,date,pay)=>{await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:d.name,payment:pay,is_monthly:false});setPayDocR(null)}}/>)}
+              {due>0&&(!isOpen?<button onClick={()=>setPayDocR(d.name)} style={{width:'100%',padding:'9px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12,fontWeight:600,cursor:'pointer'}}>+ Record payment</button>:<CommPayForm docName={d.name} balance={due} onCancel={()=>setPayDocR(null)} onSave={async(amt,date,pay,settleAmt=0)=>{await settleRefPayment(db,actions,d.name,amt,date,pay,settleAmt);setPayDocR(null)}}/>)}
             </div>)
           })()}
           <button onClick={()=>startEdit(d)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
