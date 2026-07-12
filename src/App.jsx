@@ -3140,7 +3140,7 @@ const RealIncomeReport=({db})=>{
   const labGross=labInc.reduce((a,e)=>a+(e.amount||0),0)
   const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
   const labToLab=expList.filter(e=>expenseSegment(e.category)==='lab').reduce((a,e)=>a+(e.amount||0),0)
-  const labActual=labGross-labComm-labToLab+dRetainedLab
+  const labActual=labGross-labComm-labToLab+riRetL
 
   const TABS=[{k:'day',l:'Day'},{k:'month',l:'Month'},{k:'year',l:'Year'},{k:'custom',l:'Custom'}]
   const hasData=incList.length>0||expList.length>0
@@ -4936,7 +4936,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labRawEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
   const labComm=labRawEnts.reduce((a,e)=>a+getComm(e),0)
   const labToLab=dExpLab.reduce((a,e)=>a+e.amount,0)
-  const labActual=labInc-labComm-labToLab+riRetL
+  const labActual=labInc-labComm-labToLab+dRetainedLab
 
   // OP+IP segment: ALL non-lab income minus commissions, consultant fees, and non-lab expenses
   const opIpInc=opInc+opdInc+opdmInc+oppInc+vcProfit+oprInc+ipInc
