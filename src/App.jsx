@@ -1753,6 +1753,22 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           </div>
         </Card>
         <MetGrid items={[{label:'Total billed',value:fmt(b.total)},{label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},{label:'Credit (due)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},{label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'}]}/>
+        {(()=>{
+          const nm=(p.name||'').trim().toLowerCase()
+          const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm)
+          if(opEnts.length===0)return null
+          const byType={};opEnts.forEach(e=>{byType[e.type]=(byType[e.type]||0)+(e.amount||0)})
+          const opTotal=opEnts.reduce((a,e)=>a+(e.amount||0),0)
+          return(<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'10px 14px',marginBottom:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+              <div style={{fontSize:11,fontWeight:800,color:'#15803d',textTransform:'uppercase',letterSpacing:'.4px'}}>👤 OP income — same patient ({opEnts.length} visits)</div>
+              {gotoOP&&<button onClick={()=>gotoOP(p.name)} style={{padding:'3px 10px',background:'#fff',border:'1px solid #86efac',borderRadius:8,fontSize:10.5,fontWeight:700,color:'#15803d',cursor:'pointer'}}>View →</button>}
+            </div>
+            {Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([t,amt])=>(<div key={t} style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#374151',padding:'3px 0'}}><span>{(ITYPES.find(x=>x.key===t)||{}).full||t}</span><span style={{fontWeight:600,color:'#16a34a'}}>{fmt(amt)}</span></div>))}
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12.5,fontWeight:800,paddingTop:6,marginTop:4,borderTop:'1px solid #bbf7d0'}}><span style={{color:'#15803d'}}>Total OP income</span><span style={{color:'#15803d'}}>{fmt(opTotal)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:13.5,fontWeight:900,paddingTop:8,marginTop:6,borderTop:'2px solid #86efac'}}><span style={{color:'#0f172a'}}>COMPLETE PATIENT TOTAL (IP + OP)</span><span style={{color:'#1d4ed8'}}>{fmt(b.total+opTotal)}</span></div>
+          </div>)
+        })()}
         {!p.discharge_date&&!p.is_package&&(<><SecL>Add charge</SecL><Card>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Date" type="date" value={cF.date} onChange={e=>setCF({...cF,date:e.target.value})}/>
