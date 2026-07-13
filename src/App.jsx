@@ -1757,7 +1757,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         <MetGrid items={[{label:'Total billed',value:fmt(b.total)},{label:'Cash collected',value:fmt(b.paid),color:'#16a34a'},{label:'Credit (due)',value:fmt(b.credit),color:b.credit>0?'#c2410c':'#111'},{label:'Balance due',value:fmt(b.balance),color:b.balance>0?'#ef4444':'#16a34a'}]}/>
         {(()=>{
           const nm=(p.name||'').trim().toLowerCase()
-          const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm)
+          const entIds=new Set(ents.map(x=>x.id));const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm&&!entIds.has(e.id))
           if(opEnts.length===0)return null
           const byType={};opEnts.forEach(e=>{byType[e.type]=(byType[e.type]||0)+(e.amount||0)})
           const opTotal=opEnts.reduce((a,e)=>a+(e.amount||0),0)
@@ -1804,7 +1804,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {ITYPES.map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{cm>0?'-'+fmt(cm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(inc-cm)}</span></div>)})}
           {(()=>{
             const nm=(p.name||'').trim().toLowerCase()
-            const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm)
+            const entIds=new Set(ents.map(x=>x.id));const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm&&!entIds.has(e.id))
             if(opEnts.length===0)return null
             const ipInc=ents.reduce((a,e)=>a+e.amount,0),ipCm=ents.reduce((a,e)=>a+getComm(e),0)
             const opInc=opEnts.reduce((a,e)=>a+e.amount,0),opCm=opEnts.reduce((a,e)=>a+getComm(e),0)
@@ -1824,7 +1824,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
         </Card>}
         {canSeeReports&&(()=>{
           const nm=(p.name||'').trim().toLowerCase()
-          const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm)
+          const entIds=new Set(ents.map(x=>x.id));const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm&&!entIds.has(e.id))
           const allP=[...ents,...opEnts]
           // Effective payout ratio per doctor: (earned − deducted) / earned — reflects what you ACTUALLY give
           const effCache={}
