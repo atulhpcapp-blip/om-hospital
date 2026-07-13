@@ -6039,16 +6039,37 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
   const totalRef=items.reduce((a,it)=>a+calc(it),0)
   const totalBill=items.reduce((a,it)=>a+(parseFloat(it.amount)||0),0)
   const [adjTarget,setAdjTarget]=useState('')
-  // LIVE auto-scaling: whatever amount is entered, every line scales proportionally (percentages unchanged)
+  const [adjMode,setAdjMode]=useState('seq')  // 'seq' = Pharmacy→Lab→Charges first · 'equal' = proportional
   const getScaled=()=>{
     const target=parseFloat(adjTarget)
     if(!target||target<=0||totalRef<=0)return{list:items,active:false,scaledRef:totalRef,scaledBill:totalBill}
-    const f=target/totalRef
-    let next=items.map(it=>({...it,amount:Math.round((parseFloat(it.amount)||0)*f)}))
     const ncalc=it=>it.isCustom?(parseFloat(it.amount)||0):Math.round((parseFloat(it.amount)||0)*(parseFloat(it.commPct)||0)/100)
+    let next
+    if(adjMode==='equal'){
+      const f=target/totalRef
+      next=items.map(it=>({...it,amount:Math.round((parseFloat(it.amount)||0)*f)}))
+    }else{
+      // Sequential preference: reduce commission from IP Pharmacy first, then Lab, then IP Charges, then the rest
+      const prefOrder=(t)=>t==='ip_r'?0:(t==='op_r'?1:(t==='ip_l'||t==='op_l'?2:(t==='ip'?4:3)))
+      next=items.map(it=>({...it}))
+      let reduce=Math.round(totalRef-target)
+      const idxs=next.map((it,i)=>i).filter(i=>{const it=next[i];return it.isCustom||((parseFloat(it.commPct)||0)>0)})
+        .sort((a,b)=>prefOrder(next[a].type)-prefOrder(next[b].type))
+      for(const i of idxs){
+        if(reduce<=0)break
+        const it=next[i]
+        const cm=ncalc(it)
+        const cut=Math.min(cm,reduce)
+        if(cut<=0)continue
+        if(it.isCustom){it.amount=(parseFloat(it.amount)||0)-cut}
+        else{const p=(parseFloat(it.commPct)||0)/100;it.amount=Math.round((parseFloat(it.amount)||0)-cut/p)}
+        reduce-=cut
+      }
+    }
+    // close rounding gap on the largest %-based line
     let diff=Math.round(target)-next.reduce((a,it)=>a+ncalc(it),0)
     if(diff!==0){
-      const idx=next.reduce((best,it,i)=>{const p=parseFloat(it.commPct)||0;if(!it.isCustom&&p>0&&(best<0||(parseFloat(it.amount)||0)>(parseFloat(next[best].amount)||0)))return i;return best},-1)
+      const idx=next.reduce((best,it,i)=>{const p=parseFloat(it.commPct)||0;if(!it.isCustom&&p>0&&ncalc(it)>0&&(best<0||(parseFloat(it.amount)||0)>(parseFloat(next[best].amount)||0)))return i;return best},-1)
       if(idx>=0){const p=(parseFloat(next[idx].commPct)||0)/100;next[idx]={...next[idx],amount:Math.round((parseFloat(next[idx].amount)||0)+diff/p)}}
       else{const ci=next.findIndex(it=>it.isCustom);if(ci>=0)next[ci]={...next[ci],amount:(parseFloat(next[ci].amount)||0)+diff}}
     }
@@ -6164,6 +6185,10 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
         <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:800,color:'#92400e',marginBottom:6}}>⚖️ Amount you are giving (auto-adjusts the statement)</div>
           <input type="number" inputMode="numeric" placeholder={'Leave empty to show calculated: '+Math.round(totalRef)} value={adjTarget} onChange={e=>setAdjTarget(e.target.value)} style={{width:'100%',padding:'10px 12px',border:'1.5px solid #fcd34d',borderRadius:8,fontSize:15,fontWeight:800,outline:'none',boxSizing:'border-box'}}/>
+          <div style={{display:'flex',gap:6,marginTop:8}}>
+            <button onClick={()=>setAdjMode('seq')} style={{flex:1,padding:'7px 8px',background:adjMode==='seq'?'#d97706':'#fff',color:adjMode==='seq'?'#fff':'#a16207',border:adjMode==='seq'?'none':'1.5px solid #fcd34d',borderRadius:8,fontSize:10.5,fontWeight:700,cursor:'pointer'}}>Pharmacy → Lab → Charges</button>
+            <button onClick={()=>setAdjMode('equal')} style={{flex:1,padding:'7px 8px',background:adjMode==='equal'?'#d97706':'#fff',color:adjMode==='equal'?'#fff':'#a16207',border:adjMode==='equal'?'none':'1.5px solid #fcd34d',borderRadius:8,fontSize:10.5,fontWeight:700,cursor:'pointer'}}>Deduct equally from all</button>
+          </div>
           {scaled.active&&<div style={{fontSize:11,color:'#166534',fontWeight:700,marginTop:8,background:'#f0fdf4',borderRadius:6,padding:'6px 10px'}}>✓ PDF will show: Bill total {fmt(scaled.scaledBill)} → Commission {fmt(scaled.scaledRef)} — every percentage unchanged</div>}
         </div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
