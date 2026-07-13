@@ -250,26 +250,46 @@ const deductCommSplit=async(actions,docName,date,clinAmt,labAmt)=>{
   if(clinAmt>0)await actions.addExpense({id:uid(),date,category:'comm_retained_clinical',amount:Math.round(clinAmt),description:docName,payment:'adjustment',is_monthly:false})
   if(labAmt>0)await actions.addExpense({id:uid(),date,category:'comm_retained_lab',amount:Math.round(labAmt),description:docName,payment:'adjustment',is_monthly:false})
 }
-const SettlementHistory=({db,docName,compact=false})=>{
+const SettlementHistory=({db,docName,compact=false,actions=null})=>{
+  const [editRow,setEditRow]=useState(null)
   const pays=(db.expenses||[]).filter(e=>e.category==='ref_paid'&&(e.description||'').trim()===docName)
   const deds=(db.expenses||[]).filter(e=>isRetainedCat(e.category)&&(e.description||'').trim()===docName)
   if(pays.length===0&&deds.length===0)return null
+  const allRows=[...pays.map(e=>({...e,_kind:'pay'})),...deds.map(e=>({...e,_kind:e.category==='comm_retained_clinical'?'dedC':'dedL'}))]
   const byDate={}
-  pays.forEach(e=>{if(!byDate[e.date])byDate[e.date]={paid:0,mode:'',dc:0,dl:0};byDate[e.date].paid+=e.amount;byDate[e.date].mode=e.payment||''})
-  deds.forEach(e=>{if(!byDate[e.date])byDate[e.date]={paid:0,mode:'',dc:0,dl:0};if(e.category==='comm_retained_clinical')byDate[e.date].dc+=e.amount;else byDate[e.date].dl+=e.amount})
-  const rows=Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0]))
-  const show=compact?rows.slice(0,5):rows
+  allRows.forEach(e=>{if(!byDate[e.date])byDate[e.date]=[];byDate[e.date].push(e)})
+  const dates=Object.keys(byDate).sort((a,b)=>b.localeCompare(a))
+  const show=compact?dates.slice(0,5):dates
   const tPaid=pays.reduce((a,e)=>a+e.amount,0),tDed=deds.reduce((a,e)=>a+e.amount,0)
+  const KIND={pay:{l:'Paid',c:'#15803d'},dedC:{l:'Deducted 🏥 Clinical',c:'#c2410c'},dedL:{l:'Deducted 🧪 Lab',c:'#c2410c'}}
   return(<div style={{background:'#fff7ed',border:'1px solid #fdba74',borderRadius:10,padding:'10px 12px',marginTop:10}}>
     <div style={{fontSize:11,fontWeight:800,color:'#c2410c',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:8}}>🧾 Settlement history — Dr. {docName}</div>
-    {show.map(([d,v])=>(<div key={d} style={{padding:'6px 0',borderBottom:'1px solid #fed7aa',fontSize:12}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <span style={{fontWeight:700,color:'#7c2d12'}}>{fmtD(d)}</span>
-        <span>{v.paid>0&&<span style={{color:'#15803d',fontWeight:800}}>Paid {fmt(v.paid)}{v.mode?' ('+v.mode+')':''}</span>}{v.paid>0&&(v.dc+v.dl)>0&&<span style={{color:'#9a3412'}}> · </span>}{(v.dc+v.dl)>0&&<span style={{color:'#c2410c',fontWeight:800}}>Deducted {fmt(v.dc+v.dl)}</span>}</span>
-      </div>
-      {(v.dc+v.dl)>0&&<div style={{fontSize:10.5,color:'#9a3412',marginTop:1,textAlign:'right'}}>{v.dc>0?'🏥 Clinical '+fmt(v.dc):''}{v.dc>0&&v.dl>0?' + ':''}{v.dl>0?'🧪 Lab '+fmt(v.dl):''}</div>}
+    {show.map(d=>(<div key={d} style={{padding:'6px 0',borderBottom:'1px solid #fed7aa'}}>
+      <div style={{fontSize:12,fontWeight:700,color:'#7c2d12',marginBottom:2}}>{fmtD(d)}</div>
+      {byDate[d].map(e=>editRow&&editRow.id===e.id?(
+        <div key={e.id} style={{background:'#fff',border:'1px solid #fcd34d',borderRadius:8,padding:'8px',marginBottom:4}}>
+          <div style={{fontSize:10,fontWeight:700,color:'#a16207',marginBottom:4}}>{KIND[e._kind].l}{e._kind==='pay'&&e.payment?' ('+e.payment+')':''}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:6}}>
+            <input type="number" value={editRow.amount} onChange={ev=>setEditRow({...editRow,amount:ev.target.value})} style={{padding:'7px 8px',border:'1.5px solid #fcd34d',borderRadius:7,fontSize:13,fontWeight:700,outline:'none'}}/>
+            <input type="date" value={editRow.date} onChange={ev=>setEditRow({...editRow,date:ev.target.value})} style={{padding:'7px 8px',border:'1.5px solid #fcd34d',borderRadius:7,fontSize:12,outline:'none'}}/>
+          </div>
+          <div style={{display:'flex',gap:6}}>
+            <button onClick={()=>setEditRow(null)} style={{flex:1,padding:'7px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:7,fontSize:11,fontWeight:600,cursor:'pointer'}}>Cancel</button>
+            <button onClick={async()=>{const amt=parseFloat(editRow.amount);if(!amt||amt<=0){alert('Enter amount');return}await actions.updateExpense(e.id,{amount:amt,date:editRow.date});setEditRow(null)}} style={{flex:1,padding:'7px',background:'#16a34a',color:'#fff',border:'none',borderRadius:7,fontSize:11,fontWeight:700,cursor:'pointer'}}>Save</button>
+            <button onClick={async()=>{if(window.confirm('Delete this '+(e._kind==='pay'?'payment':'deduction')+' of '+fmt(e.amount)+'?\n\nThe doctor\'s due will increase back by this amount.')){await actions.delExpense(e.id);setEditRow(null)}}} style={{padding:'7px 10px',background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:7,fontSize:11,fontWeight:700,cursor:'pointer'}}>Delete</button>
+          </div>
+        </div>
+      ):(
+        <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11.5,padding:'2px 0'}}>
+          <span style={{color:KIND[e._kind].c,fontWeight:700}}>{KIND[e._kind].l}{e._kind==='pay'&&e.payment?' ('+e.payment+')':''}</span>
+          <span style={{display:'flex',alignItems:'center',gap:6}}>
+            <span style={{fontWeight:800,color:KIND[e._kind].c}}>{fmt(e.amount)}</span>
+            {actions&&<button onClick={()=>setEditRow({id:e.id,amount:String(e.amount),date:e.date})} style={{padding:'2px 8px',background:'#fff',border:'1px solid #fcd34d',borderRadius:6,fontSize:10,fontWeight:700,color:'#b45309',cursor:'pointer'}}>✏️ Edit</button>}
+          </span>
+        </div>
+      ))}
     </div>))}
-    {compact&&rows.length>5&&<div style={{fontSize:10.5,color:'#9a3412',paddingTop:4}}>…{rows.length-5} older settlement{rows.length-5>1?'s':''}</div>}
+    {compact&&dates.length>5&&<div style={{fontSize:10.5,color:'#9a3412',paddingTop:4}}>…{dates.length-5} older settlement{dates.length-5>1?'s':''}</div>}
     <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,fontSize:12,fontWeight:800}}>
       <span style={{color:'#7c2d12'}}>Total</span>
       <span><span style={{color:'#15803d'}}>Paid {fmt(tPaid)}</span><span style={{color:'#9a3412'}}> · </span><span style={{color:'#c2410c'}}>Deducted {fmt(tDed)}</span></span>
@@ -1963,7 +1983,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             {payDocI==='DED'?<DeductCommForm db={db} docName={dn} balance={Math.max(0,gDue)} onCancel={()=>setPayDocI(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:dn,payment:pay,is_monthly:false});await deductCommSplit(actions,dn,date,d1,d2);setPayDocI(null)}}/>
              :gDue>0.5?<button onClick={()=>setPayDocI('DED')} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle commission</button>
              :<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>✓ Doctor fully settled</div>}
-            <SettlementHistory db={db} docName={dn} compact={true}/>
+            <SettlementHistory actions={actions} db={db} docName={dn} compact={true}/>
           </div>)
         })()}
         {canSeeReports&&<button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>}
@@ -1983,13 +2003,13 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           </FSel>
           <PBtn style={{background:'#16a34a'}} onClick={async()=>{const amt=parseFloat(pyF.amt);if(!amt||amt<=0){alert('Enter amount');return};const pkgRate=p.custom_commission!=null?p.custom_commission/100:0.40;const comm=p.ref_doctor?Math.round(amt*pkgRate):0;await actions.addPayment(p.id,{id:uid(),date:pyF.date,amount:amt,payment:pyF.pay,commission:comm,ref_doctor:p.ref_doctor||''});setPyF({...pyF,amt:''})}}>Save package payment</PBtn>
         </Card></>)}
-        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','ip_p','op_dm','vc'].includes(t.key)).map(t=>{const teAll=ents.filter(e=>e.type===t.key);if(!teAll.length)return null;const isPharm=t.key==='ip_r';const te=isPharm?(pharmView==='settled'?teAll.filter(e=>!isCredit(e)):pharmView==='credit'?teAll.filter(e=>isCredit(e)):teAll):teAll;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL>
+        {!p.is_package&&ITYPES.filter(t=>['ip','ip_r','ip_l','ip_p','op_dm','vc'].includes(t.key)).map(t=>{const teAll=ents.filter(e=>e.type===t.key);if(!teAll.length)return null;const isPharm=t.key==='ip_r';const te=isPharm?(pharmView==='settled'?teAll.filter(e=>!isCredit(e)):pharmView==='credit'?teAll.filter(e=>isCredit(e)):pharmView==='ref'?[]:teAll):teAll;return(<div key={t.key}><SecL>{t.full} - {fmt(te.reduce((a,e)=>a+e.amount,0))}</SecL>
         {isPharm&&<div style={{display:'flex',gap:6,marginBottom:8}}>
-          {[{k:'all',l:'📋 Actual bills'},{k:'settled',l:'✓ After settlement'},{k:'credit',l:'⏳ Pending credit'}].map(v=>(
+          {[{k:'all',l:'📋 Actual bills'},{k:'settled',l:'✓ After settlement'},{k:'credit',l:'⏳ Pending credit'},{k:'ref',l:'💰 Ref settlement'}].map(v=>(
             <button key={v.k} onClick={()=>setPharmView(v.k)} style={{flex:1,padding:'7px 8px',background:pharmView===v.k?'#1a1a2e':'#fff',color:pharmView===v.k?'#c9a84c':'#64748b',border:pharmView===v.k?'none':'1.5px solid #e2e8f0',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer'}}>{v.l}</button>
           ))}
         </div>}
-        {isPharm&&(()=>{
+        {isPharm&&pharmView!=='ref'&&(()=>{
           const bills=teAll.reduce((a,e)=>a+e.amount,0)
           const coll=teAll.filter(e=>!isCredit(e)).reduce((a,e)=>a+e.amount,0)
           const pend=teAll.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
@@ -2001,7 +2021,8 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <span style={{color:pend>0?'#c2410c':'#16a34a'}}>⏳ Pending {fmt(pend)}</span>
           </div>)
         })()}
-        {isPharm&&te.length===0?<Card><div style={{textAlign:'center',padding:'10px 0',color:'#94a3b8',fontSize:12}}>{pharmView==='credit'?'✓ No pending credit — all settled':'No settled entries yet'}</div></Card>:<Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600}}>🕐 {fmtT(e.created_at)}</span>}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{canSeeReports&&getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}{e.entered_by?<span style={{marginLeft:6,fontStyle:'italic',color:'#94a3b8'}}>· by {e.entered_by}</span>:null}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>{cr&&<><button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>{canSeeReports&&<button onClick={async()=>{if(!window.confirm('Write off Rs '+e.amount+' credit?\n\nThis is treated as an uncollectible loss. The entry stays on record but stops counting as outstanding credit.'))return;const note='\u26A0\uFE0F Written off on '+fmtD(todayStr())+(e.notes?' \u00B7 '+e.notes:'');await actions.editIncome({...e,payment:'written_off',notes:note})}} style={{padding:'4px 10px',background:'#fff',border:'1.5px solid #dc2626',borderRadius:8,fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:700,marginLeft:4}}>Write off</button>}</>}<button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn confirmText={'Delete this charge?\n\nPatient: '+(p.name||'')+'\nType: '+(ITYPES.find(t=>t.key===e.type)?.full||e.type)+'\nAmount: Rs '+e.amount+'\nPayment: '+e.payment+'\n\nThis cannot be undone.'} onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card>}
+        {isPharm&&pharmView==='ref'?(p.ref_doctor?<div style={{marginTop:-4}}><SettlementHistory actions={actions} db={db} docName={p.ref_doctor}/><div style={{fontSize:10.5,color:'#94a3b8',marginTop:6}}>Dr. {p.ref_doctor}'s full referral account — every payment you gave and every amount you deducted, with dates and clinical/lab split.</div></div>:<Card><div style={{textAlign:'center',padding:'10px 0',color:'#94a3b8',fontSize:12}}>No referring doctor set for this patient</div></Card>)
+        :isPharm&&te.length===0?<Card><div style={{textAlign:'center',padding:'10px 0',color:'#94a3b8',fontSize:12}}>{pharmView==='credit'?'✓ No pending credit — all settled':'No settled entries yet'}</div></Card>:<Card>{te.map(e=>{const cr=isCredit(e);return(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600}}>🕐 {fmtT(e.created_at)}</span>}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+e.notes:''}{canSeeReports&&getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}{e.entered_by?<span style={{marginLeft:6,fontStyle:'italic',color:'#94a3b8'}}>· by {e.entered_by}</span>:null}</div></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>{cr&&<><button onClick={()=>setCollectEntry(e)} style={{padding:'4px 10px',background:'#16a34a',border:'none',borderRadius:8,fontSize:11,color:'#fff',cursor:'pointer',fontWeight:700}}>Collect</button>{canSeeReports&&<button onClick={async()=>{if(!window.confirm('Write off Rs '+e.amount+' credit?\n\nThis is treated as an uncollectible loss. The entry stays on record but stops counting as outstanding credit.'))return;const note='\u26A0\uFE0F Written off on '+fmtD(todayStr())+(e.notes?' \u00B7 '+e.notes:'');await actions.editIncome({...e,payment:'written_off',notes:note})}} style={{padding:'4px 10px',background:'#fff',border:'1.5px solid #dc2626',borderRadius:8,fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:700,marginLeft:4}}>Write off</button>}</>}<button onClick={()=>setEditIPEntry(e)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button><DBtn confirmText={'Delete this charge?\n\nPatient: '+(p.name||'')+'\nType: '+(ITYPES.find(t=>t.key===e.type)?.full||e.type)+'\nAmount: Rs '+e.amount+'\nPayment: '+e.payment+'\n\nThis cannot be undone.'} onClick={()=>actions.delIncome(e.id)}>X</DBtn></div></div>)})}</Card>}
         {isPharm&&pharmView==='settled'&&(()=>{
           const settledEnts=teAll.filter(e=>!isCredit(e)&&(e.notes||'').includes('💰'))
           const directEnts=teAll.filter(e=>!isCredit(e)&&!(e.notes||'').includes('💰'))
@@ -2484,7 +2505,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(totalInc)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totalComm>0?'-'+fmt(totalComm):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(totalInc-totalComm)}</span></div>
         </Card>
         {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const waived=db.expenses.filter(e=>isRetainedCat(e.category)&&e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid-waived;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{waived>0&&<div style={{fontSize:10.5,color:'#92400e',background:'#fffbeb',borderRadius:6,padding:'4px 8px',marginBottom:8,fontWeight:600}}>Settled/retained (not paid): {fmt(waived)}</div>}{balance>0&&(payDoc==='DED:'+doc.name?<DeductCommForm db={db} docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:doc.name,payment:pay,is_monthly:false});await deductCommSplit(actions,doc.name,date,d1,d2);setPayDoc(null)}}/>
-        :<button onClick={()=>setPayDoc('DED:'+doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle commission</button>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}<SettlementHistory db={db} docName={doc.name} compact={true}/></Card>)})}</>)}
+        :<button onClick={()=>setPayDoc('DED:'+doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle commission</button>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}<SettlementHistory actions={actions} db={db} docName={doc.name} compact={true}/></Card>)})}</>)}
         {consList.length>0&&canSeeReports&&(<><SecL>Consultants</SecL>{consList.map(cn=>{
         const cfPaid=consPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
         const pcPaid=procPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
@@ -2837,7 +2858,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
           </div>
           {payDoc==='DED:'+r.name?<DeductCommForm db={db} docName={r.name} balance={r.due} onCancel={()=>setPayDoc(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:r.name,payment:pay,is_monthly:false});await deductCommSplit(actions,r.name,date,d1,d2);setPayDoc(null)}}/>
            :<button onClick={()=>setPayDoc('DED:'+r.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12.5,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle</button>}
-          <SettlementHistory db={db} docName={r.name} compact={true}/>
+          <SettlementHistory actions={actions} db={db} docName={r.name} compact={true}/>
         </Card>)})}
         {consRows.length>0&&<><SecL>Consultants — due ({consDue.length})</SecL>
         {consDue.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#16a34a',fontSize:13,fontWeight:600}}>✓ All consultants fully paid</div>}
@@ -6710,7 +6731,7 @@ const RefDoctorsTab=({db,actions})=>{
               </div>
               {due>0&&(payDocR==='DED:'+d.name?<DeductCommForm db={db} docName={d.name} balance={due} onCancel={()=>setPayDocR(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:d.name,payment:pay,is_monthly:false});await deductCommSplit(actions,d.name,date,d1,d2);setPayDocR(null)}}/>
                :<button onClick={()=>setPayDocR('DED:'+d.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12.5,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle</button>)}
-              <SettlementHistory db={db} docName={d.name} compact={true}/>
+              <SettlementHistory actions={actions} db={db} docName={d.name} compact={true}/>
             </div>)
           })()}
           <button onClick={()=>startEdit(d)} style={{padding:'5px 12px',background:'#f0f9ff',border:'1.5px solid #3b82f6',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:600}}>Edit</button>
