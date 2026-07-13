@@ -1820,6 +1820,39 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {p.is_package&&(p.payments||[]).length>0&&(()=>{const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const pkgCm=(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{fontSize:12,color:'#1d4ed8'}}>Package received</span><span style={{fontSize:12,textAlign:'right',color:'#1d4ed8',minWidth:60}}>{fmt(pkgPd)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{pkgCm>0?'-'+fmt(pkgCm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(pkgPd-pkgCm)}</span></div>)})()}
           {(()=>{const allInc=ents.reduce((a,e)=>a+e.amount,0);const allComm=ents.reduce((a,e)=>a+getComm(e),0);const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const totDeduct=allComm+b.pkgComm;return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 2px',marginTop:2,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(allInc+pkgPd)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totDeduct>0?'-'+fmt(totDeduct):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(allInc+pkgPd-totDeduct)}</span></div>)})()}
         </Card>}
+        {canSeeReports&&(()=>{
+          const nm=(p.name||'').trim().toLowerCase()
+          const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm)
+          const allP=[...ents,...opEnts]
+          const seg=(s)=>{
+            const se=allP.filter(e=>incomeSegment(e.type)===s&&e.payment!=='discount'&&e.payment!=='written_off')
+            const inc=se.reduce((a,e)=>a+(e.amount||0),0)
+            const cm=se.reduce((a,e)=>a+getComm(e),0)
+            const cf=s==='clinical'?se.reduce((a,e)=>a+(e.consultant_fee||0),0):0
+            return{inc,cm,cf,left:inc-cm-cf}
+          }
+          const cl=seg('clinical'),lb=seg('lab')
+          if(cl.inc+lb.inc===0)return null
+          const totalLeft=cl.left+lb.left
+          return(<div style={{background:'linear-gradient(135deg,#15803d,#16a34a)',color:'#fff',borderRadius:14,padding:'14px 16px',marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'.5px',opacity:.9,marginBottom:10}}>💰 Profit after doctor payouts — this patient</div>
+            <div style={{background:'rgba(255,255,255,.13)',borderRadius:10,padding:'8px 12px',marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:800,opacity:.85,marginBottom:4}}>🏥 CLINICAL</div>
+              <div style={{fontSize:12,opacity:.95,lineHeight:1.6}}>Income {fmt(cl.inc)} − Ref commission {fmt(Math.round(cl.cm))}{cl.cf>0?' − Consultant fees '+fmt(Math.round(cl.cf)):''}</div>
+              <div style={{fontSize:17,fontWeight:900,marginTop:2}}>= {fmt(Math.round(cl.left))}</div>
+            </div>
+            <div style={{background:'rgba(255,255,255,.13)',borderRadius:10,padding:'8px 12px',marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:800,opacity:.85,marginBottom:4}}>🧪 LAB</div>
+              <div style={{fontSize:12,opacity:.95,lineHeight:1.6}}>Income {fmt(lb.inc)} − Ref commission {fmt(Math.round(lb.cm))}</div>
+              <div style={{fontSize:17,fontWeight:900,marginTop:2}}>= {fmt(Math.round(lb.left))}</div>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:'2px solid rgba(255,255,255,.35)',paddingTop:10}}>
+              <span style={{fontSize:12.5,fontWeight:800,textTransform:'uppercase',letterSpacing:'.4px'}}>Left with hospital</span>
+              <span style={{fontSize:24,fontWeight:900}}>{fmt(Math.round(totalLeft))}</span>
+            </div>
+            <div style={{fontSize:10,opacity:.75,marginTop:6}}>Based on calculated commission rates · includes this admission + OP visits · before operating expenses</div>
+          </div>)
+        })()}
         {b.credit>0&&(<><SecL>Credit by type</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(<div key={tk} style={{padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                   <span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>
