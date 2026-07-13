@@ -4775,10 +4775,12 @@ const SegmentPL=({incList,expList,db=null,mtdIncList=null,mtdExpList=null,mtdLab
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
       const expByCat={};sExp.forEach(e=>{if(!expByCat[e.category])expByCat[e.category]=0;expByCat[e.category]+=e.amount||0})
       const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt})).sort((a,b)=>b.amt-a.amt)
+      const credByPat={};sInc.filter(e=>isCredit(e)).forEach(e=>{const pn=(e.patient_name||'—').trim()||'—';credByPat[pn]=(credByPat[pn]||0)+(e.amount||0)})
+      const creditSplit=Object.entries(credByPat).map(([n,a2])=>({n,a:a2})).sort((x,y)=>y.a-x.a)
       const retained=0,retSplit=[]
       const net=cash-comm-cons-expTotal
       const margin=cash>0?(net/cash*100):0
-      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,retained,retSplit,net,margin,count:sInc.length}
+      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,creditSplit,retained,retSplit,net,margin,count:sInc.length}
     }
     const clinical=calcSeg('clinical')
     const lab=calcSeg('lab')
@@ -4795,7 +4797,7 @@ const SegmentPL=({incList,expList,db=null,mtdIncList=null,mtdExpList=null,mtdLab
         <tbody>
           <tr><td style={{padding:'4px 0',color:'#475569'}}>Income (collected)</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>{fmt(d.cash)}</td></tr>
           {(d.incSplit||[]).map(s=>(<Fragment key={s.t}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0',color:'#16a34a'}}>{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0,color:'#86efac'}}>{fmt(p.a)}</td></tr>))}</Fragment>))}
-          {d.credit>0&&<tr style={{fontSize:12,color:'#c2410c'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit outstanding (not counted)</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>}
+          {d.credit>0&&<><tr style={{fontSize:12,color:'#c2410c'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit outstanding (not counted)</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>{(d.creditSplit||[]).map(cp=>(<tr key={cp.n} style={{fontSize:11,color:'#f59e0b'}}><td style={{padding:'0 0 0 18px'}}>· {cp.n}</td><td style={{textAlign:'right',padding:0}}>{fmt(cp.a)}</td></tr>))}</>}
           <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
           {(d.expSplit||[]).map(s=>(<tr key={s.cat} style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>))}
           {d.comm>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Commission</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.comm)}</td></tr>
@@ -5299,7 +5301,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/>{d.cr>0&&<span style={{fontSize:9.5,padding:'1px 7px',borderRadius:20,background:'#fff7ed',color:'#c2410c',fontWeight:700,marginLeft:5}}>Credit {fmt(d.cr)}</span>}</span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
             </div>)})()}
           </>}
-          <R l="Collected OP + IP income" v={fmt(opIpInc)} bold green/>{dCreditToday-labCreditToday>0&&<R l="Credit given today (not counted)" v={fmt(dCreditToday-labCreditToday)} sub="Will count as income on the day you collect it"/>}
+          <R l="Collected OP + IP income" v={fmt(opIpInc)} bold green/>{dCreditToday-labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(dCreditToday-labCreditToday)} sub="Will count as income on the day you collect it"/>}{Object.entries(dI.filter(e=>isCredit(e)&&!['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
           {opIpComm>0&&<>{<R l="Ref commissions paid" v={'- '+fmt(Math.round(opIpComm))} red sub="Actual payments made today (clinical share)"/>}{dRefPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {(e.description||'').trim()}</span><span>- {fmt(Math.round(e.amount*docRatioClin((e.description||'').trim())))}</span></div>))}</>}
           {opIpConsFee>0&&<>{<R l="Consultant fees paid" v={'- '+fmt(opIpConsFee)} red sub="Actual payments made today"/>}{dConsPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ {(e.description||'').trim()}</span><span>- {fmt(e.amount)}</span></div>))}</>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
@@ -5348,7 +5350,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             return(<>
               {opLT>0&&<><R l="OP Lab" v={fmt(opLT)} green/>{opL.map((e,i)=><MRow key={'o'+i} e={e} isIP={false}/>)}</>}
               {ipLT>0&&<><R l="IP Lab" v={fmt(ipLT)} green/>{ipL.map((e,i)=><MRow key={'i'+i} e={e} isIP={true}/>)}</>}
-              <R l="Collected lab income" v={fmt(labInc)} bold green/>{labCreditToday>0&&<R l="Credit given today (not counted)" v={fmt(labCreditToday)} sub="Counts on collection day"/>}
+              <R l="Collected lab income" v={fmt(labInc)} bold green/>{labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(labCreditToday)} sub="Counts on collection day"/>}{Object.entries(dI.filter(e=>isCredit(e)&&['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
             </>)
           })()}
           <><R l="Ref commissions paid" v={'- '+fmt(Math.round(labComm))} red sub="Lab share of today's payments"/>{dExpAll.filter(e=>e.category==='ref_paid'&&dLabRefPaidShare((e.description||'').trim())>0).map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {(e.description||'').trim()}</span><span>- {fmt(Math.round(e.amount*dLabRefPaidShare((e.description||'').trim())))}</span></div>))}</>
