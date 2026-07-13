@@ -1800,6 +1800,23 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:60}}>Real</div>
           </div>
           {ITYPES.map(t=>{const te=ents.filter(e=>e.type===t.key);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{cm>0?'-'+fmt(cm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(inc-cm)}</span></div>)})}
+          {(()=>{
+            const nm=(p.name||'').trim().toLowerCase()
+            const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm)
+            if(opEnts.length===0)return null
+            const ipInc=ents.reduce((a,e)=>a+e.amount,0),ipCm=ents.reduce((a,e)=>a+getComm(e),0)
+            const opInc=opEnts.reduce((a,e)=>a+e.amount,0),opCm=opEnts.reduce((a,e)=>a+getComm(e),0)
+            return(<>
+              <div style={{fontSize:10,fontWeight:800,color:'#15803d',textTransform:'uppercase',letterSpacing:'.4px',padding:'8px 0 4px'}}>👤 OP visits (same patient)</div>
+              {ITYPES.map(t=>{const te=opEnts.filter(e=>e.type===t.key);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<div key={'op'+t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center',background:'#f0fdf422'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{cm>0?'-'+fmt(cm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(inc-cm)}</span></div>)})}
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 2px',alignItems:'center',borderTop:'2px solid #e2e8f0',marginTop:4}}>
+                <span style={{fontSize:12.5,fontWeight:900,color:'#0f172a'}}>TOTAL (IP + OP)</span>
+                <span style={{fontSize:12.5,textAlign:'right',fontWeight:800,minWidth:60}}>{fmt(ipInc+opInc)}</span>
+                <span style={{fontSize:12.5,textAlign:'right',color:'#ef4444',fontWeight:800,minWidth:60}}>-{fmt(ipCm+opCm)}</span>
+                <span style={{fontSize:12.5,textAlign:'right',color:'#16a34a',fontWeight:900,minWidth:60}}>{fmt(ipInc+opInc-ipCm-opCm)}</span>
+              </div>
+            </>)
+          })()}
           {p.is_package&&(p.payments||[]).length>0&&(()=>{const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const pkgCm=(p.payments||[]).reduce((a,py)=>a+(py.commission||0),0);return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'6px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{fontSize:12,color:'#1d4ed8'}}>Package received</span><span style={{fontSize:12,textAlign:'right',color:'#1d4ed8',minWidth:60}}>{fmt(pkgPd)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{pkgCm>0?'-'+fmt(pkgCm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(pkgPd-pkgCm)}</span></div>)})()}
           {(()=>{const allInc=ents.reduce((a,e)=>a+e.amount,0);const allComm=ents.reduce((a,e)=>a+getComm(e),0);const pkgPd=(p.payments||[]).reduce((a,py)=>a+py.amount,0);const totDeduct=allComm+b.pkgComm;return(<div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 2px',marginTop:2,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(allInc+pkgPd)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totDeduct>0?'-'+fmt(totDeduct):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(allInc+pkgPd-totDeduct)}</span></div>)})()}
         </Card>}
