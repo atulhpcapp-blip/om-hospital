@@ -5904,6 +5904,23 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
   const calc=it=>it.isCustom?(parseFloat(it.amount)||0):Math.round((parseFloat(it.amount)||0)*(parseFloat(it.commPct)||0)/100)
   const totalRef=items.reduce((a,it)=>a+calc(it),0)
   const totalBill=items.reduce((a,it)=>a+(parseFloat(it.amount)||0),0)
+  const [adjTarget,setAdjTarget]=useState('')
+  const applyAdjust=()=>{
+    const target=parseFloat(adjTarget)
+    if(!target||target<=0){alert('Enter the commission amount you are actually paying');return}
+    if(totalRef<=0){alert('No commission on the items to adjust');return}
+    const f=target/totalRef
+    let next=items.map(it=>({...it,amount:Math.round((parseFloat(it.amount)||0)*f)}))
+    // close rounding gap on the largest %-based item so the total matches exactly
+    const ncalc=it=>it.isCustom?(parseFloat(it.amount)||0):Math.round((parseFloat(it.amount)||0)*(parseFloat(it.commPct)||0)/100)
+    let diff=target-next.reduce((a,it)=>a+ncalc(it),0)
+    if(diff!==0){
+      const idx=next.reduce((best,it,i)=>{const p=parseFloat(it.commPct)||0;if(!it.isCustom&&p>0&&(best<0||(parseFloat(it.amount)||0)>(parseFloat(next[best].amount)||0)))return i;return best},-1)
+      if(idx>=0){const p=(parseFloat(next[idx].commPct)||0)/100;next[idx]={...next[idx],amount:Math.round((parseFloat(next[idx].amount)||0)+diff/p)}}
+      else if(next.length>0&&next.some(it=>it.isCustom)){const ci=next.findIndex(it=>it.isCustom);next[ci]={...next[ci],amount:(parseFloat(next[ci].amount)||0)+diff}}
+    }
+    setItems(next)
+  }
   
   const genPDF=()=>{
     const grouped={}
@@ -6009,6 +6026,14 @@ const ReferralReportModal=({entries,docName,patientName,hospital,onClose})=>{
         <div style={{marginBottom:10,fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Line Items ({items.length})</div>
         {items.map(it=>{const col=REF_COLORS[it.type]||REF_COLORS.custom;return(
           <div key={it.id} style={{background:col.bg+'66',border:'1.5px solid '+col.border,borderRadius:10,padding:10,marginBottom:8}}>
+        <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:800,color:'#92400e',marginBottom:6}}>⚖️ Adjust statement to actual payout</div>
+          <div style={{fontSize:10.5,color:'#a16207',marginBottom:8,lineHeight:1.45}}>Enter the commission you are actually paying — all amounts scale proportionally, keeping every percentage the same.</div>
+          <div style={{display:'flex',gap:8}}>
+            <input type="number" inputMode="numeric" placeholder={'Calculated: '+Math.round(totalRef)} value={adjTarget} onChange={e=>setAdjTarget(e.target.value)} style={{flex:1,padding:'9px 12px',border:'1.5px solid #fcd34d',borderRadius:8,fontSize:14,fontWeight:700,outline:'none'}}/>
+            <button onClick={applyAdjust} style={{padding:'9px 16px',background:'#d97706',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:800,cursor:'pointer',whiteSpace:'nowrap'}}>Adjust amounts</button>
+          </div>
+        </div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
               <span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:'#fff',color:col.color,fontWeight:700,border:'1px solid '+col.border}}>{col.name}</span>
               <button onClick={()=>rmItem(it.id)} style={{background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:6,width:24,height:24,cursor:'pointer',fontWeight:700,fontSize:14}}>×</button>
