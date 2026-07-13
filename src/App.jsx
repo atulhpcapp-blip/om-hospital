@@ -1824,12 +1824,23 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           const nm=(p.name||'').trim().toLowerCase()
           const opEnts=db.income.filter(e=>!['ip','ip_r','ip_l','ip_p'].includes(e.type)&&(e.patient_name||'').trim().toLowerCase()===nm)
           const allP=[...ents,...opEnts]
+          // Effective payout ratio per doctor: (earned − deducted) / earned — reflects what you ACTUALLY give
+          const effCache={}
+          const eff=(dn)=>{
+            if(!dn)return 1
+            if(effCache[dn]!=null)return effCache[dn]
+            const earned=db.income.filter(e=>e.ref_doctor===dn).reduce((a,e)=>a+getComm(e),0)
+            const ded=db.expenses.filter(e=>isRetainedCat(e.category)&&(e.description||'').trim()===dn).reduce((a,e)=>a+e.amount,0)
+            const r=earned>0?Math.max(0,Math.min(1,(earned-ded)/earned)):1
+            effCache[dn]=r;return r
+          }
           const seg=(s)=>{
             const se=allP.filter(e=>incomeSegment(e.type)===s&&e.payment!=='discount'&&e.payment!=='written_off')
             const inc=se.reduce((a,e)=>a+(e.amount||0),0)
-            const cm=se.reduce((a,e)=>a+getComm(e),0)
+            const cmCalc=se.reduce((a,e)=>a+getComm(e),0)
+            const cm=se.reduce((a,e)=>a+getComm(e)*eff((e.ref_doctor||'').trim()),0)
             const cf=s==='clinical'?se.reduce((a,e)=>a+(e.consultant_fee||0),0):0
-            return{inc,cm,cf,left:inc-cm-cf}
+            return{inc,cm,cmCalc,cf,left:inc-cm-cf}
           }
           const cl=seg('clinical'),lb=seg('lab')
           if(cl.inc+lb.inc===0)return null
@@ -1838,19 +1849,19 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
             <div style={{fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'.5px',opacity:.9,marginBottom:10}}>💰 Profit after doctor payouts — this patient</div>
             <div style={{background:'rgba(255,255,255,.13)',borderRadius:10,padding:'8px 12px',marginBottom:8}}>
               <div style={{fontSize:11,fontWeight:800,opacity:.85,marginBottom:4}}>🏥 CLINICAL</div>
-              <div style={{fontSize:12,opacity:.95,lineHeight:1.6}}>Income {fmt(cl.inc)} − Ref commission {fmt(Math.round(cl.cm))}{cl.cf>0?' − Consultant fees '+fmt(Math.round(cl.cf)):''}</div>
+              <div style={{fontSize:12,opacity:.95,lineHeight:1.6}}>Income {fmt(cl.inc)} − Ref commission (actual) {fmt(Math.round(cl.cm))}{cl.cf>0?' − Consultant fees '+fmt(Math.round(cl.cf)):''}</div>{Math.round(cl.cmCalc)>Math.round(cl.cm)&&<div style={{fontSize:10.5,opacity:.75}}>Calculated was {fmt(Math.round(cl.cmCalc))} — you kept {fmt(Math.round(cl.cmCalc-cl.cm))} via deduction</div>}
               <div style={{fontSize:17,fontWeight:900,marginTop:2}}>= {fmt(Math.round(cl.left))}</div>
             </div>
             <div style={{background:'rgba(255,255,255,.13)',borderRadius:10,padding:'8px 12px',marginBottom:10}}>
               <div style={{fontSize:11,fontWeight:800,opacity:.85,marginBottom:4}}>🧪 LAB</div>
-              <div style={{fontSize:12,opacity:.95,lineHeight:1.6}}>Income {fmt(lb.inc)} − Ref commission {fmt(Math.round(lb.cm))}</div>
+              <div style={{fontSize:12,opacity:.95,lineHeight:1.6}}>Income {fmt(lb.inc)} − Ref commission (actual) {fmt(Math.round(lb.cm))}</div>{Math.round(lb.cmCalc)>Math.round(lb.cm)&&<div style={{fontSize:10.5,opacity:.75}}>Calculated was {fmt(Math.round(lb.cmCalc))} — you kept {fmt(Math.round(lb.cmCalc-lb.cm))} via deduction</div>}
               <div style={{fontSize:17,fontWeight:900,marginTop:2}}>= {fmt(Math.round(lb.left))}</div>
             </div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderTop:'2px solid rgba(255,255,255,.35)',paddingTop:10}}>
               <span style={{fontSize:12.5,fontWeight:800,textTransform:'uppercase',letterSpacing:'.4px'}}>Left with hospital</span>
               <span style={{fontSize:24,fontWeight:900}}>{fmt(Math.round(totalLeft))}</span>
             </div>
-            <div style={{fontSize:10,opacity:.75,marginTop:6}}>Based on calculated commission rates · includes this admission + OP visits · before operating expenses</div>
+            <div style={{fontSize:10,opacity:.75,marginTop:6}}>Uses each doctor's actual payout ratio (after your deductions) · includes this admission + OP visits · before operating expenses</div>
           </div>)
         })()}
         {b.credit>0&&(<><SecL>Credit by type</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm'].map(tk=>{const te=ents.filter(e=>e.type===tk&&isCredit(e));if(!te.length)return null;const ta=te.reduce((a,e)=>a+e.amount,0);return(<div key={tk} style={{padding:'8px 0',borderBottom:'1px solid #fef3c7'}}>
