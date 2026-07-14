@@ -4974,7 +4974,7 @@ const SegmentPL=({incList,expList,db=null,mtdIncList=null,mtdExpList=null,mtdLab
       const retained=0,retSplit=[]
       const net=cash-comm-cons-expTotal
       const margin=cash>0?(net/cash*100):0
-      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,creditSplit,retained,retSplit,net,margin,count:sInc.length}
+      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,creditSplit,retained,retSplit,srcArr:srcExp,net,margin,count:sInc.length}
     }
     const clinical=calcSeg('clinical')
     const lab=calcSeg('lab')
@@ -4999,6 +4999,7 @@ const SegmentPL=({incList,expList,db=null,mtdIncList=null,mtdExpList=null,mtdLab
           {d.cons>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>
           {(d.consSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
           
+          {(()=>{const pr=(d.srcArr||[]).filter(e=>e.category==='ref_paid');if(pr.length===0)return null;const tp=pr.reduce((a,e)=>a+e.amount,0);return(<tr><td colSpan={2} style={{padding:'6px 0 2px'}}><div style={{background:'#f1f5f9',borderRadius:7,padding:'5px 9px',fontSize:10.5,color:'#64748b'}}>💸 Commission payouts made in this period: <b>{fmt(tp)}</b> (record only — costs already counted on service dates)</div></td></tr>)})()}
           <tr style={{borderTop:'1.5px solid '+color.border}}>
             <td style={{padding:'8px 0 2px',fontWeight:800,color:d.net>=0?'#15803d':'#dc2626',fontSize:14}}>NET PROFIT</td>
             <td style={{textAlign:'right',padding:'8px 0 2px',fontWeight:900,fontSize:18,color:d.net>=0?'#15803d':'#dc2626'}}>{fmt(d.net)}</td>
@@ -5495,7 +5496,12 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             </div>)})()}
           </>}
           <R l="Collected OP + IP income" v={fmt(opIpInc)} bold green/>{dCreditToday-labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(dCreditToday-labCreditToday)} sub="Will count as income on the day you collect it"/>}{Object.entries(dI.filter(e=>isCredit(e)&&!['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
-          {opIpComm>0&&<>{<R l="Ref commission (actual rate)" v={'- '+fmt(Math.round(opIpComm))} red sub="On today's collected entries, at each doctor's real payout ratio"/>}{Object.entries(clinColl.reduce((m,e)=>{const cm=getComm(e)*dEff(e.ref_doctor);if(cm>0.5&&e.ref_doctor)m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
+          {(()=>{const payRows=dExpAll.filter(e=>e.category==='ref_paid');const dedRows=dExpAll.filter(e=>isRetainedCat(e.category));if(payRows.length===0&&dedRows.length===0)return null;const tp=payRows.reduce((a,e)=>a+e.amount,0);const td2=dedRows.reduce((a,e)=>a+e.amount,0);return(<div style={{background:'#f1f5f9',borderRadius:8,padding:'7px 10px',margin:'6px 0'}}>
+                <div style={{display:'flex',justifyContent:'space-between',fontSize:11.5,fontWeight:800,color:'#475569'}}><span>💸 Commission settled today (record)</span><span>{tp>0?'Paid '+fmt(tp):''}{tp>0&&td2>0?' · ':''}{td2>0?'Deducted '+fmt(td2):''}</span></div>
+                {payRows.map((e,i)=>(<div key={'p'+i} style={{display:'flex',justifyContent:'space-between',fontSize:10.5,color:'#94a3b8',paddingLeft:12}}><span>↳ Dr. {(e.description||'').trim()} ({e.payment})</span><span>{fmt(e.amount)}</span></div>))}
+                {dedRows.map((e,i)=>(<div key={'d'+i} style={{display:'flex',justifyContent:'space-between',fontSize:10.5,color:'#94a3b8',paddingLeft:12}}><span>↳ Dr. {(e.description||'').trim()} · deducted {e.category==='comm_retained_lab'?'🧪':'🏥'}</span><span>{fmt(e.amount)}</span></div>))}
+                <div style={{fontSize:9.5,color:'#94a3b8',marginTop:3}}>Record only — the cost was already counted on the service dates, so it is not deducted again here.</div>
+              </div>)})()}{opIpComm>0&&<>{<R l="Ref commission (actual rate)" v={'- '+fmt(Math.round(opIpComm))} red sub="On today's collected entries, at each doctor's real payout ratio"/>}{Object.entries(clinColl.reduce((m,e)=>{const cm=getComm(e)*dEff(e.ref_doctor);if(cm>0.5&&e.ref_doctor)m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
           {opIpConsFee>0&&<>{<R l="Consultant fees" v={'- '+fmt(Math.round(opIpConsFee))} red sub="On today's collected entries"/>}{Object.entries(clinColl.filter(e=>e.type!=='vc').reduce((m,e)=>{const cf=e.consultant_fee||0;if(cf>0&&e.consultant_name)m[e.consultant_name]=(m[e.consultant_name]||0)+cf;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
