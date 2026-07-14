@@ -346,12 +346,6 @@ const DeductCommForm=({docName,balance,db,onSave,onCancel})=>{
       </div>
     </div>)
 }
-const effPayoutRatio=(db,dn)=>{
-  if(!dn)return 1
-  const earned=(db.income||[]).filter(e=>e.ref_doctor===dn).reduce((a,e)=>a+getComm(e),0)
-  const ded=(db.expenses||[]).filter(e=>isRetainedCat(e.category)&&(e.description||'').trim()===dn.trim()).reduce((a,e)=>a+e.amount,0)
-  return earned>0?Math.max(0,Math.min(1,(earned-ded)/earned)):1
-}
 const settleRefPayment=async(db,actions,docName,amt,date,pay,settleAmt)=>{
   if(amt>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:amt,description:docName,payment:pay,is_monthly:false})
   if(settleAmt>0){
@@ -3377,16 +3371,16 @@ const RealIncomeReport=({db})=>{
 
   const allInc=incList.reduce((a,e)=>a+(e.amount||0),0)
   const allComm=incList.reduce((a,e)=>a+getComm(e),0)
-  const allVCFees=incList.filter(e=>!isCredit(e)).reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const allVCFees=expList.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+e.amount,0)
   const allDeductions=allComm+allVCFees
   const allReal=allInc-allDeductions
   const allExp=expList.reduce((a,e)=>a+(e.amount||0),0)
 
-  const riEffC={};const riEff=(dn)=>{const k=(dn||'').trim();if(!k)return 1;if(riEffC[k]==null)riEffC[k]=effPayoutRatio(db,k);return riEffC[k]}
+  const riRatio=(dn,s)=>{const cl=(db.income||[]).filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=(db.income||[]).filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?(s==='lab'?lb/t:cl/t):(s==='lab'?0:1)}
   const clinInc=incList.filter(e=>!['op_l','ip_l'].includes(e.type)&&!isCredit(e))
   const clinGross=clinInc.reduce((a,e)=>a+(e.amount||0),0)
-  const clinComm=clinInc.reduce((a,e)=>a+getComm(e)*riEff(e.ref_doctor),0)
-  const clinCons=clinInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const clinComm=expList.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*riRatio((e.description||'').trim(),'clinical'),0)
+  const clinCons=expList.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+e.amount,0)
   const segClinExp=expList.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)&&expenseSegment(e.category)!=='lab')
   const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
   const riRetC=expList.filter(e=>e.category==='comm_retained_clinical').reduce((a,e)=>a+(e.amount||0),0)
@@ -3400,7 +3394,7 @@ const RealIncomeReport=({db})=>{
 
   const labInc=incList.filter(e=>['op_l','ip_l'].includes(e.type)&&!isCredit(e))
   const labGross=labInc.reduce((a,e)=>a+(e.amount||0),0)
-  const labComm=labInc.reduce((a,e)=>a+getComm(e)*riEff(e.ref_doctor),0)
+  const labComm=expList.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*riRatio((e.description||'').trim(),'lab'),0)
   const labToLab=expList.filter(e=>expenseSegment(e.category)==='lab').reduce((a,e)=>a+(e.amount||0),0)
   const labActual=labGross-labComm-labToLab
 
@@ -3425,7 +3419,7 @@ const RealIncomeReport=({db})=>{
             <div style={{fontSize:9,color:'#ef4444',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Deductions</div>
             <div style={{fontSize:9,color:'#16a34a',fontWeight:700,textTransform:'uppercase',textAlign:'right',minWidth:64}}>Real</div>
           </div>
-          {ITYPES.map(t=>{const ents=incList.filter(e=>e.type===t.key&&!isCredit(e));const ti=ents.reduce((a,e)=>a+(e.amount||0),0);const td=ents.reduce((a,e)=>a+getComm(e)*riEff(e.ref_doctor)+(e.consultant_fee||0),0);if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(ti)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(ti-td)}</span></div>)})}
+          {ITYPES.map(t=>{const ents=incList.filter(e=>e.type===t.key&&!isCredit(e));const ti=ents.reduce((a,e)=>a+(e.amount||0),0);const td=0;if(!ti)return null;return(<div key={t.key} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'9px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}><TypeTag t={t.key}/>{t.full}</span><span style={{fontSize:13,textAlign:'right',minWidth:64}}>{fmt(ti)}</span><span style={{fontSize:13,textAlign:'right',color:'#ef4444',minWidth:64}}>{td>0?'-'+fmt(td):'-'}</span><span style={{fontSize:13,textAlign:'right',color:'#16a34a',fontWeight:700,minWidth:64}}>{fmt(ti-td)}</span></div>)})}
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'10px 0 0',marginTop:6,borderTop:'2px solid #111'}}><span style={{fontSize:14,fontWeight:800}}>Total</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',minWidth:64}}>{fmt(allInc)}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:64}}>{allDeductions>0?'-'+fmt(allDeductions):'-'}</span><span style={{fontSize:14,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:64}}>{fmt(allReal)}</span></div>
           {/* Payment mode breakdown */}
           <div style={{marginTop:12,paddingTop:10,borderTop:'1px dashed #e5e7eb'}}>
@@ -4902,17 +4896,16 @@ const TimelinePatientList=({db,onSelect,search,setSearch})=>{
 
 
 /*  DAILY DETAIL REPORT  */
-const DatewiseNetCard=({incList,expList,dbFull=null})=>{
+const DatewiseNetCard=({incList,expList,dbRef=null})=>{
   const days=[...new Set(incList.map(e=>e.date).filter(Boolean))].sort()
   if(days.length===0)return null
-  const dwEffC={};const dwEff=(dn)=>{const k=(dn||'').trim();if(!k)return 1;if(dwEffC[k]==null)dwEffC[k]=dbFull?effPayoutRatio(dbFull,k):1;return dwEffC[k]}
+  const dwRatio=(dn,s)=>{const cl=(dbRef||[]).filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=(dbRef||[]).filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?(s==='lab'?lb/t:cl/t):(s==='lab'?0:1)}
   const calc=(dayInc,dayExp)=>{
     const seg=(s)=>{
       const si=dayInc.filter(e=>incomeSegment(e.type)===s)
-      const siColl=si.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
-      const collected=siColl.reduce((a,e)=>a+(e.amount||0),0)
-      const comm=siColl.reduce((a,e)=>a+getComm(e)*dwEff(e.ref_doctor),0)
-      const cons=s==='clinical'?siColl.reduce((a,e)=>a+(e.consultant_fee||0),0):0
+      const collected=si.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)
+      const comm=dayExp.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*dwRatio((e.description||'').trim(),s),0)
+      const cons=s==='clinical'?dayExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+e.amount,0):0
       const exp=dayExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)&&expenseSegment(e.category)===s).reduce((a,e)=>a+(e.amount||0),0)
       return collected-comm-cons-exp
     }
@@ -4954,16 +4947,17 @@ const SegmentPL=({incList,expList,db=null,mtdIncList=null,mtdExpList=null,mtdLab
       const billed=sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
       const cash=sInc.filter(e=>e.payment!=='credit'&&e.payment!=='discount'&&e.payment!=='written_off').reduce((a,e)=>a+(e.amount||0),0)
       const credit=sInc.filter(e=>e.payment==='credit').reduce((a,e)=>a+(e.amount||0),0)
-      // Commission at the doctor's ACTUAL payout ratio, on the entry's own date (collected entries only)
-      const effC={};const effOf=(dn)=>{const k=(dn||'').trim();if(!k)return 1;if(effC[k]==null)effC[k]=db?effPayoutRatio(db,k):1;return effC[k]}
-      const sColl=sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
-      const comm=sColl.reduce((a,e)=>a+getComm(e)*effOf(e.ref_doctor),0)
-      const cons=seg==='clinical'?sColl.reduce((a,e)=>a+(e.consultant_fee||0),0):0
+      // CASH BASIS: commission & consultant costs = actual payments in the period (by payment date)
+      const docSegRatio=(dn)=>{const src=(db&&db.income)||incList;const cl=src.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=src.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?(seg==='lab'?lb/t:cl/t):(seg==='lab'?0:1)}
+      const commRows=srcExp.filter(e=>e.category==='ref_paid')
+      const comm=commRows.reduce((a,e)=>a+e.amount*docSegRatio((e.description||'').trim()),0)
+      const consRows=seg==='clinical'?srcExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm'):[]
+      const cons=consRows.reduce((a,e)=>a+e.amount,0)
       const incByType={};sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).forEach(e=>{if(!incByType[e.type])incByType[e.type]={amt:0,pats:{}};incByType[e.type].amt+=e.amount||0;const pn=(e.patient_name||'—').trim()||'—';incByType[e.type].pats[pn]=(incByType[e.type].pats[pn]||0)+(e.amount||0)})
       const incSplit=Object.entries(incByType).map(([t,d2])=>({t,label:(ITYPES.find(x=>x.key===t)||{}).full||t,amt:d2.amt,pats:Object.entries(d2.pats).map(([n,a2])=>({n,a:a2})).sort((x,y)=>y.a-x.a)})).filter(s=>s.amt>0).sort((a,b)=>b.amt-a.amt)
-      const commByDoc={};sColl.forEach(e=>{const cm=getComm(e)*effOf(e.ref_doctor);if(cm>0.5&&e.ref_doctor){const dn=e.ref_doctor;if(!commByDoc[dn])commByDoc[dn]={amt:0,pats:{}};commByDoc[dn].amt+=cm;const pn=(e.patient_name||'—').trim()||'—';commByDoc[dn].pats[pn]=(commByDoc[dn].pats[pn]||0)+cm}})
+      const commByDoc={};commRows.forEach(e=>{const dn=(e.description||'(unknown)').trim()||'(unknown)';const share=e.amount*docSegRatio(dn);if(share>0.5){if(!commByDoc[dn])commByDoc[dn]={amt:0,pats:{}};commByDoc[dn].amt+=share;commByDoc[dn].pats[fmtD(e.date)]=(commByDoc[dn].pats[fmtD(e.date)]||0)+share}})
       const commSplit=Object.entries(commByDoc).map(([n,d2])=>({name:n,amt:Math.round(d2.amt),pats:Object.entries(d2.pats).map(([pn,a2])=>({n:pn,a:Math.round(a2)})).sort((x,y)=>y.a-x.a)})).sort((a,b)=>b.amt-a.amt)
-      const consByName={};sColl.forEach(e=>{if((e.consultant_fee||0)>0&&seg==='clinical'){const n=e.consultant_name||'(unnamed)';if(!consByName[n])consByName[n]={amt:0,pats:{}};consByName[n].amt+=e.consultant_fee||0;const pn=(e.patient_name||'—').trim()||'—';consByName[n].pats[pn]=(consByName[n].pats[pn]||0)+(e.consultant_fee||0)}})
+      const consByName={};consRows.forEach(e=>{const n=(e.description||'(unnamed)').trim()||'(unnamed)';if(!consByName[n])consByName[n]={amt:0,pats:{}};consByName[n].amt+=e.amount;consByName[n].pats[fmtD(e.date)]=(consByName[n].pats[fmtD(e.date)]||0)+e.amount})
       const consSplit=Object.entries(consByName).map(([n,d2])=>({name:n,amt:Math.round(d2.amt),pats:Object.entries(d2.pats).map(([pn,a2])=>({n:pn,a:Math.round(a2)})).sort((x,y)=>y.a-x.a)})).sort((a,b)=>b.amt-a.amt)
       const sExp=srcExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
@@ -4974,7 +4968,7 @@ const SegmentPL=({incList,expList,db=null,mtdIncList=null,mtdExpList=null,mtdLab
       const retained=0,retSplit=[]
       const net=cash-comm-cons-expTotal
       const margin=cash>0?(net/cash*100):0
-      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,creditSplit,retained,retSplit,srcArr:srcExp,net,margin,count:sInc.length}
+      return{billed,cash,credit,comm,cons,commSplit,consSplit,expTotal,expSplit,incSplit,creditSplit,retained,retSplit,net,margin,count:sInc.length}
     }
     const clinical=calcSeg('clinical')
     const lab=calcSeg('lab')
@@ -4999,7 +4993,6 @@ const SegmentPL=({incList,expList,db=null,mtdIncList=null,mtdExpList=null,mtdLab
           {d.cons>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>
           {(d.consSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
           
-          {(()=>{const pr=(d.srcArr||[]).filter(e=>e.category==='ref_paid');if(pr.length===0)return null;const tp=pr.reduce((a,e)=>a+e.amount,0);return(<tr><td colSpan={2} style={{padding:'6px 0 2px'}}><div style={{background:'#f1f5f9',borderRadius:7,padding:'5px 9px',fontSize:10.5,color:'#64748b'}}>💸 Commission payouts made in this period: <b>{fmt(tp)}</b> (record only — costs already counted on service dates)</div></td></tr>)})()}
           <tr style={{borderTop:'1.5px solid '+color.border}}>
             <td style={{padding:'8px 0 2px',fontWeight:800,color:d.net>=0?'#15803d':'#dc2626',fontSize:14}}>NET PROFIT</td>
             <td style={{textAlign:'right',padding:'8px 0 2px',fontWeight:900,fontSize:18,color:d.net>=0?'#15803d':'#dc2626'}}>{fmt(d.net)}</td>
@@ -5206,18 +5199,19 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labInc=opLabEnts.filter(coll).reduce((a,e)=>a+e.amount,0)+ipLabEnts.filter(coll).reduce((a,e)=>a+e.amount,0)
   const labRawEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
   const labCreditToday=labRawEnts.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
-  const dEffC={};const dEff=(dn)=>{const k=(dn||'').trim();if(!k)return 1;if(dEffC[k]==null)dEffC[k]=effPayoutRatio(db,k);return dEffC[k]}
-  const labColl=labRawEnts.filter(e=>!isCredit(e)&&e.payment!=='discount'&&e.payment!=='written_off')
-  const labComm=labColl.reduce((a,e)=>a+getComm(e)*dEff(e.ref_doctor),0)
+  const dLabRefPaidShare=(dn)=>{const cl=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?lb/t:0}
+  const labComm=dExpAll.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*dLabRefPaidShare((e.description||'').trim()),0)
   const labToLab=dExpLab.reduce((a,e)=>a+e.amount,0)
   const labActual=labInc-labComm-labToLab
 
   // CASH BASIS: collected income minus payments made today minus operating expenses
   const opIpInc=opInc+opdInc+opdmInc+oppInc+vcProfit+oprInc+ipInc
   const clinEntsAll=dI.filter(e=>!['op_l','ip_l'].includes(e.type))
-  const clinColl=clinEntsAll.filter(e=>!isCredit(e)&&e.payment!=='discount'&&e.payment!=='written_off')
-  const opIpComm=clinColl.reduce((a,e)=>a+getComm(e)*dEff(e.ref_doctor),0)
-  const opIpConsFee=clinColl.filter(e=>e.type!=='vc').reduce((a,e)=>a+(e.consultant_fee||0),0)
+  const docRatioClin=(dn)=>{const cl=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?cl/t:1}
+  const dRefPaidRows=dExpAll.filter(e=>e.category==='ref_paid')
+  const opIpComm=dRefPaidRows.reduce((a,e)=>a+e.amount*docRatioClin((e.description||'').trim()),0)
+  const dConsPaidRows=dExpAll.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm')
+  const opIpConsFee=dConsPaidRows.reduce((a,e)=>a+e.amount,0)
   const nonLabExpTotal=dExpNonLab.reduce((a,e)=>a+e.amount,0)
   const opIpActual=opIpInc-opIpComm-opIpConsFee-nonLabExpTotal
 
@@ -5496,13 +5490,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             </div>)})()}
           </>}
           <R l="Collected OP + IP income" v={fmt(opIpInc)} bold green/>{dCreditToday-labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(dCreditToday-labCreditToday)} sub="Will count as income on the day you collect it"/>}{Object.entries(dI.filter(e=>isCredit(e)&&!['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
-          {(()=>{const payRows=dExpAll.filter(e=>e.category==='ref_paid');const dedRows=dExpAll.filter(e=>isRetainedCat(e.category));if(payRows.length===0&&dedRows.length===0)return null;const tp=payRows.reduce((a,e)=>a+e.amount,0);const td2=dedRows.reduce((a,e)=>a+e.amount,0);return(<div style={{background:'#f1f5f9',borderRadius:8,padding:'7px 10px',margin:'6px 0'}}>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:11.5,fontWeight:800,color:'#475569'}}><span>💸 Commission settled today (record)</span><span>{tp>0?'Paid '+fmt(tp):''}{tp>0&&td2>0?' · ':''}{td2>0?'Deducted '+fmt(td2):''}</span></div>
-                {payRows.map((e,i)=>(<div key={'p'+i} style={{display:'flex',justifyContent:'space-between',fontSize:10.5,color:'#94a3b8',paddingLeft:12}}><span>↳ Dr. {(e.description||'').trim()} ({e.payment})</span><span>{fmt(e.amount)}</span></div>))}
-                {dedRows.map((e,i)=>(<div key={'d'+i} style={{display:'flex',justifyContent:'space-between',fontSize:10.5,color:'#94a3b8',paddingLeft:12}}><span>↳ Dr. {(e.description||'').trim()} · deducted {e.category==='comm_retained_lab'?'🧪':'🏥'}</span><span>{fmt(e.amount)}</span></div>))}
-                <div style={{fontSize:9.5,color:'#94a3b8',marginTop:3}}>Record only — the cost was already counted on the service dates, so it is not deducted again here.</div>
-              </div>)})()}{opIpComm>0&&<>{<R l="Ref commission (actual rate)" v={'- '+fmt(Math.round(opIpComm))} red sub="On today's collected entries, at each doctor's real payout ratio"/>}{Object.entries(clinColl.reduce((m,e)=>{const cm=getComm(e)*dEff(e.ref_doctor);if(cm>0.5&&e.ref_doctor)m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
-          {opIpConsFee>0&&<>{<R l="Consultant fees" v={'- '+fmt(Math.round(opIpConsFee))} red sub="On today's collected entries"/>}{Object.entries(clinColl.filter(e=>e.type!=='vc').reduce((m,e)=>{const cf=e.consultant_fee||0;if(cf>0&&e.consultant_name)m[e.consultant_name]=(m[e.consultant_name]||0)+cf;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
+          {opIpComm>0&&<>{<R l="Ref commissions paid" v={'- '+fmt(Math.round(opIpComm))} red sub="Actual payments made today (clinical share)"/>}{dRefPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {(e.description||'').trim()}</span><span>- {fmt(Math.round(e.amount*docRatioClin((e.description||'').trim())))}</span></div>))}</>}
+          {opIpConsFee>0&&<>{<R l="Consultant fees paid" v={'- '+fmt(opIpConsFee)} red sub="Actual payments made today"/>}{dConsPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ {(e.description||'').trim()}</span><span>- {fmt(e.amount)}</span></div>))}</>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
@@ -5552,7 +5541,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <R l="Collected lab income" v={fmt(labInc)} bold green/>{labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(labCreditToday)} sub="Counts on collection day"/>}{Object.entries(dI.filter(e=>isCredit(e)&&['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
             </>)
           })()}
-          <><R l="Ref commission (actual rate)" v={'- '+fmt(Math.round(labComm))} red sub="On today's collected lab entries"/>{Object.entries(labColl.reduce((m,e)=>{const cm=getComm(e)*dEff(e.ref_doctor);if(cm>0.5&&e.ref_doctor)m[e.ref_doctor]=(m[e.ref_doctor]||0)+cm;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {n}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>
+          <><R l="Ref commissions paid" v={'- '+fmt(Math.round(labComm))} red sub="Lab share of today's payments"/>{dExpAll.filter(e=>e.category==='ref_paid'&&dLabRefPaidShare((e.description||'').trim())>0).map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {(e.description||'').trim()}</span><span>- {fmt(Math.round(e.amount*dLabRefPaidShare((e.description||'').trim())))}</span></div>))}</>
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
@@ -6016,7 +6005,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
         {RVTABS.map(v=>(<button key={v.k} onClick={()=>setRv(v.k)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:rv===v.k?'none':'1.5px solid #e2e8f0',background:rv===v.k?'linear-gradient(135deg,#d97706,#f59e0b)':'#fff',color:rv===v.k?'#fff':'#64748b',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:rv===v.k?'0 4px 12px rgba(217,119,6,0.3)':'none',transition:'all .15s'}}>{v.l}</button>))}
       </div>
       {rv==='daily'&&<DailyDetailReport db={db} rd={rd} setRd={setRd} allPaidComm={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} gotoIP={pid=>gotoIP(pid,'rep')} gotoTimeline={pid=>{setTimelineSelPid(pid);setRv('timeline')}} gotoOP={gotoOP}/>}
-      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm));const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><SegmentPL db={db} incList={mI} expList={mE} mtdIncList={mI} mtdExpList={mE} mtdTitle="Month net profit" mtdLabel={new Date(rm+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})}/><DatewiseNetCard incList={mI} expList={mE} dbFull={db}/><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><PatientBreakdown incList={mI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this month" compact={true}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
+      {rv==='monthly'&&(()=>{const mI=db.income.filter(e=>e.date?.startsWith(rm));const mE=db.expenses.filter(e=>e.date?.startsWith(rm));const exp=sumExp(mE);const rc=totalRef(mI);const pkg=getPkgPayments(db.ip_patients,rm);const days=[...new Set(mI.map(e=>e.date))].sort();const[yr,mo]=rm.split('-');return(<><input style={{...S.inp,marginBottom:12}} type="month" value={rm} onChange={e=>setRm(e.target.value)}/><div style={{fontSize:14,fontWeight:600,color:'#555',margin:'0 0 14px'}}>{MOFULL[parseInt(mo)-1]} {yr}</div><SegmentPL db={db} incList={mI} expList={mE} mtdIncList={mI} mtdExpList={mE} mtdTitle="Month net profit" mtdLabel={new Date(rm+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'})}/><DatewiseNetCard incList={mI} expList={mE} dbRef={db.income}/><PLCards incList={mI} exp={exp} refComm={rc} pkgList={pkg}/>{days.length>0&&<VBarChart title="Daily revenue trend" data={days.map(d=>{const dI=db.income.filter(e=>e.date===d);return{label:d.slice(8),v1:cashTotal(dI),color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={mI}/><PatientBreakdown incList={mI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this month" compact={true}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={mI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='yearly'&&(()=>{const yI=db.income.filter(e=>e.date?.startsWith(ry));const yE=db.expenses.filter(e=>e.date?.startsWith(ry));const exp=sumExp(yE);const rc=totalRef(yI);const mons=[...new Set(yI.map(e=>e.date?.slice(0,7)))].sort();return(<><select style={{...S.sel,marginBottom:12}} value={ry} onChange={e=>setRy(e.target.value)}>{yrs.map(y=><option key={y} value={y}>{y}</option>)}</select><SegmentPL db={db} incList={yI} expList={yE} monthlyOf={ry}/><PLCards incList={yI} exp={exp} refComm={rc} pkgList={getPkgPayments(db.ip_patients,ry)}/>{mons.length>0&&<VBarChart title="Monthly revenue vs expenses" data={mons.map(ym=>{const mi=db.income.filter(e=>e.date?.startsWith(ym));const me=db.expenses.filter(e=>e.date?.startsWith(ym)&&e.category!=='ref_paid').reduce((a,e)=>a+e.amount,0);const[,m]=ym.split('-');return{label:MOS[parseInt(m)-1],v1:cashTotal(mi),v2:me,color:'#16a34a'}})}/>}<SecL>Income by source</SecL><IncT incList={yI}/><PatientBreakdown incList={yI} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients this year" compact={true}/><SecL>Referrals</SecL><ReferralsReport db={db} income={yI} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='custom'&&(()=>{const incList=db.income.filter(e=>e.date>=customFrom&&e.date<=customTo);const expList=db.expenses.filter(e=>e.date>=customFrom&&e.date<=customTo);const exp=sumExp(expList);const rc=totalRef(incList);const pkg=getPkgPayments(db.ip_patients,null).filter(py=>py.date>=customFrom&&py.date<=customTo);return(<><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}><FInp label="From" type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}/><FInp label="To" type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}/></div><SegmentPL db={db} incList={incList} expList={expList}/><PLCards incList={incList} exp={exp} refComm={rc} pkgList={pkg}/><SecL>Income by source</SecL><IncT incList={incList}/><PatientBreakdown incList={incList} db={db} gotoIP={gotoIP} gotoOP={gotoOP} title="Patients in range" compact={false}/><SecL>Expenses</SecL><ExpT exp={exp}/><SecL>Referrals</SecL><ReferralsReport db={db} income={incList} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions}/></>)})()}
       {rv==='referrals'&&<ReferralsReport db={db} income={db.income} allPaid={allPaidComm} rm={rm} setRm={setRm} ry={ry} setRy={setRy} yrs={yrs} actions={actions} hospital={hospital}/>}
