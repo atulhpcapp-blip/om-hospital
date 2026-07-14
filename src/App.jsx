@@ -20,7 +20,7 @@ const IP_PAT_TYPES=['Regular','Package','VC']
 const PLANS=[{key:'trial',label:'Trial (7 days)',price:0},{key:'starter',label:'Starter',price:600},{key:'pro',label:'Pro',price:900},{key:'enterprise',label:'Enterprise',price:1900}]
 const toEmail=u=>`${u.toLowerCase().replace(/\s+/g,'')}@easymedicalsolutions.in`
 
-const todayStr=()=>new Date().toISOString().split('T')[0]
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 const fmtT=(ts)=>{if(!ts)return'';try{return new Date(ts).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true})}catch(e){return''}}
 const consPct=(con,t)=>t==='op_p'?(con?.op_p_pct||0):(con?.fee_share_pct||0)
 
