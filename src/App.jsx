@@ -4955,15 +4955,28 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
       const cons=consRows.reduce((a,e)=>a+e.amount,0)
       const incByType={};sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).forEach(e=>{if(!incByType[e.type])incByType[e.type]={amt:0,pats:{}};incByType[e.type].amt+=e.amount||0;const pn=(e.patient_name||'—').trim()||'—';incByType[e.type].pats[pn]=(incByType[e.type].pats[pn]||0)+(e.amount||0)})
       const incSplit=Object.entries(incByType).map(([t,d2])=>({t,label:(ITYPES.find(x=>x.key===t)||{}).full||t,amt:d2.amt,pats:Object.entries(d2.pats).map(([n,a2])=>({n,a:a2})).sort((x,y)=>y.a-x.a)})).filter(s=>s.amt>0).sort((a,b)=>b.amt-a.amt)
-      const commByDoc={};commRows.forEach(e=>{const dn=(e.description||'(unknown)').trim()||'(unknown)';const share=e.amount*docSegRatio(dn);if(share>0.5){if(!commByDoc[dn])commByDoc[dn]={amt:0,pats:{}};commByDoc[dn].amt+=share}})
-      // Patients making up each doctor's earned commission in THIS SEGMENT across ALL dates (which patients this payment settles)
+      // Segment commission PAID per doctor in this period (the amount to attribute to patients)
+      const commByDoc={};commRows.forEach(e=>{const dn=(e.description||'(unknown)').trim()||'(unknown)';const share=e.amount*docSegRatio(dn);if(share>0.5){commByDoc[dn]=(commByDoc[dn]||0)+share}})
+      // FIFO: walk the doctor's referral patients OLDEST-FIRST (only entries dated ≤ latest payment date in this period), fill up to the paid amount
       const srcAll=(db&&db.income)||incList
-      Object.keys(commByDoc).forEach(dn=>{srcAll.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)===seg&&getComm(e)>0).forEach(e=>{const pn=(e.patient_name||'—').trim()||'—';if(!commByDoc[dn].pats[pn])commByDoc[dn].pats[pn]={a:0,pid:null,isIP:false};commByDoc[dn].pats[pn].a+=getComm(e);if(['ip','ip_r','ip_l','ip_p'].includes(e.type)){commByDoc[dn].pats[pn].isIP=true;if(e.patient_id)commByDoc[dn].pats[pn].pid=e.patient_id}})})
-      const commSplit=Object.entries(commByDoc).map(([n,d2])=>({name:n,amt:Math.round(d2.amt),pats:Object.entries(d2.pats).map(([pn,v])=>({n:pn,a:Math.round(v.a),pid:v.pid,isIP:v.isIP})).sort((x,y)=>y.a-x.a)})).sort((a,b)=>b.amt-a.amt)
-      const consByName={};consRows.forEach(e=>{const n=(e.description||'(unnamed)').trim()||'(unnamed)';if(!consByName[n])consByName[n]={amt:0,pats:{}};consByName[n].amt+=e.amount})
+      const commSplit=Object.entries(commByDoc).map(([dn,paidShare])=>{
+        const lastPayDate=commRows.filter(e=>(e.description||'').trim()===dn).reduce((mx,e)=>e.date>mx?e.date:mx,'')
+        const ents=srcAll.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)===seg&&getComm(e)>0&&(!lastPayDate||e.date<=lastPayDate)).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+        let remaining=paidShare;const pats=[]
+        for(const e of ents){if(remaining<=0.5)break;const cm=getComm(e);const take=Math.min(cm,remaining);remaining-=cm;const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);pats.push({n:pn,a:Math.round(take),date:e.date,pid:isIP?e.patient_id:null,isIP})}
+        // merge same patient (keep earliest date)
+        const merged={};pats.forEach(p=>{if(!merged[p.n])merged[p.n]={n:p.n,a:0,date:p.date,pid:p.pid,isIP:p.isIP};merged[p.n].a+=p.a;if(p.date<merged[p.n].date)merged[p.n].date=p.date;if(p.pid)merged[p.n].pid=p.pid;if(p.isIP)merged[p.n].isIP=true})
+        return{name:dn,amt:Math.round(paidShare),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
+      }).sort((a,b)=>b.amt-a.amt)
+      const consByName={};consRows.forEach(e=>{const n=(e.description||'(unnamed)').trim()||'(unnamed)';consByName[n]=(consByName[n]||0)+e.amount})
       const srcAllC=(db&&db.income)||incList
-      Object.keys(consByName).forEach(n=>{srcAllC.filter(e=>(e.consultant_fee||0)>0&&(e.consultant_name||'').trim()&&n.toLowerCase().includes((e.consultant_name||'').trim().toLowerCase())).forEach(e=>{const pn=(e.patient_name||'—').trim()||'—';if(!consByName[n].pats[pn])consByName[n].pats[pn]={a:0,pid:null,isIP:false};consByName[n].pats[pn].a+=e.consultant_fee||0;if(['ip','ip_r','ip_l','ip_p'].includes(e.type)){consByName[n].pats[pn].isIP=true;if(e.patient_id)consByName[n].pats[pn].pid=e.patient_id}})})
-      const consSplit=Object.entries(consByName).map(([n,d2])=>({name:n,amt:Math.round(d2.amt),pats:Object.entries(d2.pats).map(([pn,v])=>({n:pn,a:Math.round(v.a),pid:v.pid,isIP:v.isIP})).sort((x,y)=>y.a-x.a)})).sort((a,b)=>b.amt-a.amt)
+      const consSplit=Object.entries(consByName).map(([n,paidAmt])=>{
+        const lastPayDate=consRows.filter(e=>(e.description||'').trim()===n).reduce((mx,e)=>e.date>mx?e.date:mx,'')
+        const ents=srcAllC.filter(e=>(e.consultant_fee||0)>0&&(e.consultant_name||'').trim()&&(n.toLowerCase().includes((e.consultant_name||'').trim().toLowerCase()))&&(!lastPayDate||e.date<=lastPayDate)).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+        let remaining=paidAmt;const merged={}
+        for(const e of ents){if(remaining<=0.5)break;const cf=e.consultant_fee||0;const take=Math.min(cf,remaining);remaining-=cf;const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);if(!merged[pn])merged[pn]={n:pn,a:0,date:e.date,pid:isIP?e.patient_id:null,isIP};merged[pn].a+=Math.round(take);if(e.date<merged[pn].date)merged[pn].date=e.date;if(isIP){merged[pn].isIP=true;if(e.patient_id)merged[pn].pid=e.patient_id}}
+        return{name:n,amt:Math.round(paidAmt),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
+      }).sort((a,b)=>b.amt-a.amt)
       const sExp=srcExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
       const expByCat={};sExp.forEach(e=>{if(!expByCat[e.category])expByCat[e.category]=0;expByCat[e.category]+=e.amount||0})
@@ -4994,7 +5007,7 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
           <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
           {(d.expSplit||[]).map(s=>(<tr key={s.cat} style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>))}
           {d.comm>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Commission</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.comm)}</td></tr>
-          {(d.commSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {(gotoOP||gotoIP)?<button onClick={()=>{if(p.isIP&&p.pid&&gotoIP)gotoIP(p.pid);else if(gotoOP)gotoOP(p.n)}} style={{background:'none',border:'none',padding:0,color:'#2563eb',fontSize:11,cursor:'pointer',textDecoration:'underline'}}>{p.n}</button>:p.n}<span style={{color:'#cbd5e1'}}> · comm {fmt(p.a)}</span></td><td style={{textAlign:'right',padding:0}}></td></tr>))}</Fragment>))}</>}
+          {(d.commSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {(gotoOP||gotoIP)?<button onClick={()=>{if(p.isIP&&p.pid&&gotoIP)gotoIP(p.pid);else if(gotoOP)gotoOP(p.n)}} style={{background:'none',border:'none',padding:0,color:'#2563eb',fontSize:11,cursor:'pointer',textDecoration:'underline'}}>{p.n}</button>:p.n}<span style={{color:'#cbd5e1'}}>{p.date?' · '+fmtD(p.date):''} · comm {fmt(p.a)}</span></td><td style={{textAlign:'right',padding:0}}></td></tr>))}</Fragment>))}</>}
           {d.cons>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>
           {(d.consSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(p.a)}</td></tr>))}</Fragment>))}</>}
           
