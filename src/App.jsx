@@ -4959,22 +4959,19 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
       const commByDoc={};commRows.forEach(e=>{const dn=(e.description||'(unknown)').trim()||'(unknown)';const share=e.amount*docSegRatio(dn);if(share>0.5){commByDoc[dn]=(commByDoc[dn]||0)+share}})
       // FIFO: walk the doctor's referral patients OLDEST-FIRST (only entries dated ≤ latest payment date in this period), fill up to the paid amount
       const srcAll=(db&&db.income)||incList
+      // Patients whose referral entry falls WITHIN the report period (respect the date filter)
       const commSplit=Object.entries(commByDoc).map(([dn,paidShare])=>{
-        const lastPayDate=commRows.filter(e=>(e.description||'').trim()===dn).reduce((mx,e)=>e.date>mx?e.date:mx,'')
-        const ents=srcAll.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)===seg&&getComm(e)>0&&(!lastPayDate||e.date<=lastPayDate)).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-        let remaining=paidShare;const pats=[]
-        for(const e of ents){if(remaining<=0.5)break;const cm=getComm(e);const take=Math.min(cm,remaining);remaining-=cm;const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);pats.push({n:pn,a:Math.round(take),date:e.date,pid:isIP?e.patient_id:null,isIP})}
-        // merge same patient (keep earliest date)
-        const merged={};pats.forEach(p=>{if(!merged[p.n])merged[p.n]={n:p.n,a:0,date:p.date,pid:p.pid,isIP:p.isIP};merged[p.n].a+=p.a;if(p.date<merged[p.n].date)merged[p.n].date=p.date;if(p.pid)merged[p.n].pid=p.pid;if(p.isIP)merged[p.n].isIP=true})
+        const ents=sInc.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)===seg&&getComm(e)>0).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+        const merged={}
+        ents.forEach(e=>{const cm=getComm(e);const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);if(!merged[pn])merged[pn]={n:pn,a:0,date:e.date,pid:isIP?e.patient_id:null,isIP};merged[pn].a+=Math.round(cm);if(e.date<merged[pn].date)merged[pn].date=e.date;if(isIP){merged[pn].isIP=true;if(e.patient_id)merged[pn].pid=e.patient_id}})
         return{name:dn,amt:Math.round(paidShare),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
       }).sort((a,b)=>b.amt-a.amt)
       const consByName={};consRows.forEach(e=>{const n=(e.description||'(unnamed)').trim()||'(unnamed)';consByName[n]=(consByName[n]||0)+e.amount})
       const srcAllC=(db&&db.income)||incList
       const consSplit=Object.entries(consByName).map(([n,paidAmt])=>{
-        const lastPayDate=consRows.filter(e=>(e.description||'').trim()===n).reduce((mx,e)=>e.date>mx?e.date:mx,'')
-        const ents=srcAllC.filter(e=>(e.consultant_fee||0)>0&&(e.consultant_name||'').trim()&&(n.toLowerCase().includes((e.consultant_name||'').trim().toLowerCase()))&&(!lastPayDate||e.date<=lastPayDate)).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
-        let remaining=paidAmt;const merged={}
-        for(const e of ents){if(remaining<=0.5)break;const cf=e.consultant_fee||0;const take=Math.min(cf,remaining);remaining-=cf;const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);if(!merged[pn])merged[pn]={n:pn,a:0,date:e.date,pid:isIP?e.patient_id:null,isIP};merged[pn].a+=Math.round(take);if(e.date<merged[pn].date)merged[pn].date=e.date;if(isIP){merged[pn].isIP=true;if(e.patient_id)merged[pn].pid=e.patient_id}}
+        const ents=sInc.filter(e=>(e.consultant_fee||0)>0&&(e.consultant_name||'').trim()&&(n.toLowerCase().includes((e.consultant_name||'').trim().toLowerCase()))).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+        const merged={}
+        ents.forEach(e=>{const cf=e.consultant_fee||0;const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);if(!merged[pn])merged[pn]={n:pn,a:0,date:e.date,pid:isIP?e.patient_id:null,isIP};merged[pn].a+=Math.round(cf);if(e.date<merged[pn].date)merged[pn].date=e.date;if(isIP){merged[pn].isIP=true;if(e.patient_id)merged[pn].pid=e.patient_id}})
         return{name:n,amt:Math.round(paidAmt),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
       }).sort((a,b)=>b.amt-a.amt)
       const sExp=srcExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
