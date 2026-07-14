@@ -308,6 +308,11 @@ const DeductCommForm=({docName,balance,db,onSave,onCancel})=>{
   const [gLab,setGLab]=useState('')
   const [busy,setBusy]=useState(false)
   const [keepDue,setKeepDue]=useState(false)
+  const [pickPats,setPickPats]=useState(true)
+  const [chosen,setChosen]=useState({})
+  // Doctor's referral entries not yet marked settled (unpaid), newest first
+  const settledIds=new Set((db?.expenses||[]).filter(e=>e.category==='ref_paid'&&Array.isArray(e.settled_ids)).flatMap(e=>e.settled_ids))
+  const unpaidEnts=(db?.income||[]).filter(e=>e.ref_doctor===docName&&getComm(e)>0&&!settledIds.has(e.id)).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
   const g1=parseFloat(gClin)||0,g2=parseFloat(gLab)||0
   const d1=keepDue?0:Math.max(0,clDue-g1),d2=keepDue?0:Math.max(0,lbDue-g2)
   const give=g1+g2,ded=d1+d2
@@ -316,7 +321,8 @@ const DeductCommForm=({docName,balance,db,onSave,onCancel})=>{
     if(give<=0&&ded<=0){alert('Enter an amount to give (or untick "keep remainder as due" to deduct).');return}
     if(give<=0&&!window.confirm('You are giving Rs 0 — the ENTIRE due of '+fmt(balance)+' will be deducted (nothing paid). Continue?'))return
     if(give>0&&!window.confirm((keepDue?'Record payment for Dr. ':'Settle Dr. ')+docName+'?\n\nPay now: '+fmt(give)+' ('+fmt(g1)+' clinical + '+fmt(g2)+' lab)\nDeduct (kept by hospital): '+fmt(ded)+'\nDoctor due after: '+fmt(dueAfter)))return
-    setBusy(true);await onSave(g1,g2,d1,d2,date,pay);setBusy(false)
+    const ids=pickPats?Object.keys(chosen).filter(k=>chosen[k]):[]
+    setBusy(true);await onSave(g1,g2,d1,d2,date,pay,ids);setBusy(false)
   }
   return(
     <div style={{background:'#fffbeb',borderRadius:10,padding:'12px 14px',border:'1px solid #fde68a',marginTop:10}}>
@@ -331,6 +337,25 @@ const DeductCommForm=({docName,balance,db,onSave,onCancel})=>{
         <div><label style={{display:'block',fontSize:9,color:'#a16207',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Date</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:'100%',padding:'9px 10px',border:'1.5px solid #fcd34d',borderRadius:8,fontSize:13,boxSizing:'border-box',outline:'none'}}/><div style={{fontSize:9.5,color:'#a16207',marginTop:3,lineHeight:1.4}}>Tip: date it when the commission arose (e.g. discharge date).</div></div>
         <div><label style={{display:'block',fontSize:9,color:'#a16207',fontWeight:700,textTransform:'uppercase',marginBottom:3}}>Payment mode</label><select value={pay} onChange={e=>setPay(e.target.value)} style={{width:'100%',padding:'9px 10px',border:'1.5px solid #fcd34d',borderRadius:8,fontSize:13,boxSizing:'border-box',outline:'none',background:'#fff'}}>{['cash','upi','bank','card'].map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</select></div>
       </div>
+      {unpaidEnts.length>0&&<div style={{marginBottom:10}}>
+        <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,cursor:'pointer'}}>
+          <input type="checkbox" checked={pickPats} onChange={e=>setPickPats(e.target.checked)}/>
+          <span style={{fontSize:11.5,fontWeight:700,color:'#92400e'}}>Tick which patients this settles (records the exact link)</span>
+        </label>
+        {pickPats&&<div style={{maxHeight:170,overflowY:'auto',border:'1px solid #fde68a',borderRadius:8,background:'#fff'}}>
+          <div style={{display:'flex',gap:6,padding:'5px 8px',borderBottom:'1px solid #fef3c7'}}>
+            <button type="button" onClick={()=>{const all={};unpaidEnts.forEach(e=>all[e.id]=true);setChosen(all)}} style={{fontSize:10,fontWeight:700,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>Select all</button>
+            <button type="button" onClick={()=>setChosen({})} style={{fontSize:10,fontWeight:700,color:'#64748b',background:'none',border:'none',cursor:'pointer'}}>Clear</button>
+            <span style={{marginLeft:'auto',fontSize:10.5,fontWeight:800,color:'#15803d'}}>Ticked comm: {fmt(unpaidEnts.filter(e=>chosen[e.id]).reduce((a,e)=>a+getComm(e),0))}</span>
+          </div>
+          {unpaidEnts.map(e=>(<label key={e.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 8px',borderBottom:'1px solid #fef9ee',cursor:'pointer',fontSize:11.5}}>
+            <input type="checkbox" checked={!!chosen[e.id]} onChange={ev=>setChosen({...chosen,[e.id]:ev.target.checked})}/>
+            <span style={{flex:1,color:'#334155'}}>{(e.patient_name||'—').trim()||'—'} <span style={{color:'#94a3b8'}}>· {fmtD(e.date)} · {incomeSegment(e.type)==='lab'?'🧪':'🏥'}</span></span>
+            <span style={{fontWeight:700,color:'#c2410c'}}>{fmt(getComm(e))}</span>
+          </label>))}
+        </div>}
+        {pickPats&&<div style={{fontSize:10,color:'#a16207',marginTop:4}}>Only ticked patients count as settled by this payment — reports attribute exactly these.</div>}
+      </div>}
       <label style={{display:'flex',alignItems:'flex-start',gap:8,marginBottom:8,cursor:'pointer'}}>
         <input type="checkbox" checked={keepDue} onChange={e=>setKeepDue(e.target.checked)} style={{marginTop:2}}/>
         <span style={{fontSize:11.5,color:'#92400e',lineHeight:1.45}}><b>Keep remainder as due</b> — nothing is deducted; the unpaid balance stays pending (use for installments / part payments).</span>
@@ -1980,7 +2005,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           const gDue=gEarned-gPaid-gRet
           return(<div style={{marginTop:10}}>
             <div style={{fontSize:10.5,color:'#94a3b8',fontWeight:600,marginBottom:8}}>Dr. {dn} account (all patients): Earned {fmt(gEarned)} · Paid {fmt(gPaid)}{gRet>0?' · Retained '+fmt(gRet):''} · <span style={{color:gDue>0?'#c2410c':'#16a34a',fontWeight:800}}>Due {fmt(Math.max(0,gDue))}</span></div>
-            {payDocI==='DED'?<DeductCommForm db={db} docName={dn} balance={Math.max(0,gDue)} onCancel={()=>setPayDocI(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:dn,payment:pay,is_monthly:false});await deductCommSplit(actions,dn,date,d1,d2);setPayDocI(null)}}/>
+            {payDocI==='DED'?<DeductCommForm db={db} docName={dn} balance={Math.max(0,gDue)} onCancel={()=>setPayDocI(null)} onSave={async(g1,g2,d1,d2,date,pay,ids=[])=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:dn,payment:pay,is_monthly:false,settled_ids:ids});await deductCommSplit(actions,dn,date,d1,d2);setPayDocI(null)}}/>
              :gDue>0.5?<button onClick={()=>setPayDocI('DED')} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle commission</button>
              :<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>✓ Doctor fully settled</div>}
             <SettlementHistory actions={actions} db={db} docName={dn} compact={true}/>
@@ -2503,7 +2528,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {Object.entries(byType).map(([tk,v])=>{const it=ITYPES.find(t=>t.key===tk);return(<div key={tk} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'7px 0',borderBottom:'1px solid #f5f5f5',alignItems:'center'}}><span style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}><TypeTag t={tk}/>{it?.full||tk}</span><span style={{fontSize:12,textAlign:'right',minWidth:60}}>{fmt(v.inc)}</span><span style={{fontSize:12,textAlign:'right',color:'#ef4444',minWidth:60}}>{v.comm>0?'-'+fmt(v.comm):'-'}</span><span style={{fontSize:12,textAlign:'right',color:'#16a34a',fontWeight:600,minWidth:60}}>{fmt(v.inc-v.comm)}</span></div>)})}
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:4,padding:'8px 0 0',marginTop:4,borderTop:'2px solid #111'}}><span style={{fontSize:13,fontWeight:800}}>Total</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',minWidth:60}}>{fmt(totalInc)}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#ef4444',minWidth:60}}>{totalComm>0?'-'+fmt(totalComm):'-'}</span><span style={{fontSize:13,fontWeight:800,textAlign:'right',color:'#16a34a',minWidth:60}}>{fmt(totalInc-totalComm)}</span></div>
         </Card>
-        {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const waived=db.expenses.filter(e=>isRetainedCat(e.category)&&e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid-waived;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{waived>0&&<div style={{fontSize:10.5,color:'#92400e',background:'#fffbeb',borderRadius:6,padding:'4px 8px',marginBottom:8,fontWeight:600}}>Settled/retained (not paid): {fmt(waived)}</div>}{balance>0&&(payDoc==='DED:'+doc.name?<DeductCommForm db={db} docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:doc.name,payment:pay,is_monthly:false});await deductCommSplit(actions,doc.name,date,d1,d2);setPayDoc(null)}}/>
+        {refs.length>0&&(<><SecL>Referral commission</SecL>{refs.map(doc=>{const paid=allPaid.filter(e=>e.description===doc.name).reduce((a,e)=>a+e.amount,0);const waived=db.expenses.filter(e=>isRetainedCat(e.category)&&e.description===doc.name).reduce((a,e)=>a+e.amount,0);const balance=doc.commission-paid-waived;const isOpen=payDoc===doc.name;return(<Card key={doc.name} style={{border:balance>0?'1px solid #fed7aa':'1px solid #f0f0f0'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}><div><div style={{fontSize:15,fontWeight:700}}>Dr. {doc.name}</div><div style={{fontSize:11,color:'#aaa',marginTop:2}}>Income: {fmt(doc.income)}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:11,color:'#d97706',fontWeight:600}}>Commission</div><div style={{fontSize:20,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div></div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,padding:'8px 0',borderTop:'1px solid #f5f5f5',borderBottom:'1px solid #f5f5f5',marginBottom:10}}><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Earned</div><div style={{fontSize:13,fontWeight:700,color:'#c2410c'}}>{fmt(doc.commission)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div><div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Balance</div><div style={{fontSize:13,fontWeight:700,color:balance>0?'#ef4444':'#16a34a'}}>{fmt(balance)}</div></div></div>{waived>0&&<div style={{fontSize:10.5,color:'#92400e',background:'#fffbeb',borderRadius:6,padding:'4px 8px',marginBottom:8,fontWeight:600}}>Settled/retained (not paid): {fmt(waived)}</div>}{balance>0&&(payDoc==='DED:'+doc.name?<DeductCommForm db={db} docName={doc.name} balance={balance} onCancel={()=>setPayDoc(null)} onSave={async(g1,g2,d1,d2,date,pay,ids=[])=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:doc.name,payment:pay,is_monthly:false,settled_ids:ids});await deductCommSplit(actions,doc.name,date,d1,d2);setPayDoc(null)}}/>
         :<button onClick={()=>setPayDoc('DED:'+doc.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle commission</button>)}{balance<=0&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',fontWeight:600}}>Fully paid</div>}<SettlementHistory actions={actions} db={db} docName={doc.name} compact={true}/></Card>)})}</>)}
         {consList.length>0&&canSeeReports&&(<><SecL>Consultants</SecL>{consList.map(cn=>{
         const cfPaid=consPaid.filter(e=>(e.description||'').toLowerCase().includes(cn.name.toLowerCase())).reduce((a,e)=>a+e.amount,0)
@@ -2855,7 +2880,7 @@ const ReferralsReport=({db,income,allPaid,rm,setRm,ry,setRy,yrs,actions,hospital
             <div><div style={{fontSize:14,fontWeight:700}}>Dr. {r.name}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>Earned {fmt(r.total_commission)} · Paid {fmt(r.paid)}{r.waived>0?' · Retained '+fmt(r.waived):''} · {dlMonth}: {fmt(r.monthEarned)}</div></div>
             <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#c2410c',fontWeight:700,textTransform:'uppercase'}}>Due</div><div style={{fontSize:18,fontWeight:800,color:'#c2410c'}}>{fmt(r.due)}</div></div>
           </div>
-          {payDoc==='DED:'+r.name?<DeductCommForm db={db} docName={r.name} balance={r.due} onCancel={()=>setPayDoc(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:r.name,payment:pay,is_monthly:false});await deductCommSplit(actions,r.name,date,d1,d2);setPayDoc(null)}}/>
+          {payDoc==='DED:'+r.name?<DeductCommForm db={db} docName={r.name} balance={r.due} onCancel={()=>setPayDoc(null)} onSave={async(g1,g2,d1,d2,date,pay,ids=[])=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:r.name,payment:pay,is_monthly:false,settled_ids:ids});await deductCommSplit(actions,r.name,date,d1,d2);setPayDoc(null)}}/>
            :<button onClick={()=>setPayDoc('DED:'+r.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12.5,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle</button>}
           <SettlementHistory actions={actions} db={db} docName={r.name} compact={true}/>
         </Card>)})}
@@ -4959,9 +4984,14 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
       const commByDoc={};commRows.forEach(e=>{const dn=(e.description||'(unknown)').trim()||'(unknown)';const share=e.amount*docSegRatio(dn);if(share>0.5){commByDoc[dn]=(commByDoc[dn]||0)+share}})
       // FIFO: walk the doctor's referral patients OLDEST-FIRST (only entries dated ≤ latest payment date in this period), fill up to the paid amount
       const srcAll=(db&&db.income)||incList
-      // Patients whose referral entry falls WITHIN the report period (respect the date filter)
+      // Prefer EXPLICIT patient links recorded at settlement (settled_ids); else fall back to within-period referrals
+      const idIndex={};((db&&db.income)||incList).forEach(e=>{idIndex[e.id]=e})
       const commSplit=Object.entries(commByDoc).map(([dn,paidShare])=>{
-        const ents=sInc.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)===seg&&getComm(e)>0).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+        const linkedIds=commRows.filter(e=>(e.description||'').trim()===dn&&Array.isArray(e.settled_ids)).flatMap(e=>e.settled_ids)
+        let ents
+        if(linkedIds.length>0){ents=linkedIds.map(id=>idIndex[id]).filter(e=>e&&incomeSegment(e.type)===seg&&getComm(e)>0)}
+        else{ents=sInc.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)===seg&&getComm(e)>0)}
+        ents=ents.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
         const merged={}
         ents.forEach(e=>{const cm=getComm(e);const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);if(!merged[pn])merged[pn]={n:pn,a:0,date:e.date,pid:isIP?e.patient_id:null,isIP};merged[pn].a+=Math.round(cm);if(e.date<merged[pn].date)merged[pn].date=e.date;if(isIP){merged[pn].isIP=true;if(e.patient_id)merged[pn].pid=e.patient_id}})
         return{name:dn,amt:Math.round(paidShare),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
@@ -6743,7 +6773,7 @@ const RefDoctorsTab=({db,actions})=>{
                 <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Paid</div><div style={{fontSize:13,fontWeight:700,color:'#16a34a'}}>{fmt(paid)}</div></div>
                 <div style={{textAlign:'center'}}><div style={{fontSize:9,color:'#aaa',fontWeight:700,textTransform:'uppercase'}}>Due</div><div style={{fontSize:13,fontWeight:700,color:due>0?'#ef4444':'#16a34a'}}>{fmt(due)}</div></div>
               </div>
-              {due>0&&(payDocR==='DED:'+d.name?<DeductCommForm db={db} docName={d.name} balance={due} onCancel={()=>setPayDocR(null)} onSave={async(g1,g2,d1,d2,date,pay)=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:d.name,payment:pay,is_monthly:false});await deductCommSplit(actions,d.name,date,d1,d2);setPayDocR(null)}}/>
+              {due>0&&(payDocR==='DED:'+d.name?<DeductCommForm db={db} docName={d.name} balance={due} onCancel={()=>setPayDocR(null)} onSave={async(g1,g2,d1,d2,date,pay,ids=[])=>{if(g1+g2>0)await actions.addExpense({id:uid(),date,category:'ref_paid',amount:Math.round(g1+g2),description:d.name,payment:pay,is_monthly:false,settled_ids:ids});await deductCommSplit(actions,d.name,date,d1,d2);setPayDocR(null)}}/>
                :<button onClick={()=>setPayDocR('DED:'+d.name)} style={{width:'100%',padding:'10px',background:'#111',color:'#fff',border:'none',borderRadius:10,fontSize:12.5,fontWeight:700,cursor:'pointer'}}>💰 Pay / Settle</button>)}
               <SettlementHistory actions={actions} db={db} docName={d.name} compact={true}/>
             </div>)
