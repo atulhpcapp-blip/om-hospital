@@ -101,6 +101,87 @@ const DBtn=({children,onClick,confirmText})=><button style={S.dbtn} onClick={()=
 }}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
+const AuditReport=({db})=>{
+  const [days,setDays]=useState(30)
+  const cutoff=new Date(Date.now()-days*86400000).toISOString()
+  const dels=(db.deleted_income||[]).filter(e=>!e.deleted_at||e.deleted_at>=cutoff)
+    .sort((a,b)=>String(b.deleted_at||'').localeCompare(String(a.deleted_at||'')))
+  // Edits within window
+  const edits=[]
+  ;(db.income||[]).forEach(e=>{(Array.isArray(e.edit_log)?e.edit_log:[]).forEach(g=>{
+    if(g.at>=cutoff)edits.push({...g,entry:e})
+  })})
+  edits.sort((a,b)=>String(b.at).localeCompare(String(a.at)))
+  // Re-creation detection: a deleted row followed by a similar new row for the same patient
+  const recreated=dels.map(d=>{
+    const nm=(d.patient_name||'').trim().toLowerCase()
+    const delT=new Date(d.deleted_at||0).getTime()
+    const match=(db.income||[]).find(e=>(e.patient_name||'').trim().toLowerCase()===nm&&e.type===d.type
+      &&e.created_at&&Math.abs(new Date(e.created_at).getTime()-delT)<2*3600000)
+    return match?{del:d,made:match}:null
+  }).filter(Boolean)
+  const fmtDT=s=>{try{return new Date(s).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'numeric',minute:'2-digit',hour12:true})}catch(e){return s||''}}
+  const byUser={}
+  dels.forEach(d=>{const u=d.deleted_by||'unknown';if(!byUser[u])byUser[u]={del:0,amt:0};byUser[u].del++;byUser[u].amt+=d.amount||0})
+  return(<div>
+    <SecL>🔍 Audit trail</SecL>
+    <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap'}}>
+      {[7,30,90,365].map(n=>(<button key={n} onClick={()=>setDays(n)} style={{padding:'7px 14px',borderRadius:20,border:days===n?'none':'1.5px solid #e2e8f0',background:days===n?'#1a1a2e':'#fff',color:days===n?'#c9a84c':'#475569',fontSize:12,fontWeight:700,cursor:'pointer'}}>{n===365?'1 year':n+' days'}</button>))}
+    </div>
+
+    {recreated.length>0&&<Card style={{marginBottom:14,border:'2px solid #fca5a5',background:'#fef2f2'}}>
+      <div style={{fontSize:12,fontWeight:800,color:'#b91c1c',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:8}}>⚠️ Possible delete-and-recreate ({recreated.length})</div>
+      <div style={{fontSize:11,color:'#7f1d1d',marginBottom:10,lineHeight:1.5}}>An entry was deleted and a similar entry for the same patient was created within 2 hours. To settle a credit, staff should use <b>Collect</b> — deleting destroys the original bill date.</div>
+      {recreated.map(({del,made},i)=>(<div key={i} style={{padding:'8px 0',borderTop:'1px solid #fecaca',fontSize:12}}>
+        <div style={{fontWeight:700,color:'#7f1d1d'}}>{del.patient_name||'—'} · {(ITYPES.find(t=>t.key===del.type)||{}).full||del.type}</div>
+        <div style={{fontSize:11,color:'#991b1b',marginTop:3}}>🗑 Deleted: {fmt(del.amount)} dated {fmtD(del.date)} — by {del.deleted_by||'?'} at {fmtDT(del.deleted_at)}</div>
+        <div style={{fontSize:11,color:'#166534',marginTop:1}}>➕ Created: {fmt(made.amount)} dated {fmtD(made.date)} — by {made.entered_by||'?'} at {fmtDT(made.created_at)}</div>
+        {Math.round(del.amount||0)!==Math.round(made.amount||0)&&<div style={{fontSize:11,fontWeight:800,color:'#b91c1c',marginTop:3}}>💰 AMOUNT DIFFERS by {fmt(Math.abs((del.amount||0)-(made.amount||0)))} — verify this</div>}
+        {del.delete_reason&&<div style={{fontSize:10.5,color:'#7f1d1d',marginTop:2,fontStyle:'italic'}}>Reason given: "{del.delete_reason}"</div>}
+      </div>))}
+    </Card>}
+
+    {Object.keys(byUser).length>0&&<Card style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:800,color:'#475569',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:8}}>Deletions by user</div>
+      {Object.entries(byUser).sort((a,b)=>b[1].del-a[1].del).map(([u,v])=>(<div key={u} style={{display:'flex',justifyContent:'space-between',fontSize:12.5,padding:'5px 0',borderBottom:'1px solid #f5f5f5'}}>
+        <span style={{fontWeight:600}}>{u}</span><span><b>{v.del}</b> deleted · {fmt(v.amt)}</span>
+      </div>))}
+    </Card>}
+
+    <SecL>Deleted entries ({dels.length})</SecL>
+    {dels.length===0?<div style={{color:'#ccc',fontSize:13,padding:'8px 0',marginBottom:14}}>None in this period</div>
+    :<Card style={{marginBottom:14}}>
+      {dels.map(d=>(<div key={d.id} style={{padding:'8px 0',borderBottom:'1px solid #f5f5f5',fontSize:12}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+          <div style={{flex:1}}>
+            <span style={{fontSize:9,padding:'1px 6px',borderRadius:10,background:'#fecaca',color:'#7f1d1d',fontWeight:800,marginRight:6}}>DEL</span>
+            <span style={{fontWeight:700}}>{d.patient_name||'—'}</span>
+            <div style={{fontSize:11,color:'#64748b',marginTop:2}}>{fmtD(d.date)} · {(ITYPES.find(t=>t.key===d.type)||{}).full||d.type} · {d.payment||''}</div>
+            <div style={{fontSize:10.5,color:'#b91c1c',marginTop:2}}>Deleted by <b>{d.deleted_by||'unknown'}</b> at {fmtDT(d.deleted_at)}{d.entered_by?' · originally entered by '+d.entered_by:''}</div>
+            {d.delete_reason&&<div style={{fontSize:10.5,color:'#7f1d1d',fontStyle:'italic',marginTop:1}}>"{d.delete_reason}"</div>}
+          </div>
+          <span style={{fontWeight:700,textDecoration:'line-through',color:'#b91c1c'}}>{fmt(d.amount)}</span>
+        </div>
+      </div>))}
+      <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,fontSize:12.5,fontWeight:800,color:'#b91c1c'}}>
+        <span>Total deleted value</span><span>{fmt(dels.reduce((a,e)=>a+(e.amount||0),0))}</span>
+      </div>
+    </Card>}
+
+    <SecL>Edited entries ({edits.length})</SecL>
+    {edits.length===0?<div style={{color:'#ccc',fontSize:13,padding:'8px 0'}}>None in this period</div>
+    :<Card>
+      {edits.slice(0,80).map((g,i)=>(<div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f5f5f5',fontSize:12}}>
+        <div style={{fontWeight:700}}>{g.entry.patient_name||'—'} <span style={{fontWeight:500,color:'#64748b'}}>· {fmtD(g.entry.date)} · {(ITYPES.find(t=>t.key===g.entry.type)||{}).full||g.entry.type}</span></div>
+        <div style={{fontSize:10.5,color:'#64748b',marginTop:2}}>Edited by <b>{g.by}</b> at {fmtDT(g.at)}</div>
+        {(g.changes||[]).map((ch,j)=>(<div key={j} style={{fontSize:11,marginTop:2,color:'#334155'}}>
+          {ch.f}: <span style={{textDecoration:'line-through',color:'#b91c1c'}}>{ch.from||'—'}</span> → <span style={{color:'#15803d',fontWeight:700}}>{ch.to||'—'}</span>
+        </div>))}
+      </div>))}
+      {edits.length>80&&<div style={{fontSize:11,color:'#94a3b8',paddingTop:6}}>…{edits.length-80} more</div>}
+    </Card>}
+  </div>)
+}
 const DeletedStrip=({db,match,label='this patient'})=>{
   const rows=(db.deleted_income||[]).filter(match)
   if(rows.length===0)return null
@@ -580,7 +661,7 @@ const PreviewApp=({db,hospital,onExit})=>{
       </div>
       <div style={{padding:'16px'}}>
         {tab==='dash'&&<AnalyticsDash db={db}/>}
-        {tab==='rep'&&canSeeReports&&<RepTab canSeeReports={canSeeReports} db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
+        {tab==='rep'&&canSeeReports&&<RepTab profile={profile} canSeeReports={canSeeReports} db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={fakeActions}/>}
         {tab==='ip'&&<div style={{display:'block'}}><IPTab db={db} actions={fakeActions} gotoOP={name=>gotoOP(name,'ip')} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={{name:'',adm:todayStr(),dx:'',room:'',ref:'',is_package:false,phone:'',patient_type:'Regular',custom_commission:'',linkedRegNo:'',patient_area:''}} setPF={()=>{}} cF={{}} setCF={()=>{}} pyF={{}} setPyF={()=>{}} gotoIP={gotoIP} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={()=>alert('Read-only preview')}/></div>}
         {tab==='op'&&canSeeReports&&<OPTab db={db} actions={fakeActions} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab} gotoIP={pid=>gotoIP(pid,'op')}/>}
       </div>
@@ -6070,7 +6151,7 @@ const ProfitReport=({db})=>{
   </div>)
 }
 
-const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hospital,canSeeReports})=>{
+const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hospital,canSeeReports,profile})=>{
   const [timelinePid,setTimelinePid]=useState(null)
   const [timelineSelPid,setTimelineSelPid]=useState('')
   const [timelineSearch,setTimelineSearch]=useState('')
@@ -6080,7 +6161,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
   const yrs=[...new Set([...db.income,...db.expenses].map(e=>e.date?.slice(0,4)))].filter(Boolean).sort().reverse()
   if(!yrs.includes(ry))yrs.unshift(ry)
   const allPaidComm=useMemo(()=>db.expenses.filter(e=>e.category==='ref_paid'),[db.expenses])
-  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'profit',l:'💰 Profit'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'patdata',l:'Patient Data'}]
+  const RVTABS=[{k:'daily',l:'Daily'},{k:'monthly',l:'Monthly'},{k:'yearly',l:'Yearly'},{k:'profit',l:'💰 Profit'},{k:'custom',l:'Custom'},{k:'referrals',l:'Referrals'},{k:'lostdrs',l:'Lost Doctors'},{k:'supplies',l:'Supplies'},{k:'insurance',l:'Insurance'},{k:'patlist',l:'Pat List'},{k:'timeline',l:'Timeline'},{k:'expenses',l:'Expenses'},{k:'realincome',l:'Real Income'},{k:'area',l:'Area-wise'},{k:'incomechart',l:'Income Chart'},{k:'patdata',l:'Patient Data'},...((profile?.role==='admin'||profile?.role==='management')?[{k:'audit',l:'🔍 Audit'}]:[])]
   
   const PLCards=({incList,exp,refComm,pkgList=[]})=>{
     const cash=cashTotal(incList);const credit=credTotal(incList);const pkgTotal=pkgList.reduce((a,py)=>a+py.amount,0);const pkgComm=pkgList.reduce((a,py)=>a+(py.commission||0),0);const vcFees=incList.filter(e=>e.type==='vc').reduce((a,e)=>a+(e.consultant_fee||0),0);const net=cash+pkgTotal-exp.total-refComm-pkgComm-vcFees
@@ -6122,6 +6203,7 @@ const RepTab=({db,rv,setRv,rd,setRd,rm,setRm,ry,setRy,gotoIP,gotoOP,actions,hosp
       {rv==='supplies'&&<SuppliesReport db={db} actions={actions}/>}
       {rv==='incomechart'&&<IncomeChartReport db={db}/>}
       {rv==='profit'&&<ProfitReport db={db}/>}
+      {rv==='audit'&&<AuditReport db={db}/>}
     </div>
   )
 }
@@ -6456,7 +6538,7 @@ export default function App(){
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR,empR,attR,salR,delR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,created_at,collected_on,billed_on,deleted_at').eq('hospital_id',hid).is('deleted_at',null).order('date',{ascending:false}).limit(2000),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,created_at,collected_on,billed_on,deleted_at,updated_by,updated_at,edit_log').eq('hospital_id',hid).is('deleted_at',null).order('date',{ascending:false}).limit(2000),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
@@ -6464,7 +6546,7 @@ export default function App(){
           supabase.from('employees').select('*').eq('hospital_id',hid).order('name'),
           supabase.from('attendance').select('*').eq('hospital_id',hid).order('date',{ascending:false}).limit(2000),
           supabase.from('salary_payments').select('*').eq('hospital_id',hid).order('paid_date',{ascending:false}).limit(500),
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,reg_no,entered_by,deleted_at').eq('hospital_id',hid).not('deleted_at','is',null).order('deleted_at',{ascending:false}).limit(300)
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,reg_no,entered_by,created_at,deleted_at,deleted_by,delete_reason').eq('hospital_id',hid).not('deleted_at','is',null).order('deleted_at',{ascending:false}).limit(300)
         ])
       ])
       setProfile(prof)
@@ -6483,15 +6565,41 @@ export default function App(){
   },[session])
 
   const actions={
-    addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
+    addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}
+      row={...row,entered_by:row.entered_by||profile?.name||profile?.username||'unknown'};
+      const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
     delIncome:async id=>{
+      const who=profile?.name||profile?.username||'unknown'
+      const isAdminUser=profile?.role==='admin'||profile?.role==='management'
+      const row=db.income.find(e=>e.id===id)
+      const ageHrs=row&&row.created_at?(Date.now()-new Date(row.created_at).getTime())/3600000:9999
+      const own=((row&&row.entered_by)||'')===who
+      if(!isAdminUser&&!(own&&ageHrs<=2)){
+        alert('You can only delete your own entry within 2 hours of creating it.\n\nThis entry is '+(ageHrs>9000?'older':Math.round(ageHrs)+' hours old')+(own?'':' and was entered by '+((row&&row.entered_by)||'someone else'))+'.\n\nAsk an admin, or use the Collect button if you are settling a credit.')
+        return false
+      }
+      const reason=window.prompt('Reason for deleting this entry?\n(required — kept in the audit log)\n\nNote: to settle a credit, use Collect instead of deleting.')
+      if(reason===null)return false
+      if(!String(reason).trim()){alert('A reason is required.');return false}
       const stamp=new Date().toISOString()
-      const {error}=await supabase.from('income').update({deleted_at:stamp}).eq('id',id)
-      if(error){alert('Delete failed: '+error.message);return}
-      setDb(d=>{const row=d.income.find(e=>e.id===id);return{...d,income:d.income.filter(e=>e.id!==id),deleted_income:[{...(row||{id}),deleted_at:stamp},...(d.deleted_income||[])]}})
+      const {error}=await supabase.from('income').update({deleted_at:stamp,deleted_by:who,delete_reason:String(reason).trim()}).eq('id',id)
+      if(error){alert('Delete failed: '+error.message);return false}
+      setDb(d=>{const r2=d.income.find(e=>e.id===id);return{...d,income:d.income.filter(e=>e.id!==id),deleted_income:[{...(r2||{id}),deleted_at:stamp,deleted_by:who,delete_reason:String(reason).trim()},...(d.deleted_income||[])]}})
+      return true
     },
     editIncome:async row=>{
-      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||'',conditions:row.conditions??'',collected_on:row.collected_on??null,billed_on:row.billed_on??null}
+      const who=profile?.name||profile?.username||'unknown'
+      const before=db.income.find(e=>e.id===row.id)
+      const changes=[]
+      if(before){
+        ;[['amount','Amount'],['date','Date'],['payment','Payment'],['type','Type'],['ref_doctor','Ref doctor'],['consultant_fee','Consultant fee']].forEach(([f,lbl])=>{
+          const a=before[f]??'',b=row[f]??''
+          if(String(a)!==String(b))changes.push({f:lbl,from:String(a),to:String(b)})
+        })
+      }
+      const prevLog=Array.isArray(before&&before.edit_log)?before.edit_log:[]
+      const edit_log=changes.length>0?[...prevLog,{at:new Date().toISOString(),by:who,changes}].slice(-30):prevLog
+      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||'',conditions:row.conditions??'',collected_on:row.collected_on??null,billed_on:row.billed_on??null,updated_by:changes.length>0?who:(before&&before.updated_by)||null,updated_at:changes.length>0?new Date().toISOString():((before&&before.updated_at)||null),edit_log}
       const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
       let {error}=await supabase.from('income').update(updates).eq('id',row.id)
       if(error){
@@ -6741,7 +6849,7 @@ export default function App(){
         <div style={{display:tab==='ip'?'block':'none'}}><IPTab db={db} actions={actions} hospital={hospital} canSeeReports={canSeeReports} ipv={ipv} setIpv={setIpv} ipid={ipid} setIpid={setIpid} pF={pF} setPF={setPF} cF={cF} setCF={setCF} pyF={pyF} setPyF={setPyF} gotoIP={gotoIP} gotoOP={name=>gotoOP(name,'ip')} prevTab={prevTab} setPrevTab={setPrevTab} setTab={setTab} setEditIPPatient={setEditIPPatient}/></div>
         {tab==='op'&&canSeeReports&&<OPTab db={db} actions={actions} canSeeReports={canSeeReports} hospital={hospital} opSearch={opNavSearch} setOpSearch={setOpNavSearch} opPrevTab={opPrevTab} setOpPrevTab={setOpPrevTab} setTab={setTab} gotoIP={pid=>gotoIP(pid,'op')}/>}
         {tab==='exp'&&<ExpTab db={db} actions={actions} exD={exD} setExD={setExD} exF={exF} setExF={setExF}/>}
-        {tab==='rep'&&<RepTab canSeeReports={canSeeReports} db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions} hospital={hospital}/>}
+        {tab==='rep'&&<RepTab profile={profile} canSeeReports={canSeeReports} db={db} rv={rv} setRv={setRv} rd={rd} setRd={setRd} rm={rm} setRm={setRm} ry={ry} setRy={setRy} gotoIP={gotoIP} gotoOP={gotoOP} actions={actions} hospital={hospital}/>}
         {tab==='ins'&&<InsuranceMainTab db={db} setDb={setDb} hospital={hospital} gotoIP={(id)=>{setTab('ip');setTimeout(()=>gotoIP(id),100)}}/>}
         {tab==='credit'&&canSeeReports&&<CreditTab canSeeReports={canSeeReports} db={db} actions={actions}/>}
         {tab==='refdrs'&&canSeeReports&&<RefDoctorsTab db={db} actions={actions}/>}
