@@ -5208,11 +5208,19 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
 
   // IP grouped
   const ipByPat={}
-  dI.filter(e=>['ip','ip_r'].includes(e.type)).forEach(e=>{
+  // All IP-stay entry types. op_dm (discharge medicine) belongs to the IP stay too,
+  // but only when the person is genuinely an admitted patient.
+  const ipNameSet=new Set((db.ip_patients||[]).map(p=>(p.name||'').trim().toLowerCase()))
+  const belongsToIP=e=>['ip','ip_r','ip_l','ip_p'].includes(e.type)||(e.type==='op_dm'&&(
+    (e.patient_id&&(db.ip_patients||[]).some(p=>p.id===e.patient_id))||ipNameSet.has((e.patient_name||'').trim().toLowerCase())))
+  dI.filter(belongsToIP).forEach(e=>{
     const k=e.patient_id||e.patient_name||'?'
-    if(!ipByPat[k])ipByPat[k]={id:e.patient_id,name:(e.patient_name||'Unknown').trim(),ip:0,ip_r:0,ref:''}
+    if(!ipByPat[k])ipByPat[k]={id:e.patient_id,name:(e.patient_name||'Unknown').trim(),ip:0,ip_r:0,ip_l:0,ip_p:0,op_dm:0,ref:''}
     if(e.type==='ip')ipByPat[k].ip+=e.amount
     if(e.type==='ip_r')ipByPat[k].ip_r+=e.amount
+    if(e.type==='ip_l')ipByPat[k].ip_l+=e.amount
+    if(e.type==='ip_p')ipByPat[k].ip_p+=e.amount
+    if(e.type==='op_dm')ipByPat[k].op_dm+=e.amount
     if(e.ref_doctor&&!ipByPat[k].ref)ipByPat[k].ref=e.ref_doctor
   })
 
@@ -5392,7 +5400,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
       ?<div style={{color:'#ccc',fontSize:13,padding:'8px 0',marginBottom:8}}>No IP entries today</div>
       :<Card>
         {Object.values(ipByPat).map(pat=>{
-          const ipEnts=dI.filter(e=>['ip','ip_r'].includes(e.type)&&(e.patient_id===pat.id||(e.patient_name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()))
+          const ipEnts=dI.filter(e=>belongsToIP(e)&&(e.patient_id===pat.id||(e.patient_name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()))
           const cashAmt=ipEnts.filter(e=>e.payment==='cash').reduce((a,e)=>a+e.amount,0)
           const upiAmt=ipEnts.filter(e=>e.payment==='upi').reduce((a,e)=>a+e.amount,0)
           const creditAmt=ipEnts.filter(e=>e.payment==='credit').reduce((a,e)=>a+e.amount,0)
@@ -5402,6 +5410,9 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:4}}>
                 {pat.ip>0&&<span style={{fontSize:11,color:'#2563eb',fontWeight:600}}>IP Charges: {fmt(pat.ip)}</span>}
                 {pat.ip_r>0&&<span style={{fontSize:11,color:'#16a34a',fontWeight:600}}>IP Pharmacy: {fmt(pat.ip_r)}</span>}
+                {pat.ip_l>0&&<span style={{fontSize:11,color:'#6366f1',fontWeight:600}}>IP Lab: {fmt(pat.ip_l)}</span>}
+                {pat.ip_p>0&&<span style={{fontSize:11,color:'#7c3aed',fontWeight:600}}>IP Package: {fmt(pat.ip_p)}</span>}
+                {pat.op_dm>0&&<span style={{fontSize:11,color:'#c2410c',fontWeight:600}}>Discharge Med: {fmt(pat.op_dm)}</span>}
               </div>
               {pat.ref&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {pat.ref}</div>}
               <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
@@ -5410,11 +5421,11 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
                 {creditAmt>0&&<span style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fef2f2',color:'#dc2626',fontWeight:700}}>Credit {fmt(creditAmt)}</span>}
               </div>
             </div>
-            <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(pat.ip+pat.ip_r)}</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:700,color:'#16a34a'}}>{fmt(pat.ip+pat.ip_r+pat.ip_l+pat.ip_p+pat.op_dm)}</div></div>
           </div>
         </div>)})}
 
-        <R l="IP Total" v={fmt(ipInc)} bold green/>
+        <R l="IP Total (listed above)" v={fmt(Object.values(ipByPat).reduce((a,p)=>a+p.ip+p.ip_r+p.ip_l+p.ip_p+p.op_dm,0))} bold green/>
       </Card>}
 
     {/* LAB */}
