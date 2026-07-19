@@ -1671,7 +1671,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
           </select>
           {iF.linkedIpId&&(()=>{const pat=(db.ip_patients||[]).find(p=>p.id===iF.linkedIpId);if(!pat)return null;return(<div style={{marginTop:8,padding:'8px 12px',background:'#fdf2f8',border:'1px solid #fbcfe8',borderRadius:8,fontSize:12,color:'#831843',fontWeight:600}}>✓ Linked to {pat.name}{pat.ref_doctor?' · Dr. '+pat.ref_doctor:''}{pat.reg_no?' · Reg '+pat.reg_no:''}</div>)})()}
         </div>}
-                {['op','opd','op_r','op_l'].includes(itype)&&<div style={{marginBottom:8}}>
+                {['op','opd','op_r','op_l','op_p','op_dm','vc'].includes(itype)&&<div style={{marginBottom:8}}>
               <label style={{display:'block',fontSize:10,color:'#a89880',fontWeight:700,textTransform:'uppercase',letterSpacing:'.1em',marginBottom:6}}>Conditions / Comorbidities</label>
               <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
                 {['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease',...(db.income.flatMap(e=>(e.conditions||'').split(',').filter(x=>x&&!['Diabetes','Hypertension','Thyroid','TB','Anemia','Asthma','Heart Disease','Kidney Disease'].includes(x)))).filter((v,i,a)=>a.indexOf(v)===i)].map(cond=>{
@@ -5557,7 +5557,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             </div>)}
           </>}
           {ipInc>0&&<>
-            <R l="IP Charges + Pharmacy" v={fmt(ipInc)} green/>
+            <R l="IP Charges + Pharmacy + Package" v={fmt(ipInc)} green/>
             {(()=>{const ipEnts=dI.filter(e=>['ip','ip_r','ip_p'].includes(e.type));const byPat={};ipEnts.forEach(e=>{const k=e.patient_name||'—';if(!byPat[k])byPat[k]={amt:0,cr:0,pid:e.patient_id||null};byPat[k].amt+=e.amount;if(isCredit(e))byPat[k].cr+=e.amount});return Object.entries(byPat).map(([name,d],i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#374151',padding:'2px 0 2px 10px',borderLeft:'2px solid #bae6fd'}}>
               <span>🏥 <NameBtn name={name} pid={d.pid} isIP={true}/>{d.cr>0&&<span style={{fontSize:9.5,padding:'1px 7px',borderRadius:20,background:'#fff7ed',color:'#c2410c',fontWeight:700,marginLeft:5}}>Credit {fmt(d.cr)}</span>}</span><span style={{fontWeight:600}}>{fmt(d.amt)}</span>
             </div>)})()}
@@ -7408,8 +7408,9 @@ const SmartReminders=({db})=>{
     const pts=db.ip_patients||[]
     const exps=db.expenses||[]
 
-    const todayOPs=inc.filter(e=>e.date===today&&['op','op_r','op_l','vc'].includes(e.type)).length
-    const yesterdayOPs=inc.filter(e=>e.date===yest&&['op','op_r','op_l','vc'].includes(e.type)).length
+    const OP_ENTRY_TYPES=['op','opd','op_p','op_r','op_l','op_dm','vc']
+    const todayOPs=inc.filter(e=>e.date===today&&OP_ENTRY_TYPES.includes(e.type)).length
+    const yesterdayOPs=inc.filter(e=>e.date===yest&&OP_ENTRY_TYPES.includes(e.type)).length
     const opsDown=yesterdayOPs>0&&todayOPs<yesterdayOPs
 
     const paidRec=exps.filter(e=>e.category==='ref_paid')
@@ -7790,14 +7791,23 @@ const AnalyticsDash=({db,actions})=>{
       {/* SEGMENT BREAKDOWN */}
       <SecL>This month - segment breakdown</SecL>
       {(()=>{
-        const clinInc=tmInc.filter(e=>['op','op_r','ip','ip_r'].includes(e.type))
-        const clinGross=sum(clinInc);const clinComm=comm(clinInc)
-        const clinExp=sum(tmExp.filter(e=>e.category!=='lab_to_lab'))
+        // Clinical = every non-lab type (was a hardcoded 4-type list that dropped OPD, OP-P, OP-DM, IP-P, VC)
+        const collOnly=e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)
+        const payoutCat=k=>k==='ref_paid'||k==='consultant_fee'||k==='consultant_proc_comm'||isRetainedCat(k)
+        const clinInc=tmInc.filter(e=>!['op_l','ip_l'].includes(e.type))
+        const clinGross=clinInc.filter(collOnly).reduce((a,e)=>a+(e.amount||0),0)
+        // Split each commission payment clinical/lab by the doctor's earned ratio (same rule as Segment P&L)
+        const segRatio=(dn,s)=>{const src=db.income||[];const cl=src.filter(x=>x.ref_doctor===dn&&incomeSegment(x.type)==='clinical').reduce((a,x)=>a+getComm(x),0);const lb=src.filter(x=>x.ref_doctor===dn&&incomeSegment(x.type)==='lab').reduce((a,x)=>a+getComm(x),0);const t=cl+lb;return t>0?(s==='lab'?lb/t:cl/t):(s==='lab'?0:1)}
+        const refPaidRows=tmExp.filter(e=>e.category==='ref_paid')
+        const clinComm=refPaidRows.reduce((a,e)=>a+(e.amount||0)*segRatio((e.description||'').trim(),'clinical'),0)
+          +tmExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+(e.amount||0),0)
+        const clinExp=tmExp.filter(e=>e.category!=='lab_to_lab'&&!payoutCat(e.category)).reduce((a,e)=>a+(e.amount||0),0)
         const clinActual=clinGross-clinComm-clinExp
         const clinExpCats={}
-        tmExp.filter(e=>e.category!=='lab_to_lab').forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
+        tmExp.filter(e=>e.category!=='lab_to_lab'&&!payoutCat(e.category)).forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
         const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
-        const labGross=sum(labInc);const labComm=comm(labInc)
+        const labGross=labInc.filter(collOnly).reduce((a,e)=>a+(e.amount||0),0)
+        const labComm=refPaidRows.reduce((a,e)=>a+(e.amount||0)*segRatio((e.description||'').trim(),'lab'),0)
         const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
         const labActual=labGross-labComm-labToLab
         const SegCard=({title,color,bg,gross,commAmt,expBreakdown,actual,incTypes})=>(<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}><div><div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{title}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{incTypes}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div></div></div><div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}><div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>{Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}<div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/><div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div></div></div>)
