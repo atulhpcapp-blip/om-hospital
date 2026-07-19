@@ -101,11 +101,21 @@ const DBtn=({children,onClick,confirmText})=><button style={S.dbtn} onClick={()=
 }}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
+const settledInfo=(n)=>{
+  if(!n)return null
+  const m=String(n).match(/💰\s*Credit settled on ([^·(]+)(?:\(originally from ([^)]+)\))?/)
+  if(!m)return null
+  return{on:(m[1]||'').trim(),from:(m[2]||'').trim()}
+}
+const isPartialSettle=(n)=>!!(n&&String(n).indexOf('Partial credit settlement')>=0)
 const cleanNotes=n=>{
   if(!n)return ''
   if(n.indexOf('[splits:')>=0)return ''
-  if(n.indexOf('SPL:')>=0)return n.slice(0,n.indexOf('SPL:')).trim()
-  return n.trim()
+  let s=String(n)
+  s=s.replace(/💰\s*Credit settled on [^·]*(\([^)]*\))?/g,'').replace(/💰\s*Partial credit settlement \(originally from [^)]*\)/g,'')
+  s=s.replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'').trim()
+  if(s.indexOf('SPL:')>=0)return s.slice(0,s.indexOf('SPL:')).trim()
+  return s.trim()
 }
 const PAY_STYLE={cash:{bg:'#dcfce7',color:'#16a34a',label:'Cash'},upi:{bg:'#dbeafe',color:'#1d4ed8',label:'UPI'},card:{bg:'#f3e8ff',color:'#7c3aed',label:'Card'},bank:{bg:'#e0f2fe',color:'#0369a1',label:'Bank'},insurance:{bg:'#fef9c3',color:'#854d0e',label:'Insurance'},credit:{bg:'#fed7aa',color:'#c2410c',label:'Credit'},discount:{bg:'#ede9fe',color:'#6d28d9',label:'Discount'},written_off:{bg:'#f3f4f6',color:'#6b7280',label:'Written Off'}}
 const PayBadges=({e,cr})=>{
@@ -1718,6 +1728,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
                   {canSeeReports&&doc&&<span style={{fontSize:10,color:'#d97706'}}>Ref: {doc}</span>}
                   {canSeeReports&&comm>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>Comm: {fmt(comm)}</span>}
                   {e.type==='vc'&&e.consultant_fee>0&&<span style={{fontSize:10,color:'#7c3aed'}}>Fee: {fmt(e.consultant_fee)}</span>}
+                  {(()=>{const si=settledInfo(e.notes);if(!si)return null;return(<span style={{fontSize:10,padding:'1px 7px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700}}>✓ Credit collected {si.on}{si.from?' · billed '+si.from:''}{isPartialSettle(e.notes)?' · part':''}</span>)})()}
                   {cleanNotes(e.notes)&&<span style={{fontSize:10,color:'#aaa'}}>{cleanNotes(e.notes)}</span>}
                 </div>
                 {e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:3}}>
@@ -2012,7 +2023,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           </div>)
         })()}
         {canSeeReports&&<button onClick={()=>setShowRefModal(true)} style={{marginTop:10,width:'100%',padding:'10px',background:'linear-gradient(135deg,#1a1a2e,#16213e)',color:'#c9a84c',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>📄 Generate Referral PDF</button>}
-        {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0)} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
+        {showRefModal&&<ReferralReportModal entries={ents.filter(e=>getComm(e)>0&&(e.patient_id===p.id||['ip','ip_r','ip_l','ip_p'].includes(e.type)))} docName={p.ref_doctor} patientName={p.name} hospital={hospital} onClose={()=>setShowRefModal(false)}/>}
         
         </Card></>)}
 
@@ -2061,7 +2072,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                   <span style={{fontWeight:700,color:'#7c2d12'}}>{fmtD(e.date)}{e.created_at?<span style={{fontWeight:600,color:'#c2410c',fontSize:10.5}}> 🕐 {fmtT(e.created_at)}</span>:null}</span>
                   <span style={{fontWeight:800,color:'#15803d'}}>{fmt(e.amount)} <span style={{fontWeight:600,color:'#9a3412',fontSize:10.5}}>({e.payment})</span></span>
                 </div>
-                <div style={{fontSize:10.5,color:'#9a3412',marginTop:1}}>{note.includes('Partial')?'Part settlement':'Full settlement'}{origM?' · adjusted against bill of '+origM[1].trim():' · settled same day as bill'}</div>
+                <div style={{fontSize:10.5,color:'#9a3412',marginTop:1}}>{note.includes('Partial')?'Part settlement':'Full settlement'}{(()=>{const si=settledInfo(note);if(si&&si.from)return ' · collected '+si.on+' · billed '+si.from;if(si)return ' · collected '+si.on;return origM?' · adjusted against bill of '+origM[1].trim():' · settled same day as bill'})()}</div>
               </div>)})}
             {directEnts.length>0&&<div style={{fontSize:10.5,color:'#9a3412',paddingTop:6}}>+ {directEnts.length} entr{directEnts.length>1?'ies':'y'} paid directly at billing (no credit settlement)</div>}
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,fontSize:12,fontWeight:800,color:'#7c2d12'}}>
@@ -2128,7 +2139,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600}}>🕐 {fmtT(e.created_at)}</span>}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0fdf4',color:'#15803d',fontWeight:700}}>OP</span></div>
-                  <div style={{fontSize:11,color:'#aaa',marginTop:2}}>{cr?'Credit':e.payment}{e.notes?' - '+cleanNotes(e.notes):''}{canSeeReports&&getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div>
+                  <div style={{fontSize:11,color:'#aaa',marginTop:2,display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>{cr?'Credit':e.payment}{(()=>{const si=settledInfo(e.notes);if(!si)return null;return(<span style={{fontSize:9.5,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700}}>✓ Collected {si.on}{si.from?' · billed '+si.from:''}</span>)})()}{cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''}{canSeeReports&&getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div>
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -2573,7 +2584,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
               <div style={{display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}><span style={{fontWeight:700,color:'#1d4ed8'}}>{fmt(db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0))}</span>{gotoIP&&<span style={{padding:'4px 10px',background:'#1d4ed8',color:'#fff',borderRadius:8,fontSize:11,fontWeight:700}}>Open →</span>}</div>
             </div>))}
             {(()=>{
-              const renderEnt=(e)=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600,marginLeft:4}}>🕐 {fmtT(e.created_at)}</span>}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{canSeeReports&&e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,fontStyle:'italic',fontWeight:500}}>entered by {e.entered_by}</div>}
+              const renderEnt=(e)=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600,marginLeft:4}}>🕐 {fmtT(e.created_at)}</span>}{(()=>{const si=settledInfo(e.notes);if(!si)return null;return(<span style={{fontSize:9.5,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700,marginLeft:5}}>✓ Collected {si.on}{si.from?' · billed '+si.from:''}</span>)})()}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{canSeeReports&&e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,fontStyle:'italic',fontWeight:500}}>entered by {e.entered_by}</div>}
                 {e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{cleanNotes(e.notes)}</div>}
                 {e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:3}}>
                   {e.conditions.split(',').filter(Boolean).map(cd=><span key={cd} style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>{cd.trim()}</span>)}
