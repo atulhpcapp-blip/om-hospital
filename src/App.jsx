@@ -1523,7 +1523,16 @@ const EditEntryForm=({entry,db,onSave,onCancel,canSeeReports})=>{
         <button onClick={go} disabled={busy} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'7px 16px',fontSize:14,fontWeight:700,cursor:'pointer',opacity:busy?0.6:1}}>{busy?'Saving...':'Save'}</button>
       </div>
       <div style={{padding:'16px',maxWidth:480,margin:'0 auto'}}>
-        <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+        {(()=>{
+          const si=settledInfo(entry)
+          const locked=!!(entry.collected_on)||!!si
+          if(!locked)return <FInp label="Date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+          return(<div style={{marginBottom:12}}>
+            <label style={{display:'block',fontSize:11,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'.3px',marginBottom:4}}>Date · locked</label>
+            <div style={{padding:'11px 12px',border:'1.5px solid #e2e8f0',borderRadius:10,background:'#f8fafc',fontSize:14,color:'#475569'}}>{fmtD(date)} 🔒</div>
+            <div style={{fontSize:10.5,color:'#c2410c',marginTop:4,lineHeight:1.45}}>This is a collected credit entry. Its date is the <b>collection date</b>{si&&si.from?' (billed '+si.from+')':''} and cannot be changed — income must stay on the day the money came in. To correct a genuine mistake, ask an admin.</div>
+          </div>)
+        })()}
         <FSel label="Type" value={type} onChange={e=>{setType(e.target.value);setCustComm('')}}>
           {ITYPES.map(t=><option key={t.key} value={t.key}>{t.label} - {t.full}</option>)}
         </FSel>
