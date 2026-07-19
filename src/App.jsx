@@ -101,6 +101,26 @@ const DBtn=({children,onClick,confirmText})=><button style={S.dbtn} onClick={()=
 }}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
+const DeletedStrip=({db,match,label='this patient'})=>{
+  const rows=(db.deleted_income||[]).filter(match)
+  if(rows.length===0)return null
+  const total=rows.reduce((a,e)=>a+(e.amount||0),0)
+  return(<div style={{background:'#fef2f2',border:'1px dashed #fecaca',borderRadius:10,padding:'8px 12px',marginTop:8}}>
+    <div style={{fontSize:10.5,fontWeight:800,color:'#b91c1c',textTransform:'uppercase',letterSpacing:'.4px',marginBottom:6}}>🗑 Deleted entries — {label} ({rows.length}) · not counted anywhere</div>
+    {rows.slice(0,8).map(e=>(<div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11.5,padding:'3px 0',color:'#7f1d1d'}}>
+      <span style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+        <span style={{fontSize:9,padding:'1px 6px',borderRadius:10,background:'#fecaca',color:'#7f1d1d',fontWeight:800}}>DEL</span>
+        <span style={{textDecoration:'line-through',opacity:.75}}>{fmtD(e.date)} · {(ITYPES.find(t=>t.key===e.type)||{}).full||e.type}{e.payment?' · '+e.payment:''}</span>
+        <span style={{fontSize:9.5,color:'#b91c1c'}}>deleted {fmtD(String(e.deleted_at||'').slice(0,10))}</span>
+      </span>
+      <span style={{fontWeight:700,textDecoration:'line-through',opacity:.75}}>{fmt(e.amount)}</span>
+    </div>))}
+    {rows.length>8&&<div style={{fontSize:10,color:'#b91c1c',paddingTop:3}}>…{rows.length-8} more</div>}
+    <div style={{display:'flex',justifyContent:'space-between',fontSize:11,fontWeight:800,color:'#b91c1c',paddingTop:6,marginTop:4,borderTop:'1px solid #fecaca'}}>
+      <span>Total deleted</span><span>{fmt(total)}</span>
+    </div>
+  </div>)
+}
 const settledInfo=(eOrNotes)=>{
   // Prefer explicit DB fields when the argument is an entry object
   if(eOrNotes&&typeof eOrNotes==='object'){
@@ -2013,6 +2033,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           }} style={{flex:1,padding:'9px 12px',background:'#f3f4f6',color:'#374151',border:'1.5px solid #d1d5db',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✂️ Write Off Balance</button>
         </div>}
         </Card></>)}
+        <DeletedStrip db={db} match={e=>e.patient_id===p.id||(e.patient_name||'').trim().toLowerCase()===(p.name||'').trim().toLowerCase()} label={p.name}/>
         {p.ref_doctor&&!p.is_package&&ents.length>0&&canSeeReports&&(<><SecL>Commission breakdown</SecL><Card style={{border:'1px solid #fed7aa',background:'#fffbf5'}}>{['ip','ip_r','ip_l','ip_p','op_dm','op','opd','op_r','op_l','op_p','vc'].map(tk=>{const te=ents.filter(e=>e.type===tk&&getComm(e)>0);if(!te.length)return null;const inc=te.reduce((a,e)=>a+e.amount,0);const cm=te.reduce((a,e)=>a+getComm(e),0);return(<Row key={tk} left={<span style={{display:'flex',alignItems:'center',gap:6}}><TypeTag t={tk}/>{ITYPES.find(t=>t.key===tk)?.full}</span>} sub={fmt(inc)+' x comm'} right={<span style={{color:'#d97706',fontWeight:700}}>{fmt(cm)}</span>}/>)})}<div style={{display:'flex',justifyContent:'space-between',paddingTop:8,marginTop:4,borderTop:'1px solid #fed7aa',fontSize:14,fontWeight:700,color:'#c2410c'}}><span>Total to pay {p.ref_doctor}</span><span>{fmt(b.commission)}</span></div>
         {(()=>{
           const dn=p.ref_doctor
@@ -2569,6 +2590,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
           {cn.consultFee>0&&<SubRow label="Consultation fee" earned={cn.consultFee} paid={cfPaid} bal={cfBal} cat="consultant_fee" payKey={'CONSF:'+cn.name} color="#7e22ce"/>}
           {cn.procComm>0&&<SubRow label="OP Procedure commission" earned={cn.procComm} paid={pcPaid} bal={pcBal} cat="consultant_proc_comm" payKey={'CONSP:'+cn.name} color="#0f766e"/>}
         </Card>)})}</>)}
+        <DeletedStrip db={db} match={e=>(e.patient_name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()} label={pat.name}/>
         <SecL>All visits (OP + IP)</SecL>
         {(()=>{
           const patName=(selPat||'').trim().toLowerCase()
@@ -5394,6 +5416,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         <R l="OP Pharmacy Total" v={fmt(oprInc)} bold green/>
       </Card>}
 
+    <DeletedStrip db={db} match={e=>e.date===rd} label={'entries dated '+fmtD(rd)}/>
     {/* IP PATIENTS */}
     <SecL>IP Patients</SecL>
     {Object.keys(ipByPat).length===0
@@ -6430,23 +6453,24 @@ export default function App(){
       if(!prof){setProfile(null);initDone=true;clearTimeout(initFailsafe);setLoading(false);alert('No profile found for this account. If you are the super admin, you should have landed on the dashboard — please contact support if this persists.');return}
       if(!prof?.hospital_id){setProfile(prof);initDone=true;clearTimeout(initFailsafe);setLoading(false);return}
       const hid=prof.hospital_id
-      const [{data:hosp},[incR,expR,ptsR,rdsR,consR,empR,attR,salR]]=await Promise.all([
+      const [{data:hosp},[incR,expR,ptsR,rdsR,consR,empR,attR,salR,delR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,created_at,collected_on,billed_on').eq('hospital_id',hid).order('date',{ascending:false}).limit(2000),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,created_at,collected_on,billed_on,deleted_at').eq('hospital_id',hid).is('deleted_at',null).order('date',{ascending:false}).limit(2000),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
           supabase.from('consultants').select('*').eq('hospital_id',hid).order('name'),
           supabase.from('employees').select('*').eq('hospital_id',hid).order('name'),
           supabase.from('attendance').select('*').eq('hospital_id',hid).order('date',{ascending:false}).limit(2000),
-          supabase.from('salary_payments').select('*').eq('hospital_id',hid).order('paid_date',{ascending:false}).limit(500)
+          supabase.from('salary_payments').select('*').eq('hospital_id',hid).order('paid_date',{ascending:false}).limit(500),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,reg_no,entered_by,deleted_at').eq('hospital_id',hid).not('deleted_at','is',null).order('deleted_at',{ascending:false}).limit(300)
         ])
       ])
       setProfile(prof)
       setHospital(hosp)
       if(hosp&&!hosp.is_active){alert('Hospital suspended. Contact support.');await supabase.auth.signOut();return}
-      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[],hospital:hosp});try{CUSTOM_CAT_REG={};(Array.isArray(hosp?.custom_expense_cats)?hosp.custom_expense_cats:[]).forEach(cc=>{if(cc&&cc.key)CUSTOM_CAT_REG[cc.key]=cc.segment==='lab'?'lab':'clinical'})}catch(e){}
+      setDb({income:incR.data||[],expenses:expR.data||[],ip_patients:ptsR.data||[],ref_doctors:rdsR.data||[],consultants:consR.data||[],employees:empR.data||[],attendance:attR.data||[],salary_payments:salR.data||[],deleted_income:(delR&&delR.data)||[],hospital:hosp});try{CUSTOM_CAT_REG={};(Array.isArray(hosp?.custom_expense_cats)?hosp.custom_expense_cats:[]).forEach(cc=>{if(cc&&cc.key)CUSTOM_CAT_REG[cc.key]=cc.segment==='lab'?'lab':'clinical'})}catch(e){}
       initDone=true;clearTimeout(initFailsafe);setLoading(false)
       if(!tabInitialized){
         if(prof?.role==='admin'||prof?.role==='management')setTab('rep');else setTab('entry')
@@ -6460,7 +6484,12 @@ export default function App(){
 
   const actions={
     addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
-    delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
+    delIncome:async id=>{
+      const stamp=new Date().toISOString()
+      const {error}=await supabase.from('income').update({deleted_at:stamp}).eq('id',id)
+      if(error){alert('Delete failed: '+error.message);return}
+      setDb(d=>{const row=d.income.find(e=>e.id===id);return{...d,income:d.income.filter(e=>e.id!==id),deleted_income:[{...(row||{id}),deleted_at:stamp},...(d.deleted_income||[])]}})
+    },
     editIncome:async row=>{
       const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||'',conditions:row.conditions??'',collected_on:row.collected_on??null,billed_on:row.billed_on??null}
       const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
