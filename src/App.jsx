@@ -5098,8 +5098,23 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
       const comm=commRows.reduce((a,e)=>a+e.amount*docSegRatio((e.description||'').trim()),0)
       const consRows=seg==='clinical'?srcExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm'):[]
       const cons=consRows.reduce((a,e)=>a+e.amount,0)
-      const incByType={};sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).forEach(e=>{if(!incByType[e.type])incByType[e.type]={amt:0,pats:{}};incByType[e.type].amt+=e.amount||0;const pn=(e.patient_name||'—').trim()||'—';incByType[e.type].pats[pn]=(incByType[e.type].pats[pn]||0)+(e.amount||0)})
-      const incSplit=Object.entries(incByType).map(([t,d2])=>({t,label:(ITYPES.find(x=>x.key===t)||{}).full||t,amt:d2.amt,pats:Object.entries(d2.pats).map(([n,a2])=>({n,a:a2})).sort((x,y)=>y.a-x.a)})).filter(s=>s.amt>0).sort((a,b)=>b.amt-a.amt)
+      // IP income is shown PATIENT-wise (one row per admitted patient, all their IP types combined).
+      // OP income stays category-wise. Tap a patient to open their portal for the type-level detail.
+      const IP_T=['ip','ip_r','ip_l','ip_p']
+      const collInc=sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
+      const incByType={}
+      collInc.filter(e=>!IP_T.includes(e.type)).forEach(e=>{if(!incByType[e.type])incByType[e.type]={amt:0,pats:{}};incByType[e.type].amt+=e.amount||0;const pn=(e.patient_name||'—').trim()||'—';if(!incByType[e.type].pats[pn])incByType[e.type].pats[pn]={a:0,pid:null,isIP:false};incByType[e.type].pats[pn].a+=e.amount||0})
+      const incSplit=Object.entries(incByType).map(([t,d2])=>({t,label:(ITYPES.find(x=>x.key===t)||{}).full||t,amt:d2.amt,pats:Object.entries(d2.pats).map(([n,v])=>({n,a:v.a,pid:v.pid,isIP:v.isIP})).sort((x,y)=>y.a-x.a)})).filter(s=>s.amt>0).sort((a,b)=>b.amt-a.amt)
+      const ipEntsColl=collInc.filter(e=>IP_T.includes(e.type))
+      if(ipEntsColl.length>0){
+        const byPatIP={}
+        ipEntsColl.forEach(e=>{const pn=(e.patient_name||'—').trim()||'—';if(!byPatIP[pn])byPatIP[pn]={a:0,pid:null,isIP:true,types:{}};byPatIP[pn].a+=e.amount||0;byPatIP[pn].types[e.type]=(byPatIP[pn].types[e.type]||0)+(e.amount||0);if(e.patient_id)byPatIP[pn].pid=e.patient_id})
+        incSplit.push({t:'__ip__',label:'IP patients ('+Object.keys(byPatIP).length+')',
+          amt:ipEntsColl.reduce((a,e)=>a+(e.amount||0),0),
+          pats:Object.entries(byPatIP).map(([n,v])=>({n,a:v.a,pid:v.pid,isIP:true,
+            types:Object.entries(v.types).sort((x,y)=>y[1]-x[1]).map(([tk,ta])=>((ITYPES.find(z=>z.key===tk)||{}).label||tk)+' '+fmt(ta)).join(' · ')})).sort((x,y)=>y.a-x.a)})
+        incSplit.sort((a,b)=>b.amt-a.amt)
+      }
       // Segment commission PAID per doctor in this period (the amount to attribute to patients)
       const commByDoc={};commRows.forEach(e=>{const dn=(e.description||'(unknown)').trim()||'(unknown)';const share=e.amount*docSegRatio(dn);if(share>0.5){commByDoc[dn]=(commByDoc[dn]||0)+share}})
       // FIFO: walk the doctor's referral patients OLDEST-FIRST (only entries dated ≤ latest payment date in this period), fill up to the paid amount
@@ -5152,7 +5167,7 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:13.5}}>
         <tbody>
           <tr><td style={{padding:'4px 0',color:'#475569'}}>Income (collected)</td><td style={{textAlign:'right',padding:'4px 0',fontWeight:700,color:'#16a34a'}}>{fmt(d.cash)}</td></tr>
-          {(d.incSplit||[]).map(s=>(<Fragment key={s.t}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0',color:'#16a34a'}}>{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0,color:'#86efac'}}>{fmt(p.a)}</td></tr>))}</Fragment>))}
+          {(d.incSplit||[]).map(s=>(<Fragment key={s.t}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0',color:'#16a34a'}}>{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={s.t+p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {(gotoOP||gotoIP)?<button onClick={()=>{if(p.isIP&&p.pid&&gotoIP)gotoIP(p.pid);else if(gotoOP)gotoOP(p.n)}} style={{background:'none',border:'none',padding:0,color:'#2563eb',fontSize:11,cursor:'pointer',textDecoration:'underline'}}>{p.n}</button>:p.n}{p.types&&<span style={{color:'#cbd5e1'}}> · {p.types}</span>}</td><td style={{textAlign:'right',padding:0,color:'#86efac'}}>{fmt(p.a)}</td></tr>))}</Fragment>))}
           {d.credit>0&&<><tr style={{fontSize:12,color:'#c2410c'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit outstanding (not counted)</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>{(d.creditSplit||[]).map(cp=>(<tr key={cp.n} style={{fontSize:11,color:'#f59e0b'}}><td style={{padding:'0 0 0 18px'}}>· {cp.n}</td><td style={{textAlign:'right',padding:0}}>{fmt(cp.a)}</td></tr>))}</>}
           <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
           {(d.expSplit||[]).map(s=>(<Fragment key={s.cat}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>
