@@ -101,7 +101,13 @@ const DBtn=({children,onClick,confirmText})=><button style={S.dbtn} onClick={()=
 }}>{children}</button>
 const Pill=({label,bg='#e5e7eb',tx='#555'})=><span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:bg,color:tx,fontWeight:700,marginLeft:4}}>{label}</span>
 const TypeTag=({t})=>{const [bg,tx]=TC[t]||['#f0f0f0','#555'];const it=ITYPES.find(x=>x.key===t);return<span style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:bg,color:tx,fontWeight:700}}>{it?.label||t}</span>}
-const settledInfo=(n)=>{
+const settledInfo=(eOrNotes)=>{
+  // Prefer explicit DB fields when the argument is an entry object
+  if(eOrNotes&&typeof eOrNotes==='object'){
+    if(eOrNotes.collected_on)return{on:fmtD(eOrNotes.collected_on),from:eOrNotes.billed_on&&eOrNotes.billed_on!==eOrNotes.collected_on?fmtD(eOrNotes.billed_on):''}
+    return settledInfo(eOrNotes.notes)
+  }
+  const n=eOrNotes
   if(!n)return null
   const m=String(n).match(/💰\s*Credit settled on ([^·(]+)(?:\(originally from ([^)]+)\))?/)
   if(!m)return null
@@ -1291,12 +1297,12 @@ const CollectCreditForm=({entry,actions,db,onSave,onCancel})=>{
       if(useAmt>=ce.amount){
         // Full entry payment: convert credit → paid, date moves to today, append settled note
         const mergedNotes=ce.notes?ce.notes+' · '+settledNote:settledNote
-        await actions.editIncome({...ce,payment:pay,date,notes:mergedNotes})
+        await actions.editIncome({...ce,payment:pay,date,notes:mergedNotes,collected_on:date,billed_on:ce.billed_on||origDate})
       } else {
         // Partial: reduce credit on original entry (keep original date), add NEW paid entry on today
         await actions.editIncome({...ce,amount:ce.amount-useAmt})
         const partialNote='💰 Partial credit settlement (originally from '+fmtD(origDate)+')'
-        await actions.addIncome({id:uid(),date,type:ce.type,amount:useAmt,patient_id:ce.patient_id,patient_name:ce.patient_name,payment:pay,ref_doctor:ce.ref_doctor||'',notes:partialNote,custom_commission:ce.custom_commission!=null?ce.custom_commission:null,reg_no:ce.reg_no||''})
+        await actions.addIncome({id:uid(),date,type:ce.type,amount:useAmt,patient_id:ce.patient_id,patient_name:ce.patient_name,payment:pay,ref_doctor:ce.ref_doctor||'',notes:partialNote,custom_commission:ce.custom_commission!=null?ce.custom_commission:null,reg_no:ce.reg_no||'',collected_on:date,billed_on:ce.billed_on||origDate})
       }
       remainingToCollect-=useAmt
     }
@@ -1728,7 +1734,7 @@ const EntryTab=({db,actions,eDate,setEDate,itype,setItype,iF,setIF,profile,canSe
                   {canSeeReports&&doc&&<span style={{fontSize:10,color:'#d97706'}}>Ref: {doc}</span>}
                   {canSeeReports&&comm>0&&<span style={{fontSize:10,color:'#f59e0b',fontWeight:600}}>Comm: {fmt(comm)}</span>}
                   {e.type==='vc'&&e.consultant_fee>0&&<span style={{fontSize:10,color:'#7c3aed'}}>Fee: {fmt(e.consultant_fee)}</span>}
-                  {(()=>{const si=settledInfo(e.notes);if(!si)return null;return(<span style={{fontSize:10,padding:'1px 7px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700}}>✓ Credit collected {si.on}{si.from?' · billed '+si.from:''}{isPartialSettle(e.notes)?' · part':''}</span>)})()}
+                  {(()=>{const si=settledInfo(e);if(!si)return null;return(<span style={{fontSize:10,padding:'1px 7px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700}}>✓ Credit collected {si.on}{si.from?' · billed '+si.from:''}{isPartialSettle(e.notes)?' · part':''}</span>)})()}
                   {cleanNotes(e.notes)&&<span style={{fontSize:10,color:'#aaa'}}>{cleanNotes(e.notes)}</span>}
                 </div>
                 {e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:3}}>
@@ -2072,7 +2078,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
                   <span style={{fontWeight:700,color:'#7c2d12'}}>{fmtD(e.date)}{e.created_at?<span style={{fontWeight:600,color:'#c2410c',fontSize:10.5}}> 🕐 {fmtT(e.created_at)}</span>:null}</span>
                   <span style={{fontWeight:800,color:'#15803d'}}>{fmt(e.amount)} <span style={{fontWeight:600,color:'#9a3412',fontSize:10.5}}>({e.payment})</span></span>
                 </div>
-                <div style={{fontSize:10.5,color:'#9a3412',marginTop:1}}>{note.includes('Partial')?'Part settlement':'Full settlement'}{(()=>{const si=settledInfo(note);if(si&&si.from)return ' · collected '+si.on+' · billed '+si.from;if(si)return ' · collected '+si.on;return origM?' · adjusted against bill of '+origM[1].trim():' · settled same day as bill'})()}</div>
+                <div style={{fontSize:10.5,color:'#9a3412',marginTop:1}}>{note.includes('Partial')?'Part settlement':'Full settlement'}{(()=>{const si=settledInfo(e);if(si&&si.from)return ' · collected '+si.on+' · billed '+si.from;if(si)return ' · collected '+si.on;return origM?' · adjusted against bill of '+origM[1].trim():' · settled same day as bill'})()}</div>
               </div>)})}
             {directEnts.length>0&&<div style={{fontSize:10.5,color:'#9a3412',paddingTop:6}}>+ {directEnts.length} entr{directEnts.length>1?'ies':'y'} paid directly at billing (no credit settlement)</div>}
             <div style={{display:'flex',justifyContent:'space-between',paddingTop:8,fontSize:12,fontWeight:800,color:'#7c2d12'}}>
@@ -2139,7 +2145,7 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
               <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600}}>🕐 {fmtT(e.created_at)}</span>}{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0fdf4',color:'#15803d',fontWeight:700}}>OP</span></div>
-                  <div style={{fontSize:11,color:'#aaa',marginTop:2,display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>{cr?'Credit':e.payment}{(()=>{const si=settledInfo(e.notes);if(!si)return null;return(<span style={{fontSize:9.5,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700}}>✓ Collected {si.on}{si.from?' · billed '+si.from:''}</span>)})()}{cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''}{canSeeReports&&getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div>
+                  <div style={{fontSize:11,color:'#aaa',marginTop:2,display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>{cr?'Credit':e.payment}{(()=>{const si=settledInfo(e);if(!si)return null;return(<span style={{fontSize:9.5,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700}}>✓ Collected {si.on}{si.from?' · billed '+si.from:''}</span>)})()}{cleanNotes(e.notes)?' - '+cleanNotes(e.notes):''}{canSeeReports&&getComm(e)>0?' - Comm: '+fmt(getComm(e)):''}</div>
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{color:cr?'#c2410c':'#16a34a',fontWeight:600,fontSize:13}}>{fmt(e.amount)}</span>
@@ -2584,7 +2590,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
               <div style={{display:'flex',alignItems:'center',gap:8,whiteSpace:'nowrap'}}><span style={{fontWeight:700,color:'#1d4ed8'}}>{fmt(db.income.filter(e=>e.patient_id===p.id).reduce((a,e)=>a+e.amount,0))}</span>{gotoIP&&<span style={{padding:'4px 10px',background:'#1d4ed8',color:'#fff',borderRadius:8,fontSize:11,fontWeight:700}}>Open →</span>}</div>
             </div>))}
             {(()=>{
-              const renderEnt=(e)=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600,marginLeft:4}}>🕐 {fmtT(e.created_at)}</span>}{(()=>{const si=settledInfo(e.notes);if(!si)return null;return(<span style={{fontSize:9.5,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700,marginLeft:5}}>✓ Collected {si.on}{si.from?' · billed '+si.from:''}</span>)})()}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{canSeeReports&&e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,fontStyle:'italic',fontWeight:500}}>entered by {e.entered_by}</div>}
+              const renderEnt=(e)=>{const cr=isCredit(e);const comm=getComm(e);const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);return(<div key={e.id} style={{padding:'9px 0',borderBottom:'1px solid #f5f5f5'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}><div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><TypeTag t={e.type}/>{e.op_type&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#f0f0f0',color:'#555',fontWeight:600}}>{e.op_type}</span>}<span style={{fontSize:12,color:'#555'}}>{fmtD(e.date)}{e.created_at&&<span style={{fontSize:10.5,color:'#94a3b8',fontWeight:600,marginLeft:4}}>🕐 {fmtT(e.created_at)}</span>}{(()=>{const si=settledInfo(e);if(!si)return null;return(<span style={{fontSize:9.5,padding:'1px 6px',borderRadius:10,background:'#dcfce7',color:'#15803d',fontWeight:700,marginLeft:5}}>✓ Collected {si.on}{si.from?' · billed '+si.from:''}</span>)})()}</span>{cr&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#fed7aa',color:'#92400e',fontWeight:700}}>CREDIT</span>}{isIP&&<span style={{fontSize:10,padding:'1px 6px',borderRadius:10,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>IP</span>}</div>{canSeeReports&&e.ref_doctor&&<div style={{fontSize:11,color:'#d97706',marginTop:2}}>Ref: {e.ref_doctor}{comm>0?' — Comm: '+fmt(comm):''}</div>}{e.entered_by&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2,fontStyle:'italic',fontWeight:500}}>entered by {e.entered_by}</div>}
                 {e.notes&&<div style={{fontSize:11,color:'#aaa',marginTop:1}}>{cleanNotes(e.notes)}</div>}
                 {e.conditions&&e.conditions.split(',').filter(Boolean).length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:3}}>
                   {e.conditions.split(',').filter(Boolean).map(cd=><span key={cd} style={{fontSize:10,padding:'1px 8px',borderRadius:20,background:'#fdf4ff',color:'#7c3aed',fontWeight:700}}>{cd.trim()}</span>)}
@@ -3646,9 +3652,9 @@ const IncomeChartReport=({db})=>{
     chartData=days.map(d=>{
       const dI=inc.filter(e=>e.date===d)
       const dE=exps.filter(e=>e.date===d)
-      const gross=dI.reduce((a,e)=>a+e.amount,0)
-      const comm=dI.reduce((a,e)=>a+getComm(e),0)
-      const exp=dE.reduce((a,e)=>a+e.amount,0)
+      const gross=dI.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+e.amount,0)
+      const comm=dE.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0)
+      const exp=dE.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+e.amount,0)
       return{label:d.slice(8),gross,real:gross-comm,actual:gross-comm-exp}
     })
   } else {
@@ -3656,9 +3662,9 @@ const IncomeChartReport=({db})=>{
     chartData=mons.map(m=>{
       const mI=inc.filter(e=>e.date?.startsWith(m))
       const mE=exps.filter(e=>e.date?.startsWith(m))
-      const gross=mI.reduce((a,e)=>a+e.amount,0)
-      const comm=mI.reduce((a,e)=>a+getComm(e),0)
-      const exp=mE.reduce((a,e)=>a+e.amount,0)
+      const gross=mI.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+e.amount,0)
+      const comm=mE.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0)
+      const exp=mE.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+e.amount,0)
       const [,mo]=m.split('-')
       return{label:MOS[parseInt(mo)-1],gross,real:gross-comm,actual:gross-comm-exp}
     })
@@ -5635,10 +5641,10 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
       for(let i=29;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(d.toISOString().split('T')[0])}
       const chartData=days.map(d=>{
         const dI2=db.income.filter(e=>e.date===d)
-        const dE=db.expenses.filter(e=>e.date===d&&e.category!=='ref_paid')
-        const gross=dI2.reduce((a,e)=>a+e.amount,0)
-        const comm=dI2.reduce((a,e)=>a+getComm(e),0)
-        const exp=dE.reduce((a,e)=>a+e.amount,0)
+        const dE2=db.expenses.filter(e=>e.date===d)
+        const gross=dI2.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+e.amount,0)
+        const comm=dE2.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0)
+        const exp=dE2.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+e.amount,0)
         return{label:d.slice(8),date:d,gross,real:gross-comm,actual:gross-comm-exp,isSelected:d===rd}
       })
       const maxVal=Math.max(...chartData.map(d=>d.gross),1)
@@ -5878,21 +5884,24 @@ const ProfitReport=({db})=>{
   const discountGiven=periodInc.filter(e=>e.payment==='discount').reduce((a,e)=>a+(e.amount||0),0)
   const writtenOff=periodInc.filter(e=>e.payment==='written_off').reduce((a,e)=>a+(e.amount||0),0)
   
-  // Costs
-  const totalExp=periodExp.reduce((a,e)=>a+(e.amount||0),0)
-  const totalComm=periodInc.reduce((a,e)=>a+getComm(e),0)
-  const totalConsult=periodInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
+  // Costs — CASH BASIS: commission & consultant costs = actual payments in the period.
+  // Operating expenses must EXCLUDE payout categories and retained (deduction) rows,
+  // otherwise those costs are counted twice.
+  const totalExp=periodExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+(e.amount||0),0)
+  const totalComm=periodExp.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+(e.amount||0),0)
+  const totalConsult=periodExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+(e.amount||0),0)
+  const retainedTotal=periodExp.filter(e=>isRetainedCat(e.category)).reduce((a,e)=>a+(e.amount||0),0)
   
-  const grossProfit=billedRev-totalComm-totalConsult
+  const grossProfit=realizedRev-totalComm-totalConsult
   const netProfit=grossProfit-totalExp
-  const netMargin=billedRev>0?(netProfit/billedRev*100):0
+  const netMargin=realizedRev>0?(netProfit/realizedRev*100):0
   
   // Service-line P&L
   const TYPE_LABELS={op:'OP Consultations',opd:'OPD',op_p:'OP Procedures',op_r:'OP Pharmacy',op_l:'OP Lab',op_dm:'OP Discharge Med',ip:'IP Charges',ip_r:'IP Pharmacy',ip_l:'IP Lab',ip_p:'IP Package',vc:'Visiting Consultant'}
   const lines={}
   periodInc.forEach(e=>{
     if(!lines[e.type])lines[e.type]={rev:0,comm:0,consult:0,count:0}
-    if(e.payment!=='discount'&&e.payment!=='written_off')lines[e.type].rev+=e.amount||0
+    if(e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))lines[e.type].rev+=e.amount||0
     lines[e.type].comm+=getComm(e)
     lines[e.type].consult+=e.consultant_fee||0
     lines[e.type].count++
@@ -5904,13 +5913,13 @@ const ProfitReport=({db})=>{
   periodInc.forEach(e=>{
     if(!e.ref_doctor)return
     if(!docMap[e.ref_doctor])docMap[e.ref_doctor]={rev:0,comm:0,count:0}
-    if(e.payment!=='discount'&&e.payment!=='written_off')docMap[e.ref_doctor].rev+=e.amount||0
+    if(e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))docMap[e.ref_doctor].rev+=e.amount||0
     docMap[e.ref_doctor].comm+=getComm(e)
     docMap[e.ref_doctor].count++
   })
   const docsSorted=Object.entries(docMap).map(([n,d])=>({name:n,...d,net:d.rev-d.comm})).sort((a,b)=>b.net-a.net)
   
-  const tot=billedRev||1
+  const tot=realizedRev||1
   
   return(<div>
     <SecL>💰 Profit Analysis</SecL>
@@ -5938,7 +5947,7 @@ const ProfitReport=({db})=>{
       <div style={{fontSize:36,fontWeight:900,marginTop:6,letterSpacing:'-1px'}}>{fmt(netProfit)}</div>
       <div style={{display:'flex',gap:16,marginTop:10,fontSize:12,fontWeight:600,opacity:.95}}>
         <span>Margin: <strong style={{fontSize:14}}>{netMargin.toFixed(1)}%</strong></span>
-        <span>on Rs {(billedRev/1000).toFixed(1)}K revenue</span>
+        <span>on Rs {(realizedRev/1000).toFixed(1)}K collected</span>
       </div>
     </Card>
     
@@ -5947,15 +5956,16 @@ const ProfitReport=({db})=>{
     <Card style={{marginBottom:14}}>
       <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
         <tbody>
-          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#0f172a',fontWeight:600}}>Total Revenue (billed)</td><td style={{textAlign:'right',padding:'8px 0',fontWeight:700,color:'#16a34a'}}>{fmt(billedRev)}</td></tr>
-          <tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#64748b'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Realized (cash/UPI/card)</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(realizedRev)}</td></tr>
-          <tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#64748b'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Credit outstanding</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(creditOutstanding)}</td></tr>
+          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#0f172a',fontWeight:600}}>Income (collected)</td><td style={{textAlign:'right',padding:'8px 0',fontWeight:700,color:'#16a34a'}}>{fmt(realizedRev)}</td></tr>
+          <tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#64748b'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Billed in period</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(billedRev)}</td></tr>
+          <tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#c2410c'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Credit outstanding (not counted)</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(creditOutstanding)}</td></tr>
           {discountGiven>0&&<tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#dc2626'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Discounts given</td><td style={{textAlign:'right',padding:'4px 0'}}>−{fmt(discountGiven)}</td></tr>}
           {writtenOff>0&&<tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#dc2626'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Written off</td><td style={{textAlign:'right',padding:'4px 0'}}>−{fmt(writtenOff)}</td></tr>}
-          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Referral commissions</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalComm)}</td></tr>
-          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalConsult)}</td></tr>
+          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Referral commissions paid</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalComm)}</td></tr>
+          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Consultant fees paid</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalConsult)}</td></tr>
           <tr style={{borderBottom:'2px solid #1a1a2e',borderTop:'1px solid #e2e8f0'}}><td style={{padding:'10px 0',color:'#1a1a2e',fontWeight:800}}>Gross Profit</td><td style={{textAlign:'right',padding:'10px 0',fontWeight:800,color:'#1a1a2e'}}>{fmt(grossProfit)}</td></tr>
           <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Operating expenses</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalExp)}</td></tr>
+          {retainedTotal>0&&<tr style={{fontSize:11,color:'#64748b'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Commission deducted/retained (not a cash cost)</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(retainedTotal)}</td></tr>}
           <tr style={{background:netProfit>=0?'#f0fdf4':'#fef2f2'}}><td style={{padding:'12px 8px',fontWeight:900,fontSize:15,color:netProfit>=0?'#15803d':'#991b1b'}}>NET PROFIT</td><td style={{textAlign:'right',padding:'12px 8px',fontWeight:900,fontSize:15,color:netProfit>=0?'#15803d':'#991b1b'}}>{fmt(netProfit)}</td></tr>
         </tbody>
       </table>
@@ -5988,7 +5998,7 @@ const ProfitReport=({db})=>{
     {/* DOCTOR PROFITABILITY */}
     {docsSorted.length>0&&<>
       <SecL>Net contribution by referring doctor</SecL>
-      <div style={{fontSize:11,color:'#64748b',marginBottom:8}}>Revenue from doctor's patients minus commission paid to them</div>
+      <div style={{fontSize:11,color:'#64748b',marginBottom:8}}>Collected income from the doctor's patients, minus their calculated commission (indicative — the P&L above counts commission when actually paid)</div>
       <Card style={{marginBottom:14}}>
         {docsSorted.slice(0,15).map((d,i)=>{
           const pct=d.rev>0?(d.net/d.rev*100):0
@@ -6412,7 +6422,7 @@ export default function App(){
       const [{data:hosp},[incR,expR,ptsR,rdsR,consR,empR,attR,salR]]=await Promise.all([
         supabase.from('hospitals').select('*').eq('id',hid).single(),
         Promise.all([
-          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,created_at').eq('hospital_id',hid).order('date',{ascending:false}).limit(2000),
+          supabase.from('income').select('id,date,type,amount,patient_id,patient_name,payment,ref_doctor,notes,consultant_fee,consultant_name,op_type,custom_commission,reg_no,patient_area,patient_phone,speciality,entered_by,conditions,created_at,collected_on,billed_on').eq('hospital_id',hid).order('date',{ascending:false}).limit(2000),
           supabase.from('expenses').select('id,date,category,amount,description,payment,is_monthly').eq('hospital_id',hid).order('date',{ascending:false}).limit(300),
           supabase.from('ip_patients').select('*').eq('hospital_id',hid).order('admission_date',{ascending:false}).limit(300),
           supabase.from('ref_doctors').select('*').eq('hospital_id',hid).order('name'),
@@ -6441,7 +6451,7 @@ export default function App(){
     addIncome:async row=>{const hid=profile?.hospital_id;if(!hid){alert('Hospital not loaded yet, please wait and try again');return false}const {data,error}=await supabase.from('income').insert([{...row,hospital_id:hid}]).select();if(error){alert('Save failed: '+error.message);return false}if(data)setDb(d=>({...d,income:[data[0],...d.income]}));return true},
     delIncome:async id=>{await supabase.from('income').delete().eq('id',id);setDb(d=>({...d,income:d.income.filter(e=>e.id!==id)}))},
     editIncome:async row=>{
-      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||'',conditions:row.conditions??''}
+      const updates={amount:row.amount,ref_doctor:row.ref_doctor||'',payment:row.payment||'cash',notes:row.notes||'',date:row.date,op_type:row.op_type||'',custom_commission:row.custom_commission??null,consultant_fee:row.consultant_fee??null,consultant_name:row.consultant_name||'',patient_area:row.patient_area||'',conditions:row.conditions??'',collected_on:row.collected_on??null,billed_on:row.billed_on??null}
       const safe={amount:updates.amount,ref_doctor:updates.ref_doctor,payment:updates.payment,notes:updates.notes,date:updates.date}
       let {error}=await supabase.from('income').update(updates).eq('id',row.id)
       if(error){
@@ -7743,7 +7753,7 @@ const AnalyticsDash=({db,actions})=>{
         </div>
         {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
         {chartMonths.length>0&&(()=>{
-          const bars=chartMonths.map(m=>{const mInc=inc.filter(e=>e.date&&e.date.startsWith(m));const mExp=exp.filter(e=>e.date&&e.date.startsWith(m));const gross=sum(mInc);const comms=comm(mInc);const exps=sum(mExp);const actual=gross-comms-exps;const d=new Date(m+'-01');return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}})
+          const bars=chartMonths.map(m=>{const mInc=inc.filter(e=>e.date&&e.date.startsWith(m));const mExp=exp.filter(e=>e.date&&e.date.startsWith(m));const gross=mInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0);const comms=mExp.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0);const exps=mExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+(e.amount||0),0);const actual=gross-comms-exps;const d=new Date(m+'-01');return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}})
           const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
           return(<div>
             <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
