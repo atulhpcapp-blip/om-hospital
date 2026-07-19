@@ -2826,7 +2826,7 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
   const monthTot=monthExp.reduce((a,e)=>a+e.amount,0)
   const monthByCat={};monthExp.forEach(e=>{if(!monthByCat[e.category])monthByCat[e.category]={total:0,entries:[]};monthByCat[e.category].total+=e.amount;monthByCat[e.category].entries.push(e)})
   const monthCatSorted=Object.entries(monthByCat).sort((a,b)=>b[1].total-a[1].total)
-  const [expandCat,setExpandCat]=useState(null)
+  const [collapsedCats,setCollapsedCats]=useState({})
   const go=async()=>{const amt=parseFloat(exF.amt);if(!amt||amt<=0){alert('Enter amount');return};const ok=await actions.addExpense({id:uid(),date:exD,category:exF.cat,amount:amt,description:exF.desc,payment:exF.pay,is_monthly:exF.mon});if(ok!==false)setExF({...exF,amt:'',desc:''})}
   const saveEdit=async()=>{const amt=parseFloat(editExp.amount);if(!amt||amt<=0){alert('Enter amount');return};await actions.updateExpense(editExp.id,{date:editExp.date,category:editExp.category,amount:amt,description:editExp.description});setEditExp(null)}
   return(
@@ -2888,9 +2888,9 @@ const ExpTab=({db,actions,exD,setExD,exF,setExF})=>{
         <Card>
           {monthCatSorted.map(([cat,data])=>{
             const cInfo=ECATS.find(x=>x.key===cat);const pct=monthTot>0?Math.round(data.total/monthTot*100):0
-            const isExp=expandCat===cat
+            const isExp=!collapsedCats[cat]
             return(<div key={cat} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
-              <div onClick={()=>setExpandCat(isExp?null:cat)} style={{cursor:'pointer'}}>
+              <div onClick={()=>setCollapsedCats(s=>({...s,[cat]:!s[cat]}))} style={{cursor:'pointer'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
                   <span style={{fontSize:13,fontWeight:600}}>{isExp?'▼':'▶'} {cInfo?.label||cat}{cInfo?.segment==='lab'?' 🧪':''} <span style={{fontSize:10,color:'#94a3b8'}}>({data.entries.length})</span></span>
                   <span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(data.total)}</span>
@@ -3169,7 +3169,7 @@ const ExpensesReport=({db,actions})=>{
   const [ry2,setRy2]=useState(todayStr().slice(0,4))
   const [from,setFrom]=useState(todayStr().slice(0,7)+'-01')
   const [to,setTo]=useState(todayStr())
-  const [expandCat,setExpandCat]=useState(null)
+  const [collapsedCats,setCollapsedCats]=useState({})
   const [showAdd,setShowAdd]=useState(false)
   const [editExp,setEditExp]=useState(null)
   const [addF,setAddF]=useState({date:todayStr(),cat:'supplies',amt:'',desc:'',pay:'cash'})
@@ -3239,15 +3239,15 @@ const ExpensesReport=({db,actions})=>{
       </div>
     </Card></>}
     
-    <SecL>By category (tap to expand)</SecL>
+    <SecL>By category (tap a row to collapse)</SecL>
     <Card>
       {sorted.length===0&&<div style={{textAlign:'center',padding:'16px 0',color:'#ccc',fontSize:13}}>No expenses</div>}
       {sorted.map(([cat,amt])=>{
         const cInfo=ECATS.find(x=>x.key===cat);const pct=total>0?Math.round(amt/total*100):0
         const catEntries=expList.filter(e=>e.category===cat).sort((a,b)=>(b.date||'').localeCompare(a.date||''))
-        const isExp=expandCat===cat
+        const isExp=!collapsedCats[cat]
         return(<div key={cat} style={{padding:'10px 0',borderBottom:'1px solid #f5f5f5'}}>
-          <div onClick={()=>setExpandCat(isExp?null:cat)} style={{cursor:'pointer'}}>
+          <div onClick={()=>setCollapsedCats(s=>({...s,[cat]:!s[cat]}))} style={{cursor:'pointer'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
               <span style={{fontSize:13,fontWeight:600}}>{isExp?'▼':'▶'} {cInfo?.label||cat}{cInfo?.segment==='lab'?' 🧪':''}</span>
               <span style={{fontSize:13,fontWeight:700,color:'#ef4444'}}>{fmt(amt)}</span>
@@ -5127,7 +5127,10 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
       const sExp=srcExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
       const expByCat={};sExp.forEach(e=>{if(!expByCat[e.category])expByCat[e.category]=0;expByCat[e.category]+=e.amount||0})
-      const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt})).sort((a,b)=>b.amt-a.amt)
+      const expDescs={}
+      sExp.forEach(e=>{const dsc=(e.description||'').trim();if(!dsc)return;if(!expDescs[e.category])expDescs[e.category]={};expDescs[e.category][dsc]=(expDescs[e.category][dsc]||0)+(e.amount||0)})
+      const expSplit=Object.entries(expByCat).map(([cat,amt])=>({cat,label:(ECATS.find(x=>x.key===cat)||{}).label||cat,amt,
+        items:Object.entries(expDescs[cat]||{}).map(([n,a2])=>({n,a:a2})).sort((x,y)=>y.a-x.a)})).sort((a,b)=>b.amt-a.amt)
       const credByPat={};sInc.filter(e=>isCredit(e)).forEach(e=>{const pn=(e.patient_name||'—').trim()||'—';credByPat[pn]=(credByPat[pn]||0)+(e.amount||0)})
       const creditSplit=Object.entries(credByPat).map(([n,a2])=>({n,a:a2})).sort((x,y)=>y.a-x.a)
       const retained=0,retSplit=[]
@@ -5152,7 +5155,8 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
           {(d.incSplit||[]).map(s=>(<Fragment key={s.t}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0',color:'#16a34a'}}>{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {p.n}</td><td style={{textAlign:'right',padding:0,color:'#86efac'}}>{fmt(p.a)}</td></tr>))}</Fragment>))}
           {d.credit>0&&<><tr style={{fontSize:12,color:'#c2410c'}}><td style={{padding:'2px 0 2px 8px'}}>↳ Credit outstanding (not counted)</td><td style={{textAlign:'right',padding:'2px 0'}}>{fmt(d.credit)}</td></tr>{(d.creditSplit||[]).map(cp=>(<tr key={cp.n} style={{fontSize:11,color:'#f59e0b'}}><td style={{padding:'0 0 0 18px'}}>· {cp.n}</td><td style={{textAlign:'right',padding:0}}>{fmt(cp.a)}</td></tr>))}</>}
           <tr><td style={{padding:'4px 0',color:'#dc2626'}}>Expenses</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.expTotal)}</td></tr>
-          {(d.expSplit||[]).map(s=>(<tr key={s.cat} style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>))}
+          {(d.expSplit||[]).map(s=>(<Fragment key={s.cat}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ {s.label}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>
+          {(s.items||[]).map(it=>(<tr key={s.cat+it.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 22px'}}>· {it.n}</td><td style={{textAlign:'right',padding:0}}>−{fmt(it.a)}</td></tr>))}</Fragment>))}
           {d.comm>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Commission</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.comm)}</td></tr>
           {(d.commSplit||[]).map(s=>(<Fragment key={s.name}><tr style={{fontSize:12,color:'#64748b'}}><td style={{padding:'1px 0 1px 10px'}}>↳ Dr. {s.name}</td><td style={{textAlign:'right',padding:'1px 0'}}>−{fmt(s.amt)}</td></tr>{(s.pats||[]).map(p=>(<tr key={p.n} style={{fontSize:11,color:'#94a3b8'}}><td style={{padding:'0 0 0 20px'}}>· {(gotoOP||gotoIP)?<button onClick={()=>{if(p.isIP&&p.pid&&gotoIP)gotoIP(p.pid);else if(gotoOP)gotoOP(p.n)}} style={{background:'none',border:'none',padding:0,color:'#2563eb',fontSize:11,cursor:'pointer',textDecoration:'underline'}}>{p.n}</button>:p.n}<span style={{color:'#cbd5e1'}}>{p.date?' · '+fmtD(p.date):''} · comm {fmt(p.a)}</span></td><td style={{textAlign:'right',padding:0}}></td></tr>))}</Fragment>))}</>}
           {d.cons>0&&<><tr><td style={{padding:'4px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'4px 0',color:'#dc2626',fontWeight:700}}>−{fmt(d.cons)}</td></tr>
@@ -5669,7 +5673,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
           <R l="Collected OP + IP income" v={fmt(opIpInc)} bold green/>{dCreditToday-labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(dCreditToday-labCreditToday)} sub="Will count as income on the day you collect it"/>}{Object.entries(dI.filter(e=>isCredit(e)&&!['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
           {opIpComm>0&&<>{<R l="Ref commissions paid" v={'- '+fmt(Math.round(opIpComm))} red sub="Actual payments made today (clinical share)"/>}{dRefPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {(e.description||'').trim()}</span><span>- {fmt(Math.round(e.amount*docRatioClin((e.description||'').trim())))}</span></div>))}</>}
           {opIpConsFee>0&&<>{<R l="Consultant fees paid" v={'- '+fmt(opIpConsFee)} red sub="Actual payments made today"/>}{dConsPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ {(e.description||'').trim()}</span><span>- {fmt(e.amount)}</span></div>))}</>}
-          {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red/>))}
+          {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red sub={(e.description||'').trim()||undefined}/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
           <div style={{height:1,background:'#bae6fd',margin:'6px 0'}}/>
