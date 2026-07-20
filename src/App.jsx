@@ -2000,7 +2000,11 @@ const IPTab=({db,actions,ipv,setIpv,ipid,setIpid,pF,setPF,cF,setCF,pyF,setPyF,go
           {canSeeReports&&cF.amt&&p.ref_doctor&&cF.type!=='vc'&&(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[cF.type];const rate=doc&&pctKey?doc[pctKey]/100:(p.custom_commission!=null?p.custom_commission/100:(COMM[cF.type]||0));const comm=parseFloat(cF.amt||0)*rate;const typeLabel={'ip':'IP Charges','ip_r':'IP Pharmacy','ip_l':'IP Lab','ip_p':'IP Package','op_dm':'OP Discharge Medicine'}[cF.type]||cF.type;return(<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:13,color:'#92400e'}}><div style={{fontWeight:600,marginBottom:2}}>Commission to Dr. {p.ref_doctor}</div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:11,color:'#b45309'}}>{typeLabel}: {Math.round(rate*100)}%</span><span style={{fontSize:15,fontWeight:700,color:'#c2410c'}}>{fmt(comm)}</span></div></div>)})()}
           {cF.type==='vc'&&cF.amt&&cF.vcFee&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'7px 10px',marginBottom:8,fontSize:13,color:'#065f46'}}>Your income: <strong>{fmt(parseFloat(cF.amt||0)-parseFloat(cF.vcFee||0))}</strong></div>}
           <FInp label="Notes" type="text" placeholder="e.g. Day 3 medicines" value={cF.notes} onChange={e=>setCF({...cF,notes:e.target.value})}/>
-          <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};const isVC=cF.type==='vc';const ok=await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:isVC?(cF.vcName||''):(p.ref_doctor||''),notes:cF.notes,custom_commission:(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[cF.type];const isVC=cF.type==='vc';if(isVC)return null;if(doc&&pctKey)return doc[pctKey];if(p.custom_commission!=null)return p.custom_commission;return null})(),consultant_fee:isVC?parseFloat(cF.vcFee||0):0,reg_no:p.reg_no||''});if(ok!==false)setCF({...cF,amt:'',notes:'',vcName:'',vcFee:''})}}>Add charge</PBtn>
+          {cF.amt&&<div style={{background:'#eff6ff',border:'1.5px solid #93c5fd',borderRadius:8,padding:'8px 12px',marginBottom:8,fontSize:12.5,color:'#1e40af',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:4}}>
+            <span>Saving as <b>{({ip:'IP Charges',ip_r:'IP Pharmacy',ip_l:'IP Lab',ip_p:'IP Package',op_dm:'OP Discharge Medicine',vc:'Visiting Consultant'}[cF.type])||cF.type}</b> · {cF.pay}</span>
+            <b style={{fontSize:14}}>{fmt(parseFloat(cF.amt)||0)}</b>
+          </div>}
+          <PBtn onClick={async()=>{const amt=parseFloat(cF.amt);if(!amt||amt<=0){alert('Enter amount');return};const isVC=cF.type==='vc';const ok=await actions.addIncome({id:uid(),date:cF.date,type:cF.type,amount:amt,patient_id:p.id,patient_name:p.name,payment:cF.pay,ref_doctor:isVC?(cF.vcName||''):(p.ref_doctor||''),notes:cF.notes,custom_commission:(()=>{const doc=db.ref_doctors.find(d=>d.name===p.ref_doctor);const pctKey={ip:'ip_pct',ip_r:'ip_r_pct',ip_l:'ip_l_pct',ip_p:'ip_pct',op_dm:'op_r_pct'}[cF.type];const isVC=cF.type==='vc';if(isVC)return null;if(doc&&pctKey)return doc[pctKey];if(p.custom_commission!=null)return p.custom_commission;return null})(),consultant_fee:isVC?parseFloat(cF.vcFee||0):0,reg_no:p.reg_no||''});if(ok!==false)setCF({...cF,amt:'',notes:'',vcName:'',vcFee:''})}}>Add {({ip:'IP Charges',ip_r:'IP Pharmacy',ip_l:'IP Lab',ip_p:'IP Package',op_dm:'OP Discharge Medicine',vc:'Visiting Consultant'}[cF.type])||'charge'} {cF.amt?'· Rs '+cF.amt:''}</PBtn>
         </Card></>)}
         {/* Charges breakdown */}
         {canSeeReports&&<Card style={{marginBottom:12}}>
@@ -2490,6 +2494,7 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
   const [collectEntry,setCollectEntry]=useState(null)
   const [showRefModal,setShowRefModal]=useState(false)
   const [bulkRefDoc,setBulkRefDoc]=useState(null)
+  const [convIP,setConvIP]=useState(null)
   const [addInc,setAddInc]=useState(null)
   const [pdfFrom,setPdfFrom]=useState(todayStr().slice(0,8)+'01')
   const [pdfTo,setPdfTo]=useState(todayStr())
@@ -2581,7 +2586,36 @@ const OPTab=({db,actions,opSearch,setOpSearch,opPrevTab,setOpPrevTab,setTab,canS
         </Card>
             <div style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
               <button onClick={()=>setBulkRefDoc({reg_no:pat.reg_no||pat.name,name:pat.name,currentRef:ents.find(e=>e.ref_doctor)?.ref_doctor||''})} style={{padding:'9px 14px',background:'#fff7ed',border:'1.5px solid #f59e0b',borderRadius:8,fontSize:12,color:'#c2410c',cursor:'pointer',fontWeight:700}}>👨‍⚕️ Set Ref Doctor for all visits</button>
+              {(()=>{
+                const openAdm=(db.ip_patients||[]).find(p=>(p.name||'').trim().toLowerCase()===(pat.name||'').trim().toLowerCase()&&!p.discharge_date)
+                if(openAdm)return(<button onClick={()=>gotoIP&&gotoIP(openAdm.id)} style={{padding:'9px 14px',background:'#eff6ff',border:'1.5px solid #93c5fd',borderRadius:8,fontSize:12,color:'#1d4ed8',cursor:'pointer',fontWeight:700}}>🛏 Already admitted — open IP page →</button>)
+                return(<button onClick={()=>setConvIP({name:pat.name,phone:pat.phone||'',reg_no:pat.reg_no||'',adm:todayStr(),dx:'',room:'',ref:(ents.find(e=>e.ref_doctor)||{}).ref_doctor||'',ptype:'Regular IP',area:(ents.find(e=>e.patient_area)||{}).patient_area||''})} style={{padding:'9px 14px',background:'#ecfdf5',border:'1.5px solid #34d399',borderRadius:8,fontSize:12,color:'#047857',cursor:'pointer',fontWeight:700}}>🛏 Convert to IP (admit)</button>)
+              })()}
             </div>
+            {convIP&&(<div style={{background:'#ecfdf5',border:'1.5px solid #34d399',borderRadius:12,padding:'14px',marginTop:10}}>
+              <div style={{fontSize:12.5,fontWeight:800,color:'#047857',marginBottom:3}}>🛏 Admit {convIP.name} as IP patient</div>
+              <div style={{fontSize:11,color:'#047857',opacity:.85,marginBottom:10,lineHeight:1.45}}>Their OP history stays linked — the IP page will show both, with a combined patient total. Existing OP entries are not moved or changed.</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <FInp label="Admission date" type="date" value={convIP.adm} onChange={e=>setConvIP({...convIP,adm:e.target.value})}/>
+                <FInp label="Room / bed" value={convIP.room} onChange={e=>setConvIP({...convIP,room:e.target.value})} placeholder="e.g. 101"/>
+              </div>
+              <FInp label="Diagnosis" value={convIP.dx} onChange={e=>setConvIP({...convIP,dx:e.target.value})} placeholder="Reason for admission"/>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <FInp label="Referring doctor" value={convIP.ref} onChange={e=>setConvIP({...convIP,ref:e.target.value})} placeholder="Carried from OP visits"/>
+                <FSel label="Patient type" value={convIP.ptype} onChange={e=>setConvIP({...convIP,ptype:e.target.value})}>{['Regular IP','Package','Insurance'].map(o=><option key={o} value={o}>{o}</option>)}</FSel>
+              </div>
+              <div style={{fontSize:10.5,color:'#047857',background:'#d1fae5',borderRadius:8,padding:'7px 10px',margin:'4px 0 10px'}}>Reg no <b>{convIP.reg_no||'(new)'}</b> · Phone <b>{convIP.phone||'—'}</b> — carried over from the OP record</div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={()=>setConvIP(null)} style={{flex:1,padding:'10px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,fontSize:12.5,fontWeight:600,cursor:'pointer'}}>Cancel</button>
+                <button onClick={async()=>{
+                  if(!convIP.adm){alert('Admission date required');return}
+                  const rn=convIP.reg_no||(await genRegNo())
+                  const newId=uid()
+                  const ok=await actions.admitPatient({id:newId,name:convIP.name,phone:convIP.phone||'',admission_date:convIP.adm,discharge_date:null,diagnosis:convIP.dx||'',room:convIP.room||'',ref_doctor:(convIP.ref||'').trim(),is_package:convIP.ptype==='Package',patient_type:convIP.ptype,custom_commission:null,payments:[],reg_no:rn,patient_area:convIP.area||'',insurance_type:'',insurance_policy_no:'',insurance_expected:0,insurance_status:''})
+                  if(ok!==false){setConvIP(null);if(gotoIP)gotoIP(newId)}
+                }} style={{flex:2,padding:'10px',background:'#059669',color:'#fff',border:'none',borderRadius:10,fontSize:12.5,fontWeight:800,cursor:'pointer'}}>🛏 Admit as IP</button>
+              </div>
+            </div>)}
             <div style={{background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:10,padding:'10px 12px',marginTop:10}}>
               <div style={{fontSize:10,fontWeight:800,color:'#475569',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:8}}>📄 Generate Referral PDF — Select date range</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
