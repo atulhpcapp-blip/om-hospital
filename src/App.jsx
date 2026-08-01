@@ -3567,8 +3567,8 @@ const RealIncomeReport=({db})=>{
   const riRatio=(dn,s)=>{const cl=(db.income||[]).filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=(db.income||[]).filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?(s==='lab'?lb/t:cl/t):(s==='lab'?0:1)}
   const clinInc=incList.filter(e=>!['op_l','ip_l'].includes(e.type)&&!isCredit(e))
   const clinGross=clinInc.reduce((a,e)=>a+(e.amount||0),0)
-  const clinComm=expList.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*riRatio((e.description||'').trim(),'clinical'),0)
-  const clinCons=expList.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+e.amount,0)
+  const clinComm=clinInc.reduce((a,e)=>a+getComm(e),0)
+  const clinCons=clinInc.reduce((a,e)=>a+(e.consultant_fee||0),0)
   const segClinExp=expList.filter(e=>e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)&&expenseSegment(e.category)!=='lab')
   const clinExpTotal=segClinExp.reduce((a,e)=>a+(e.amount||0),0)
   const riRetC=expList.filter(e=>e.category==='comm_retained_clinical').reduce((a,e)=>a+(e.amount||0),0)
@@ -3582,7 +3582,7 @@ const RealIncomeReport=({db})=>{
 
   const labInc=incList.filter(e=>['op_l','ip_l'].includes(e.type)&&!isCredit(e))
   const labGross=labInc.reduce((a,e)=>a+(e.amount||0),0)
-  const labComm=expList.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*riRatio((e.description||'').trim(),'lab'),0)
+  const labComm=labInc.reduce((a,e)=>a+getComm(e),0)
   const labToLab=expList.filter(e=>expenseSegment(e.category)==='lab').reduce((a,e)=>a+(e.amount||0),0)
   const labActual=labGross-labComm-labToLab
 
@@ -3798,8 +3798,9 @@ const IncomeChartReport=({db})=>{
     chartData=days.map(d=>{
       const dI=inc.filter(e=>e.date===d)
       const dE=exps.filter(e=>e.date===d)
-      const gross=dI.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+e.amount,0)
-      const comm=dE.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0)
+      const dColl=dI.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
+      const gross=dColl.reduce((a,e)=>a+e.amount,0)
+      const comm=dColl.reduce((a,e)=>a+getComm(e)+(e.consultant_fee||0),0)
       const exp=dE.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+e.amount,0)
       return{label:d.slice(8),gross,real:gross-comm,actual:gross-comm-exp}
     })
@@ -3808,8 +3809,9 @@ const IncomeChartReport=({db})=>{
     chartData=mons.map(m=>{
       const mI=inc.filter(e=>e.date?.startsWith(m))
       const mE=exps.filter(e=>e.date?.startsWith(m))
-      const gross=mI.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+e.amount,0)
-      const comm=mE.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0)
+      const mColl=mI.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
+      const gross=mColl.reduce((a,e)=>a+e.amount,0)
+      const comm=mColl.reduce((a,e)=>a+getComm(e)+(e.consultant_fee||0),0)
       const exp=mE.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+e.amount,0)
       const [,mo]=m.split('-')
       return{label:MOS[parseInt(mo)-1],gross,real:gross-comm,actual:gross-comm-exp}
@@ -5092,7 +5094,7 @@ const DatewiseNetCard=({incList,expList,dbRef=null})=>{
     const seg=(s)=>{
       const si=dayInc.filter(e=>incomeSegment(e.type)===s)
       const collected=si.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0)
-      const comm=dayExp.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*dwRatio((e.description||'').trim(),s),0)
+      const comm=si.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+getComm(e),0)
       const cons=s==='clinical'?dayExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+e.amount,0):0
       const exp=dayExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)&&expenseSegment(e.category)===s).reduce((a,e)=>a+(e.amount||0),0)
       return collected-comm-cons-exp
@@ -5137,10 +5139,11 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
       const credit=sInc.filter(e=>e.payment==='credit').reduce((a,e)=>a+(e.amount||0),0)
       // CASH BASIS: commission & consultant costs = actual payments in the period (by payment date)
       const docSegRatio=(dn)=>{const src=(db&&db.income)||incList;const cl=src.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=src.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?(seg==='lab'?lb/t:cl/t):(seg==='lab'?0:1)}
-      const commRows=srcExp.filter(e=>e.category==='ref_paid')
-      const comm=commRows.reduce((a,e)=>a+e.amount*docSegRatio((e.description||'').trim()),0)
-      const consRows=seg==='clinical'?srcExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm'):[]
-      const cons=consRows.reduce((a,e)=>a+e.amount,0)
+      // SERVICE-DATE model: commission & consultant cost belong to the day the patient came,
+      // computed from the entry itself (collected income only). Paying the doctor is ledger-only.
+      const sCommEnts=sInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
+      const comm=sCommEnts.reduce((a,e)=>a+getComm(e),0)
+      const cons=seg==='clinical'?sCommEnts.reduce((a,e)=>a+(e.consultant_fee||0),0):0
       // IP income is shown PATIENT-wise (one row per admitted patient, all their IP types combined).
       // OP income stays category-wise. Tap a patient to open their portal for the type-level detail.
       const IP_T=['ip','ip_r','ip_l','ip_p']
@@ -5159,28 +5162,23 @@ const SegmentPL=({incList,expList,db=null,gotoOP=null,gotoIP=null,mtdIncList=nul
         incSplit.sort((a,b)=>b.amt-a.amt)
       }
       // Segment commission PAID per doctor in this period (the amount to attribute to patients)
-      const commByDoc={};commRows.forEach(e=>{const dn=(e.description||'(unknown)').trim()||'(unknown)';const share=e.amount*docSegRatio(dn);if(share>0.5){commByDoc[dn]=(commByDoc[dn]||0)+share}})
+      const commByDoc={};sCommEnts.forEach(e=>{const cm=getComm(e);if(cm>0.5&&e.ref_doctor){const dn=e.ref_doctor.trim();commByDoc[dn]=(commByDoc[dn]||0)+cm}})
       // FIFO: walk the doctor's referral patients OLDEST-FIRST (only entries dated ≤ latest payment date in this period), fill up to the paid amount
       const srcAll=(db&&db.income)||incList
       // Prefer EXPLICIT patient links recorded at settlement (settled_ids); else fall back to within-period referrals
       const idIndex={};((db&&db.income)||incList).forEach(e=>{idIndex[e.id]=e})
-      const commSplit=Object.entries(commByDoc).map(([dn,paidShare])=>{
-        const linkedIds=commRows.filter(e=>(e.description||'').trim()===dn&&Array.isArray(e.settled_ids)).flatMap(e=>e.settled_ids)
-        let ents
-        if(linkedIds.length>0){ents=linkedIds.map(id=>idIndex[id]).filter(e=>e&&incomeSegment(e.type)===seg&&getComm(e)>0)}
-        else{ents=sInc.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)===seg&&getComm(e)>0)}
-        ents=ents.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+      const commSplit=Object.entries(commByDoc).map(([dn,amtEarned])=>{
+        const ents=sCommEnts.filter(e=>e.ref_doctor&&e.ref_doctor.trim()===dn&&getComm(e)>0).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
         const merged={}
         ents.forEach(e=>{const cm=getComm(e);const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);if(!merged[pn])merged[pn]={n:pn,a:0,date:e.date,pid:isIP?e.patient_id:null,isIP};merged[pn].a+=Math.round(cm);if(e.date<merged[pn].date)merged[pn].date=e.date;if(isIP){merged[pn].isIP=true;if(e.patient_id)merged[pn].pid=e.patient_id}})
-        return{name:dn,amt:Math.round(paidShare),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
+        return{name:dn,amt:Math.round(amtEarned),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
       }).sort((a,b)=>b.amt-a.amt)
-      const consByName={};consRows.forEach(e=>{const n=(e.description||'(unnamed)').trim()||'(unnamed)';consByName[n]=(consByName[n]||0)+e.amount})
-      const srcAllC=(db&&db.income)||incList
-      const consSplit=Object.entries(consByName).map(([n,paidAmt])=>{
-        const ents=sInc.filter(e=>(e.consultant_fee||0)>0&&(e.consultant_name||'').trim()&&(n.toLowerCase().includes((e.consultant_name||'').trim().toLowerCase()))).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+      const consByName={};sCommEnts.forEach(e=>{if((e.consultant_fee||0)>0&&(e.consultant_name||'').trim()){const n=e.consultant_name.trim();consByName[n]=(consByName[n]||0)+(e.consultant_fee||0)}})
+      const consSplit=Object.entries(consByName).map(([n,amtC])=>{
+        const ents=sCommEnts.filter(e=>(e.consultant_fee||0)>0&&(e.consultant_name||'').trim()===n).sort((a,b)=>(a.date||'').localeCompare(b.date||''))
         const merged={}
         ents.forEach(e=>{const cf=e.consultant_fee||0;const pn=(e.patient_name||'—').trim()||'—';const isIP=['ip','ip_r','ip_l','ip_p'].includes(e.type);if(!merged[pn])merged[pn]={n:pn,a:0,date:e.date,pid:isIP?e.patient_id:null,isIP};merged[pn].a+=Math.round(cf);if(e.date<merged[pn].date)merged[pn].date=e.date;if(isIP){merged[pn].isIP=true;if(e.patient_id)merged[pn].pid=e.patient_id}})
-        return{name:n,amt:Math.round(paidAmt),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
+        return{name:n,amt:Math.round(amtC),pats:Object.values(merged).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
       }).sort((a,b)=>b.amt-a.amt)
       const sExp=srcExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&expenseSegment(e.category)===seg)
       const expTotal=sExp.reduce((a,e)=>a+(e.amount||0),0)
@@ -5435,7 +5433,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const labRawEnts=dI.filter(e=>['op_l','ip_l'].includes(e.type))
   const labCreditToday=labRawEnts.filter(e=>isCredit(e)).reduce((a,e)=>a+e.amount,0)
   const dLabRefPaidShare=(dn)=>{const cl=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?lb/t:0}
-  const labComm=dExpAll.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+e.amount*dLabRefPaidShare((e.description||'').trim()),0)
+  const labInc2=dI.filter(e=>['op_l','ip_l'].includes(e.type)&&e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
+  const labComm=labInc2.reduce((a,e)=>a+getComm(e),0)
   const labToLab=dExpLab.reduce((a,e)=>a+e.amount,0)
   const labActual=labInc-labComm-labToLab
 
@@ -5443,10 +5442,9 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
   const opIpInc=opInc+opdInc+opdmInc+oppInc+vcProfit+oprInc+ipInc
   const clinEntsAll=dI.filter(e=>!['op_l','ip_l'].includes(e.type))
   const docRatioClin=(dn)=>{const cl=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='clinical').reduce((a,e)=>a+getComm(e),0);const lb=db.income.filter(e=>e.ref_doctor===dn&&incomeSegment(e.type)==='lab').reduce((a,e)=>a+getComm(e),0);const t=cl+lb;return t>0?cl/t:1}
-  const dRefPaidRows=dExpAll.filter(e=>e.category==='ref_paid')
-  const opIpComm=dRefPaidRows.reduce((a,e)=>a+e.amount*docRatioClin((e.description||'').trim()),0)
-  const dConsPaidRows=dExpAll.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm')
-  const opIpConsFee=dConsPaidRows.reduce((a,e)=>a+e.amount,0)
+  const clinCollEnts=clinEntsAll.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
+  const opIpComm=clinCollEnts.reduce((a,e)=>a+getComm(e),0)
+  const opIpConsFee=clinCollEnts.reduce((a,e)=>a+(e.consultant_fee||0),0)
   const nonLabExpTotal=dExpNonLab.reduce((a,e)=>a+e.amount,0)
   const opIpActual=opIpInc-opIpComm-opIpConsFee-nonLabExpTotal
 
@@ -5729,8 +5727,8 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
             </div>)})()}
           </>}
           <R l="Collected OP + IP income" v={fmt(opIpInc)} bold green/>{dCreditToday-labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(dCreditToday-labCreditToday)} sub="Will count as income on the day you collect it"/>}{Object.entries(dI.filter(e=>isCredit(e)&&!['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
-          {opIpComm>0&&<>{<R l="Ref commissions paid" v={'- '+fmt(Math.round(opIpComm))} red sub="Actual payments made today (clinical share)"/>}{dRefPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {(e.description||'').trim()}</span><span>- {fmt(Math.round(e.amount*docRatioClin((e.description||'').trim())))}</span></div>))}</>}
-          {opIpConsFee>0&&<>{<R l="Consultant fees paid" v={'- '+fmt(opIpConsFee)} red sub="Actual payments made today"/>}{dConsPaidRows.map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ {(e.description||'').trim()}</span><span>- {fmt(e.amount)}</span></div>))}</>}
+          {opIpComm>0&&<>{<R l="Ref commission" v={'- '+fmt(Math.round(opIpComm))} red sub="On today's collected clinical income"/>}{Object.entries(clinCollEnts.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor)m[e.ref_doctor.trim()]=(m[e.ref_doctor.trim()]||0)+cm;return m},{})).sort((a,b)=>b[1]-a[1]).map(([dn,amt])=>(<div key={dn} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {dn}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>}
+          {opIpConsFee>0&&<>{<R l="Consultant fees" v={'- '+fmt(opIpConsFee)} red sub="On today's collected income"/>}{Object.entries(clinCollEnts.reduce((m,e)=>{const cf=e.consultant_fee||0;if(cf>0){const n=(e.consultant_name||'consultant').trim()||'consultant';m[n]=(m[n]||0)+cf}return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ {n}</span><span>- {fmt(amt)}</span></div>))}</>}
           {dExpNonLab.map((e,i)=>(<R key={i} l={(e.category||'misc').replace(/_/g,' ')} v={'- '+fmt(e.amount)} red sub={(e.description||'').trim()||undefined}/>))}
           <div style={{height:1,background:'#bae6fd'}}/>
           <R l="= Actual income" v={fmt(opIpActual)} bold/>
@@ -5780,7 +5778,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
               <R l="Collected lab income" v={fmt(labInc)} bold green/>{labCreditToday>0&&<>{<R l="Credit given today (not counted)" v={fmt(labCreditToday)} sub="Counts on collection day"/>}{Object.entries(dI.filter(e=>isCredit(e)&&['op_l','ip_l'].includes(e.type)).reduce((m,e)=>{const n=(e.patient_name||'—').trim()||'—';m[n]=(m[n]||0)+e.amount;return m},{})).sort((a,b)=>b[1]-a[1]).map(([n,amt])=>(<div key={n} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#d97706',padding:'2px 0 2px 14px'}}><span>· {n}</span><span>{fmt(amt)}</span></div>))}</>}
             </>)
           })()}
-          <><R l="Ref commissions paid" v={'- '+fmt(Math.round(labComm))} red sub="Lab share of today's payments"/>{dExpAll.filter(e=>e.category==='ref_paid'&&dLabRefPaidShare((e.description||'').trim())>0).map((e,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {(e.description||'').trim()}</span><span>- {fmt(Math.round(e.amount*dLabRefPaidShare((e.description||'').trim())))}</span></div>))}</>
+          <><R l="Ref commission" v={'- '+fmt(Math.round(labComm))} red sub="On today's collected lab income"/>{Object.entries(labInc2.reduce((m,e)=>{const cm=getComm(e);if(cm>0&&e.ref_doctor)m[e.ref_doctor.trim()]=(m[e.ref_doctor.trim()]||0)+cm;return m},{})).sort((a,b)=>b[1]-a[1]).map(([dn,amt])=>(<div key={dn} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#94a3b8',padding:'2px 0 2px 14px'}}><span>↳ Dr. {dn}</span><span>- {fmt(Math.round(amt))}</span></div>))}</>
           {labToLab>0&&<R l="Lab to lab expenses" v={'- '+fmt(labToLab)} red/>}
           <div style={{height:1,background:'#e9d5ff'}}/>
           <R l="= Actual income" v={fmt(labActual)} bold/>
@@ -5820,7 +5818,7 @@ const DailyDetailReport=({db,rd,setRd,allPaidComm,rm,setRm,ry,setRy,yrs,actions,
         const dI2=db.income.filter(e=>e.date===d)
         const dE2=db.expenses.filter(e=>e.date===d)
         const gross=dI2.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+e.amount,0)
-        const comm=dE2.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0)
+        const comm=dI2.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+getComm(e)+(e.consultant_fee||0),0)
         const exp=dE2.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+e.amount,0)
         return{label:d.slice(8),date:d,gross,real:gross-comm,actual:gross-comm-exp,isSelected:d===rd}
       })
@@ -6061,12 +6059,12 @@ const ProfitReport=({db})=>{
   const discountGiven=periodInc.filter(e=>e.payment==='discount').reduce((a,e)=>a+(e.amount||0),0)
   const writtenOff=periodInc.filter(e=>e.payment==='written_off').reduce((a,e)=>a+(e.amount||0),0)
   
-  // Costs — CASH BASIS: commission & consultant costs = actual payments in the period.
-  // Operating expenses must EXCLUDE payout categories and retained (deduction) rows,
-  // otherwise those costs are counted twice.
+  // SERVICE-DATE model: commission & consultant cost belong to each entry's own date,
+  // computed from COLLECTED income. Paying a doctor is ledger-only (no P&L effect here).
+  const collForCost=periodInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e))
   const totalExp=periodExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+(e.amount||0),0)
-  const totalComm=periodExp.filter(e=>e.category==='ref_paid').reduce((a,e)=>a+(e.amount||0),0)
-  const totalConsult=periodExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+(e.amount||0),0)
+  const totalComm=collForCost.reduce((a,e)=>a+getComm(e),0)
+  const totalConsult=collForCost.reduce((a,e)=>a+(e.consultant_fee||0),0)
   const retainedTotal=periodExp.filter(e=>isRetainedCat(e.category)).reduce((a,e)=>a+(e.amount||0),0)
   
   const grossProfit=realizedRev-totalComm-totalConsult
@@ -6138,11 +6136,11 @@ const ProfitReport=({db})=>{
           <tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#c2410c'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Credit outstanding (not counted)</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(creditOutstanding)}</td></tr>
           {discountGiven>0&&<tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#dc2626'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Discounts given</td><td style={{textAlign:'right',padding:'4px 0'}}>−{fmt(discountGiven)}</td></tr>}
           {writtenOff>0&&<tr style={{borderBottom:'1px solid #f0f0f0',fontSize:11,color:'#dc2626'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Written off</td><td style={{textAlign:'right',padding:'4px 0'}}>−{fmt(writtenOff)}</td></tr>}
-          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Referral commissions paid</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalComm)}</td></tr>
-          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Consultant fees paid</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalConsult)}</td></tr>
+          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Referral commission</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalComm)}</td></tr>
+          <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Consultant fees</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalConsult)}</td></tr>
           <tr style={{borderBottom:'2px solid #1a1a2e',borderTop:'1px solid #e2e8f0'}}><td style={{padding:'10px 0',color:'#1a1a2e',fontWeight:800}}>Gross Profit</td><td style={{textAlign:'right',padding:'10px 0',fontWeight:800,color:'#1a1a2e'}}>{fmt(grossProfit)}</td></tr>
           <tr style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px 0',color:'#dc2626'}}>Operating expenses</td><td style={{textAlign:'right',padding:'8px 0',color:'#dc2626',fontWeight:700}}>−{fmt(totalExp)}</td></tr>
-          {retainedTotal>0&&<tr style={{fontSize:11,color:'#64748b'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Commission deducted/retained (not a cash cost)</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(retainedTotal)}</td></tr>}
+          {retainedTotal>0&&<tr style={{fontSize:11,color:'#64748b'}}><td style={{padding:'4px 0 4px 12px'}}>↳ Commission retained via deductions (ledger only)</td><td style={{textAlign:'right',padding:'4px 0'}}>{fmt(retainedTotal)}</td></tr>}
           <tr style={{background:netProfit>=0?'#f0fdf4':'#fef2f2'}}><td style={{padding:'12px 8px',fontWeight:900,fontSize:15,color:netProfit>=0?'#15803d':'#991b1b'}}>NET PROFIT</td><td style={{textAlign:'right',padding:'12px 8px',fontWeight:900,fontSize:15,color:netProfit>=0?'#15803d':'#991b1b'}}>{fmt(netProfit)}</td></tr>
         </tbody>
       </table>
@@ -7964,7 +7962,7 @@ const AnalyticsDash=({db,actions})=>{
         </div>
         {chartMonths.length===0&&<div style={{textAlign:'center',padding:'24px 0',color:'#94a3b8',fontSize:13}}>Select at least one month above</div>}
         {chartMonths.length>0&&(()=>{
-          const bars=chartMonths.map(m=>{const mInc=inc.filter(e=>e.date&&e.date.startsWith(m));const mExp=exp.filter(e=>e.date&&e.date.startsWith(m));const gross=mInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e)).reduce((a,e)=>a+(e.amount||0),0);const comms=mExp.filter(x=>x.category==='ref_paid'||x.category==='consultant_fee'||x.category==='consultant_proc_comm').reduce((a,x)=>a+(x.amount||0),0);const exps=mExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+(e.amount||0),0);const actual=gross-comms-exps;const d=new Date(m+'-01');return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}})
+          const bars=chartMonths.map(m=>{const mInc=inc.filter(e=>e.date&&e.date.startsWith(m));const mExp=exp.filter(e=>e.date&&e.date.startsWith(m));const mColl=mInc.filter(e=>e.payment!=='discount'&&e.payment!=='written_off'&&!isCredit(e));const gross=mColl.reduce((a,e)=>a+(e.amount||0),0);const comms=mColl.reduce((a,e)=>a+getComm(e)+(e.consultant_fee||0),0);const exps=mExp.filter(e=>e.category!=='ref_paid'&&e.category!=='consultant_fee'&&e.category!=='consultant_proc_comm'&&!isRetainedCat(e.category)).reduce((a,e)=>a+(e.amount||0),0);const actual=gross-comms-exps;const d=new Date(m+'-01');return{m,label:d.toLocaleDateString('en-IN',{month:'short',year:'2-digit'}),gross,comms,exps,actual}})
           const maxVal=Math.max(...bars.map(b=>Math.max(b.gross,1)))
           return(<div>
             <div style={{display:'flex',alignItems:'flex-end',gap:8,height:140,marginBottom:8}}>
@@ -7998,15 +7996,15 @@ const AnalyticsDash=({db,actions})=>{
         // Split each commission payment clinical/lab by the doctor's earned ratio (same rule as Segment P&L)
         const segRatio=(dn,s)=>{const src=db.income||[];const cl=src.filter(x=>x.ref_doctor===dn&&incomeSegment(x.type)==='clinical').reduce((a,x)=>a+getComm(x),0);const lb=src.filter(x=>x.ref_doctor===dn&&incomeSegment(x.type)==='lab').reduce((a,x)=>a+getComm(x),0);const t=cl+lb;return t>0?(s==='lab'?lb/t:cl/t):(s==='lab'?0:1)}
         const refPaidRows=tmExp.filter(e=>e.category==='ref_paid')
-        const clinComm=refPaidRows.reduce((a,e)=>a+(e.amount||0)*segRatio((e.description||'').trim(),'clinical'),0)
-          +tmExp.filter(e=>e.category==='consultant_fee'||e.category==='consultant_proc_comm').reduce((a,e)=>a+(e.amount||0),0)
+        const clinColl=clinInc.filter(collOnly)
+        const clinComm=clinColl.reduce((a,e)=>a+getComm(e)+(e.consultant_fee||0),0)
         const clinExp=tmExp.filter(e=>e.category!=='lab_to_lab'&&!payoutCat(e.category)).reduce((a,e)=>a+(e.amount||0),0)
         const clinActual=clinGross-clinComm-clinExp
         const clinExpCats={}
         tmExp.filter(e=>e.category!=='lab_to_lab'&&!payoutCat(e.category)).forEach(e=>{if(!clinExpCats[e.category])clinExpCats[e.category]=0;clinExpCats[e.category]+=e.amount})
         const labInc=tmInc.filter(e=>['op_l','ip_l'].includes(e.type))
         const labGross=labInc.filter(collOnly).reduce((a,e)=>a+(e.amount||0),0)
-        const labComm=refPaidRows.reduce((a,e)=>a+(e.amount||0)*segRatio((e.description||'').trim(),'lab'),0)
+        const labComm=labInc.filter(collOnly).reduce((a,e)=>a+getComm(e),0)
         const labToLab=sum(tmExp.filter(e=>e.category==='lab_to_lab'))
         const labActual=labGross-labComm-labToLab
         const SegCard=({title,color,bg,gross,commAmt,expBreakdown,actual,incTypes})=>(<div style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:16,padding:'16px',marginBottom:12,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}><div><div style={{fontSize:13,fontWeight:800,color:'#0f172a'}}>{title}</div><div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{incTypes}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>Actual income</div><div style={{fontSize:20,fontWeight:900,color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</div></div></div><div style={{background:'#f8fafc',borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:7}}><div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Gross income</span><span style={{fontWeight:700,color:'#16a34a'}}>{fmt(gross)}</span></div><div style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569'}}>Ref commissions</span><span style={{fontWeight:700,color:'#d97706'}}>- {fmt(commAmt)}</span></div>{Object.entries(expBreakdown).filter(([,v])=>v>0).map(([cat,v])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',fontSize:12}}><span style={{color:'#475569',textTransform:'capitalize'}}>{cat.replace(/_/g,' ')}</span><span style={{fontWeight:600,color:'#dc2626'}}>- {fmt(v)}</span></div>))}<div style={{height:1,background:'#e2e8f0',margin:'2px 0'}}/><div style={{display:'flex',justifyContent:'space-between',fontSize:13,fontWeight:800}}><span style={{color:'#0f172a'}}>= Actual</span><span style={{color:actual>=0?color:'#dc2626'}}>{fmt(actual)}</span></div></div></div>)
