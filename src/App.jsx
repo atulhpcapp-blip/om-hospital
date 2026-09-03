@@ -4517,6 +4517,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   // Pharmacy - date-wise entries
   const [pharmaDays,setPharmaDays]=useState([{billNo:'',date:todayStr(),items:[{name:'',qty:'',amount:''}]}])
 
+  // Medicine auto-expander (real drugs → dated daily lines across the stay)
+  const [rxList,setRxList]=useState([{name:'',morning:true,evening:true,sos:false,rate:''}])
+  const [rxFrom,setRxFrom]=useState(p.admission_date||todayStr())
+  const [rxTo,setRxTo]=useState(p.discharge_date||todayStr())
+
   // Lab tests
   const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:''}])
 
@@ -4579,6 +4584,34 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       alert('Could not save the bill: '+(err.message||err)+'\n\nIf this mentions a missing table, the ip_bills table needs to be created in the database.')
     }
     setBillSaving(false)
+  }
+
+  // Expand each real medicine across the admission range into dated daily pharmacy lines.
+  // You supply the drug, schedule and rate — this only repeats what you entered across the days.
+  const expandRx=()=>{
+    const meds=rxList.filter(r=>r.name.trim()&&parseFloat(r.rate)>0)
+    if(meds.length===0){alert('Add at least one medicine with a name and per-dose rate.');return}
+    const start=new Date(rxFrom+'T00:00:00'),end=new Date(rxTo+'T00:00:00')
+    if(isNaN(start)||isNaN(end)||end<start){alert('Check the from/to dates.');return}
+    const days=[]
+    for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+      const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+      const items=[]
+      meds.forEach(r=>{
+        const doses=(r.morning?1:0)+(r.evening?1:0)+(r.sos?1:0)
+        if(doses===0)return
+        const rate=parseFloat(r.rate)||0
+        const sched=[r.morning?'M':'',r.evening?'E':'',r.sos?'SOS':''].filter(Boolean).join('+')
+        items.push({name:r.name.trim()+' ('+sched+')',qty:String(doses),amount:String(doses*rate),batch:'',expiry:''})
+      })
+      if(items.length)days.push({billNo:'',date:ds,items})
+    }
+    if(days.length===0){alert('No doses selected (tick morning/evening/SOS).');return}
+    // Replace any empty starter day; otherwise append
+    const existing=pharmaDays.filter(d=>d.items.some(i=>i.name))
+    setPharmaDays([...existing,...days])
+    setBillSaved(false)
+    alert('Generated '+days.length+' day(s) of medicine lines from '+meds.length+' medicine(s). Review and adjust any day as needed.')
   }
 
   const saveItem=async(cat,name)=>{
@@ -4942,6 +4975,49 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>))}
           <button onClick={()=>setOtherCharges([...otherCharges,{name:'',qty:'',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add</button>
         </div>
+
+        {/* Medicine auto-expander */}
+
+        <div className="no-print" style={{background:'#f0f9ff',border:'1.5px solid #7dd3fc',borderRadius:14,padding:'14px',marginBottom:12}}>
+
+          <div style={{fontSize:13,fontWeight:800,color:'#0369a1',marginBottom:3}}>⚡ Quick medicine fill (across the stay)</div>
+
+          <div style={{fontSize:11,color:'#0369a1',opacity:.8,marginBottom:10,lineHeight:1.4}}>Enter each real medicine once, tick when it was given, set the per-dose rate. It generates the dated daily lines for the whole admission period below — you can still edit any day afterwards.</div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+
+            <div><div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:2}}>From (admission)</div><input type="date" value={rxFrom} onChange={e=>setRxFrom(e.target.value)} style={{width:'100%',padding:'8px',border:'1.5px solid #bae6fd',borderRadius:8,fontSize:13,boxSizing:'border-box'}}/></div>
+
+            <div><div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:2}}>To (discharge)</div><input type="date" value={rxTo} onChange={e=>setRxTo(e.target.value)} style={{width:'100%',padding:'8px',border:'1.5px solid #bae6fd',borderRadius:8,fontSize:13,boxSizing:'border-box'}}/></div>
+
+          </div>
+
+          {rxList.map((r,ri)=>(<div key={ri} style={{display:'flex',gap:6,alignItems:'center',marginBottom:6,flexWrap:'wrap'}}>
+
+            <input placeholder="Medicine name" value={r.name} onChange={e=>{const n=[...rxList];n[ri]={...n[ri],name:e.target.value};setRxList(n)}} style={{flex:'2 1 140px',padding:'8px',border:'1.5px solid #bae6fd',borderRadius:8,fontSize:13,minWidth:0}}/>
+
+            <label style={{fontSize:12,display:'flex',alignItems:'center',gap:3,color:'#0369a1',fontWeight:600}}><input type="checkbox" checked={r.morning} onChange={e=>{const n=[...rxList];n[ri]={...n[ri],morning:e.target.checked};setRxList(n)}}/>M</label>
+
+            <label style={{fontSize:12,display:'flex',alignItems:'center',gap:3,color:'#0369a1',fontWeight:600}}><input type="checkbox" checked={r.evening} onChange={e=>{const n=[...rxList];n[ri]={...n[ri],evening:e.target.checked};setRxList(n)}}/>E</label>
+
+            <label style={{fontSize:12,display:'flex',alignItems:'center',gap:3,color:'#0369a1',fontWeight:600}}><input type="checkbox" checked={r.sos} onChange={e=>{const n=[...rxList];n[ri]={...n[ri],sos:e.target.checked};setRxList(n)}}/>SOS</label>
+
+            <input placeholder="Rate/dose" type="number" value={r.rate} onChange={e=>{const n=[...rxList];n[ri]={...n[ri],rate:e.target.value};setRxList(n)}} style={{flex:'1 1 80px',padding:'8px',border:'1.5px solid #bae6fd',borderRadius:8,fontSize:13,minWidth:0}}/>
+
+            {rxList.length>1&&<button onClick={()=>setRxList(rxList.filter((_,i)=>i!==ri))} style={{background:'none',border:'none',color:'#ef4444',fontSize:18,cursor:'pointer',padding:'0 4px'}}>×</button>}
+
+          </div>))}
+
+          <div style={{display:'flex',gap:8,marginTop:8}}>
+
+            <button onClick={()=>setRxList([...rxList,{name:'',morning:true,evening:true,sos:false,rate:''}])} style={{flex:1,padding:'8px',background:'#fff',border:'1px dashed #7dd3fc',borderRadius:8,fontSize:13,cursor:'pointer',color:'#0369a1',fontWeight:600}}>+ Add medicine</button>
+
+            <button onClick={expandRx} style={{flex:1,padding:'8px',background:'#0369a1',border:'none',borderRadius:8,fontSize:13,cursor:'pointer',color:'#fff',fontWeight:800}}>⚡ Generate daily lines</button>
+
+          </div>
+
+        </div>
+
 
         {/* Pharmacy - date wise */}
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
