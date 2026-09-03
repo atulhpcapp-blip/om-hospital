@@ -4523,7 +4523,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [rxTo,setRxTo]=useState(p.discharge_date||todayStr())
 
   // Lab tests
-  const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:''}])
+  const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:'',date:p.admission_date||todayStr()}])
 
   const [billId,setBillId]=useState(null)
   const [billDate,setBillDate]=useState(todayStr())
@@ -4795,7 +4795,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {/* Investigation */}
           {labTotal>0&&<>
             <tr className="section-head"><td colSpan={4}>INVESTIGATION CHARGES</td></tr>
-            {labTests.filter(i=>i.name).map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td><td style={{textAlign:'right'}}>{fmt(amt)}</td></tr>)})}
+            {(()=>{const rows=labTests.filter(i=>i.name);const byDate={};rows.forEach(i=>{const d=i.date||'—';(byDate[d]=byDate[d]||[]).push(i)});return Object.keys(byDate).sort().map(d=>(<Fragment key={d}><tr><td colSpan={4} style={{paddingLeft:16,fontStyle:'italic',color:'#475569',fontSize:'8.5pt'}}>{d==='—'?'Date not set':fmtD(d)}</td></tr>{byDate[d].map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}><td style={{paddingLeft:28}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td><td style={{textAlign:'right'}}>{fmt(amt)}</td></tr>)})}</Fragment>))})()}
             <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Investigation Total</td><td style={{textAlign:'right'}}>{fmt(labTotal)}</td></tr>
           </>}
           {/* Consultation */}
@@ -5068,14 +5068,15 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>
           {labTests.map((item,i)=>(<div key={i} style={{marginBottom:8}}>
             <AutoInput value={item.name} onChange={v=>{const n=[...labTests];n[i]={...n[i],name:v};setLabTests(n)}} placeholder="Test name" suggestions={savedItems.lab}/>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginTop:6}}>
+            <div style={{display:'grid',gridTemplateColumns:'1.2fr 0.7fr 0.7fr auto',gap:6,marginTop:6}}>
+              <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Date</div><input type="date" value={item.date||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],date:e.target.value};setLabTests(n)}} style={inpStyle}/></div>
               <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Qty</div><input inputMode="decimal" value={item.qty||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],qty:e.target.value};setLabTests(n)}} placeholder="1" style={inpStyle}/></div>
               <div><div style={{fontSize:10,color:'#94a3b8',marginBottom:2}}>Rate</div><input inputMode="decimal" value={item.rate||''} onChange={e=>{const n=[...labTests];n[i]={...n[i],rate:e.target.value};setLabTests(n)}} placeholder="0" style={inpStyle}/></div>
               <button onClick={()=>{saveItem('lab',item.name);setLabTests(labTests.filter((_,j)=>j!==i))}} style={{color:'#dc2626',background:'none',border:'none',cursor:'pointer',fontSize:18,alignSelf:'flex-end',paddingBottom:4}}>×</button>
             </div>
             {item.name&&item.rate&&<div style={{textAlign:'right',fontSize:12,color:'#7c3aed',fontWeight:700,marginTop:2}}>{fmt((parseFloat(item.qty)||1)*parseFloat(item.rate))}</div>}
           </div>))}
-          <button onClick={()=>setLabTests([...labTests,{name:'',qty:'1',rate:''}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
+          <button onClick={()=>setLabTests([...labTests,{name:'',qty:'1',rate:'',date:(labTests[labTests.length-1]||{}).date||p.admission_date||todayStr()}])} style={{fontSize:12,color:'#2563eb',background:'none',border:'none',cursor:'pointer'}}>+ Add test</button>
         </div>
 
         {/* Grand total + advance/discount */}
