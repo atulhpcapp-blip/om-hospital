@@ -4521,6 +4521,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:''}])
 
   const [billId,setBillId]=useState(null)
+  const [billDate,setBillDate]=useState(todayStr())
   const [billSaving,setBillSaving]=useState(false)
   const [billSaved,setBillSaved]=useState(false)
   const [editMode,setEditMode]=useState(false)
@@ -4553,6 +4554,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         if(items.labTests)setLabTests(items.labTests)
         if(items.advance)setAdvance(items.advance)
         if(items.discount)setDiscount(items.discount)
+        if(bill.bill_date)setBillDate(bill.bill_date)
         setBillSaved(true)
       }
     })
@@ -4561,15 +4563,21 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const saveBill=async()=>{
     setBillSaving(true)
     const items={consultations,roomCharges,otherCharges,pharmaDays,labTests,advance,discount}
-    const billData={hospital_id:hospId,patient_id:p.id,bill_date:todayStr(),total:grandTotal,items,status:'draft'}
-    if(billId){
-      await supabase.from('ip_bills').update(billData).eq('id',billId)
-    } else {
-      const {data}=await supabase.from('ip_bills').insert(billData).select().single()
-      if(data)setBillId(data.id)
+    const billData={hospital_id:hospId,patient_id:p.id,bill_date:billDate,total:grandTotal,items,status:'draft'}
+    try{
+      if(billId){
+        const {error}=await supabase.from('ip_bills').update(billData).eq('id',billId)
+        if(error)throw error
+      } else {
+        const {data,error}=await supabase.from('ip_bills').insert(billData).select().single()
+        if(error)throw error
+        if(data)setBillId(data.id)
+      }
+      setBillSaved(true)
+      setEditMode(false)
+    }catch(err){
+      alert('Could not save the bill: '+(err.message||err)+'\n\nIf this mentions a missing table, the ip_bills table needs to be created in the database.')
     }
-    setBillSaved(true)
-    setEditMode(false)
     setBillSaving(false)
   }
 
@@ -4676,8 +4684,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {p.discharge_date&&<div><b>D.O.D:</b> {fmtD(p.discharge_date)}{p.discharge_time?' '+p.discharge_time:''}</div>}
         </div>
         <div style={{textAlign:'right'}}>
-          <div><b>Bill No:</b> {p.reg_no||'—'}/{todayStr().replace(/-/g,'').slice(2)}</div>
-          <div><b>Date:</b> {fmtD(todayStr())}</div>
+          <div><b>Bill No:</b> {p.reg_no||'—'}/{billDate.replace(/-/g,'').slice(2)}</div>
+          <div><b>Date:</b> {fmtD(billDate)}</div>
           {p.insurance_type&&<div><b>Insurance:</b> {p.insurance_type}</div>}
         </div>
       </div>
@@ -4946,7 +4954,12 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {(advAmt+discAmt)>0&&<div style={{color:'#4ade80',fontSize:16,fontWeight:700,display:'flex',justifyContent:'space-between',borderTop:'1px solid rgba(255,255,255,0.2)',paddingTop:8}}><span>Final Settlement</span><span>{fmt(finalAmt)}</span></div>}
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
-          <GBtn onClick={saveBill} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved&&!editMode?'✓ Saved — Update':'💾 Save Bill'}</GBtn>
+          {!printMode&&<div className="no-print" style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:12,fontWeight:700,color:'#475569'}}>Bill date:</span>
+          <input type="date" value={billDate} onChange={e=>{setBillDate(e.target.value);setBillSaved(false)}} style={{padding:'8px 10px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13}}/>
+          <span style={{fontSize:11,color:'#94a3b8'}}>appears on the printed bill</span>
+        </div>}
+        <GBtn onClick={saveBill} disabled={billSaving} style={{flex:1}}>{billSaving?'Saving...':billSaved&&!editMode?'✓ Saved — Update':'💾 Save Bill'}</GBtn>
           <GBtn onClick={()=>setPrintMode(true)} style={{flex:1,background:'#1d4ed8'}}>🖨 Print</GBtn>
         </div>
         {billSaved&&<div style={{textAlign:'center',fontSize:12,color:'#16a34a',marginTop:4}}>Bill saved — will reload next time you open billing</div>}
