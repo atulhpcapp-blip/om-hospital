@@ -4654,39 +4654,89 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     .page {
       width: 176mm;
       min-height: 257mm;
-      padding: 6mm 8mm;
+      padding: 0;
       box-sizing: border-box;
-      font-family: Arial, sans-serif;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
       font-size: 10pt;
-      color: #000;
+      color: #1a2332;
       margin: 0 auto 20px auto;
       background: #fff;
-      border: 1px solid #ddd;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
     }
+    .bill-body { padding: 0 12mm 10mm 12mm; }
+    /* Letterhead */
+    .letterhead {
+      background: linear-gradient(135deg, #0f2a4a 0%, #1a4674 100%);
+      color: #fff; padding: 8mm 12mm 6mm 12mm; margin-bottom: 7mm;
+    }
+    .letterhead .hosp-name { font-size: 20pt; font-weight: 800; letter-spacing: 0.5px; margin: 0; }
+    .letterhead .hosp-sub { font-size: 8.5pt; opacity: 0.85; margin-top: 2px; letter-spacing: 0.3px; }
+    .letterhead .doc-title { font-size: 10pt; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; margin-top: 6px; color: #9ec5f0; }
+    .bill-band {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      background: #f4f7fb; border-left: 4px solid #1a4674;
+      padding: 5mm 6mm; margin-bottom: 6mm; font-size: 9.5pt;
+    }
+    .bill-band b { color: #0f2a4a; }
+    .meta-label { color: #64748b; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; }
     table { border-collapse: collapse; width: 100%; margin-bottom: 6px; }
-    td, th { border: 0.5px solid #888; padding: 3px 5px; font-size: 9pt; line-height: 1.3; }
-    th { background: #f0f0f0; font-weight: 700; text-align: left; }
-    .section-head td { font-weight: 700; background: #e0e0e0; font-size: 9pt; letter-spacing: 0.5px; }
-    .total-row td { font-weight: 700; background: #f5f5f5; }
-    .grand-total td { font-weight: 700; font-size: 11pt; border: 1.5px solid #000; }
+    td, th { padding: 5px 8px; font-size: 9pt; line-height: 1.35; }
+    thead th {
+      background: #0f2a4a; color: #fff; font-weight: 600; text-align: left;
+      font-size: 8.5pt; letter-spacing: 0.4px; text-transform: uppercase; border: none;
+    }
+    tbody td { border-bottom: 0.5px solid #e5e7eb; }
+    tbody tr:nth-child(even) td { background: #fafbfc; }
+    .section-head td {
+      font-weight: 700; background: #e8eef5; color: #0f2a4a;
+      font-size: 8.5pt; letter-spacing: 0.6px; text-transform: uppercase;
+      border-bottom: 1px solid #1a4674;
+    }
+    .total-row td { font-weight: 700; background: #f4f7fb; color: #0f2a4a; border-top: 1px solid #cbd5e1; }
+    .grand-total td {
+      font-weight: 800; font-size: 12pt; background: #0f2a4a; color: #fff;
+      border: none; padding: 7px 8px;
+    }
+    .sign-block {
+      display: flex; justify-content: space-between; margin-top: 16mm;
+      font-size: 9pt; color: #334155;
+    }
+    .sign-block .sign-line { border-top: 1px solid #94a3b8; padding-top: 3px; width: 55mm; text-align: center; }
+    .bill-footer {
+      margin-top: 8mm; padding-top: 4mm; border-top: 1px solid #e5e7eb;
+      font-size: 7.5pt; color: #94a3b8; text-align: center; letter-spacing: 0.3px;
+    }
   `
 
   const BillPrint=()=>(<>
     {/* PAGE 1 - MAIN BILL */}
     <div className="page">
-      {/* Title - no letterhead, just title */}
-      <div style={{textAlign:'center',fontSize:'16pt',fontWeight:700,marginBottom:8,borderBottom:'2px solid #000',paddingBottom:6}}>IP Bill Cum Receipt</div>
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:'10pt'}}>
+      {/* Corporate letterhead */}
+      <div className="letterhead">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div>
+            <div className="hosp-name">{hospName}</div>
+            <div className="hosp-sub">{[hospital?.address,hospital?.city].filter(Boolean).join(', ')||'Multi-Speciality Hospital'}{hospital?.phone?'  ·  Ph: '+hospital.phone:''}</div>
+          </div>
+          <div style={{textAlign:'right',fontSize:'8pt',opacity:0.9}}>
+            {hospital?.gstin&&<div>GSTIN: {hospital.gstin}</div>}
+            {hospital?.reg_no&&<div>Reg: {hospital.reg_no}</div>}
+          </div>
+        </div>
+        <div className="doc-title">In-Patient Bill cum Receipt</div>
+      </div>
+      <div className="bill-body">
+      <div className="bill-band">
         <div>
-          <div><b>Consultant:</b> {consultations[0]?.doctor||p.ref_doctor||'—'}</div>
-          <div><b>D.O.A:</b> {fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</div>
-          {p.discharge_date&&<div><b>D.O.D:</b> {fmtD(p.discharge_date)}{p.discharge_time?' '+p.discharge_time:''}</div>}
+          <div><span className="meta-label">Consultant</span><br/><b>{consultations[0]?.doctor||p.ref_doctor||'—'}</b></div>
+          <div style={{marginTop:4}}><span className="meta-label">Admitted</span><br/>{fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</div>
+          {p.discharge_date&&<div style={{marginTop:4}}><span className="meta-label">Discharged</span><br/>{fmtD(p.discharge_date)}{p.discharge_time?' '+p.discharge_time:''}</div>}
         </div>
         <div style={{textAlign:'right'}}>
-          <div><b>Bill No:</b> {p.reg_no||'—'}/{billDate.replace(/-/g,'').slice(2)}</div>
-          <div><b>Date:</b> {fmtD(billDate)}</div>
-          {p.insurance_type&&<div><b>Insurance:</b> {p.insurance_type}</div>}
+          <div><span className="meta-label">Bill No</span><br/><b>{p.reg_no||'—'}/{billDate.replace(/-/g,'').slice(2)}</b></div>
+          <div style={{marginTop:4}}><span className="meta-label">Date</span><br/>{fmtD(billDate)}</div>
+          {p.insurance_type&&<div style={{marginTop:4}}><span className="meta-label">Payment</span><br/><b>{p.insurance_type}</b></div>}
         </div>
       </div>
       {/* Patient table */}
@@ -4743,17 +4793,29 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </tbody>
       </table>
       
-      <div style={{fontSize:'9pt',marginBottom:12}}><b>Amount in words:</b> RUPEES {toWords(Math.floor(grandTotal)).toUpperCase()} ONLY</div>
-      
-      <div style={{display:'flex',justifyContent:'space-around',marginTop:20}}>
-        <div style={{textAlign:'center',width:'35%'}}><div style={{borderTop:'1px solid #000',paddingTop:6,fontSize:'10pt'}}>Authorised Signatory</div></div>
-        <div style={{textAlign:'center',width:'35%'}}><div style={{borderTop:'1px solid #000',paddingTop:6,fontSize:'10pt'}}>Cashier</div></div>
+      <div style={{fontSize:'9pt',marginBottom:4,background:'#f4f7fb',padding:'6px 10px',borderRadius:4}}><span className="meta-label">Amount in words</span><br/><b>Rupees {toWords(Math.floor(grandTotal)).toUpperCase()} Only</b></div>
+
+      <div className="sign-block">
+        <div className="sign-line">Patient / Attendant</div>
+        <div className="sign-line">Cashier</div>
+        <div className="sign-line">Authorised Signatory</div>
+      </div>
+      <div className="bill-footer">
+        This is a computer-generated bill. {hospName} · Generated {fmtD(billDate)}
+      </div>
       </div>
     </div>
 
     {/* PAGE 2 - MEDICINES DATE-WISE */}
     {pharmaTotal>0&&<div className="page">
-      <div style={{textAlign:'center',fontSize:'18pt',fontWeight:700,marginBottom:10,letterSpacing:3}}>MEDICINES</div>
+      <div className="letterhead" style={{paddingBottom:'4mm',marginBottom:'5mm'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div className="hosp-name" style={{fontSize:'15pt'}}>{hospName}</div>
+          <div style={{fontSize:'8pt',opacity:0.85,textAlign:'right'}}>{p.name} · {p.reg_no||'—'}</div>
+        </div>
+        <div className="doc-title" style={{marginTop:3}}>Medicine Details — Annexure</div>
+      </div>
+      <div className="bill-body">
       <table style={{marginBottom:6}}>
         <thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead>
         <tbody><tr><td><b>{p.name.toUpperCase()}</b></td><td>{p.reg_no||'—'}</td><td>{p.phone||'—'}</td><td>{fmtD(p.admission_date)}{p.admission_time?' '+p.admission_time:''}</td><td>{p.discharge_date?fmtD(p.discharge_date)+(p.discharge_time?' '+p.discharge_time:''):'Active'}</td></tr></tbody>
@@ -4776,6 +4838,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         </tbody>
       </table>
       <div style={{textAlign:'right',marginTop:20}}><div style={{display:'inline-block',borderTop:'1px solid #000',paddingTop:6,width:'35%',textAlign:'center',fontSize:'10pt'}}>Authorised Signature</div></div>
+      </div>
     </div>}
 
     {/* PAGE 3 - INVESTIGATION DATE-WISE */}
