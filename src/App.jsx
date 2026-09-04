@@ -4695,6 +4695,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         box-shadow: none !important;
         min-height: auto;
       }
+      .lh-space .page { padding-top: 35mm !important; }
       table { page-break-inside: auto; }
       tr { page-break-inside: avoid; page-break-after: auto; }
     }
@@ -4713,8 +4714,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     }
     .bill-body { padding: 0 12mm 10mm 12mm; }
     /* When printing on pre-printed hospital letterhead: reserve blank space at top of EVERY page */
-    .lh-space .page { padding-top: 35mm; }
-    @media print { .lh-space .page { padding-top: 35mm; } }
+    .lh-space .page { padding-top: 35mm !important; }
     /* Letterhead */
     .letterhead {
       background: linear-gradient(135deg, #0f2a4a 0%, #1a4674 100%);
