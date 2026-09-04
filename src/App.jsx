@@ -4522,6 +4522,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [rxList,setRxList]=useState([{name:'',morning:true,evening:true,sos:false,rate:''}])
   const [rxFrom,setRxFrom]=useState(p.admission_date||todayStr())
   const [rxTo,setRxTo]=useState(p.discharge_date||todayStr())
+  const [rxBillPrefix,setRxBillPrefix]=useState('')
+  const [rxBillStart,setRxBillStart]=useState('')
 
   // Lab tests
   const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:'',date:p.admission_date||todayStr()}])
@@ -4606,6 +4608,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         items.push({name:r.name.trim()+' ('+sched+')',qty:String(doses),amount:String(doses*rate),batch:'',expiry:''})
       })
       if(items.length)days.push({billNo:'',date:ds,items})
+    }
+    // Assign sequential pharmacy bill numbers if a starting number was given
+    const startN=parseInt(rxBillStart,10)
+    if(!isNaN(startN)){
+      days.forEach((d,idx)=>{d.billNo=(rxBillPrefix||'')+(startN+idx)})
     }
     if(days.length===0){alert('No doses selected (tick morning/evening/SOS).');return}
     // Merge into existing day cards by DATE (don't create duplicate days for the same date)
@@ -5015,6 +5022,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
             <div><div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:2}}>To (discharge)</div><input type="date" value={rxTo} onChange={e=>setRxTo(e.target.value)} style={{width:'100%',padding:'8px',border:'1.5px solid #bae6fd',borderRadius:8,fontSize:13,boxSizing:'border-box'}}/></div>
 
           </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:6}}>
+            <div><div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:2}}>Bill No prefix</div><input value={rxBillPrefix} onChange={e=>setRxBillPrefix(e.target.value)} placeholder="e.g. OM" style={{width:'100%',padding:'8px',border:'1.5px solid #bae6fd',borderRadius:8,fontSize:13,boxSizing:'border-box'}}/></div>
+            <div><div style={{fontSize:10,color:'#64748b',fontWeight:700,marginBottom:2}}>Starting bill no</div><input inputMode="numeric" value={rxBillStart} onChange={e=>setRxBillStart(e.target.value)} placeholder="e.g. 62" style={{width:'100%',padding:'8px',border:'1.5px solid #bae6fd',borderRadius:8,fontSize:13,boxSizing:'border-box'}}/></div>
+          </div>
+          <div style={{fontSize:10.5,color:'#0369a1',opacity:.8,marginBottom:8,lineHeight:1.4}}>Each generated day gets a pharmacy bill number in sequence (OM62, OM63…). Leave blank to fill per day manually.</div>
 
           {rxList.map((r,ri)=>(<div key={ri} style={{display:'flex',gap:6,alignItems:'center',marginBottom:6,flexWrap:'wrap'}}>
 
