@@ -4526,7 +4526,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [labTests,setLabTests]=useState([{name:'',qty:'1',rate:'',amount:'',date:p.admission_date||todayStr()}])
 
   const [billId,setBillId]=useState(null)
-  const [billDate,setBillDate]=useState(todayStr())
+  const [billDate,setBillDate]=useState(p.discharge_date||p.admission_date||todayStr())
   const [billSaving,setBillSaving]=useState(false)
   const [billSaved,setBillSaved]=useState(false)
   const [editMode,setEditMode]=useState(false)
@@ -4607,11 +4607,24 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       if(items.length)days.push({billNo:'',date:ds,items})
     }
     if(days.length===0){alert('No doses selected (tick morning/evening/SOS).');return}
-    // Replace any empty starter day; otherwise append
-    const existing=pharmaDays.filter(d=>d.items.some(i=>i.name))
-    setPharmaDays([...existing,...days])
+    // Merge into existing day cards by DATE (don't create duplicate days for the same date)
+    const merged=pharmaDays.filter(d=>d.items.some(i=>i.name)).map(d=>({...d,items:[...d.items]}))
+    let added=0,mergedInto=0
+    days.forEach(nd=>{
+      const existDay=merged.find(d=>d.date===nd.date)
+      if(existDay){
+        nd.items.forEach(ni=>{
+          const same=existDay.items.find(ei=>(ei.name||'').trim().toLowerCase()===(ni.name||'').trim().toLowerCase())
+          if(same){same.qty=String((parseFloat(same.qty)||0)+(parseFloat(ni.qty)||0));same.amount=String((parseFloat(same.amount)||0)+(parseFloat(ni.amount)||0))}
+          else existDay.items.push(ni)
+        })
+        mergedInto++
+      } else { merged.push(nd);added++ }
+    })
+    merged.sort((a,b)=>(a.date||'').localeCompare(b.date||''))
+    setPharmaDays(merged)
     setBillSaved(false)
-    alert('Generated '+days.length+' day(s) of medicine lines from '+meds.length+' medicine(s). Review and adjust any day as needed.')
+    alert('Done. '+added+' new day(s) added, '+mergedInto+' existing day(s) updated — same dates were merged, not duplicated.')
   }
 
   const saveItem=async(cat,name)=>{
