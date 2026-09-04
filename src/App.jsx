@@ -4821,7 +4821,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
             <tr className="section-head"><td colSpan={4}>PHARMACY / MEDICINES</td></tr>
             {pharmaDays.filter(d=>d.items.some(i=>i.name)).map((day,di)=>{
               const dayTotal=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
-              return(<tr key={di}><td style={{paddingLeft:16}}>{day.billNo||('Day '+(di+1))} — {fmtD(day.date)}</td><td></td><td></td><td style={{textAlign:'right'}}>{fmt(dayTotal)}</td></tr>)
+              return(<tr key={di}><td style={{paddingLeft:16}}>Day {di+1} · {fmtD(day.date)}{day.billNo?<span style={{color:'#475569'}}>  ·  Bill No: <b>{day.billNo}</b></span>:''}</td><td></td><td></td><td style={{textAlign:'right'}}>{fmt(dayTotal)}</td></tr>)
             })}
             <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Pharmacy Total</td><td style={{textAlign:'right'}}>{fmt(pharmaTotal)}</td></tr>
           </>}
