@@ -4712,6 +4712,9 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       box-shadow: 0 4px 16px rgba(0,0,0,0.08);
     }
     .bill-body { padding: 0 12mm 10mm 12mm; }
+    /* When printing on pre-printed hospital letterhead: reserve blank space at top of EVERY page */
+    .lh-space .page { padding-top: 35mm; }
+    @media print { .lh-space .page { padding-top: 35mm; } }
     /* Letterhead */
     .letterhead {
       background: linear-gradient(135deg, #0f2a4a 0%, #1a4674 100%);
@@ -4766,9 +4769,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     {/* PAGE 1 - MAIN BILL */}
     <div className="page">
       {/* Corporate letterhead (hidden when printing on pre-printed hospital paper) */}
-      {hideLetterhead
-        ? <div style={{height:'32mm'}}></div>
-        : <div className="letterhead">
+      {!hideLetterhead&&<div className="letterhead">
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
           <div>
             <div className="hosp-name">{hospName}</div>
@@ -4783,6 +4784,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       </div>}
       {hideLetterhead&&<div style={{textAlign:'center',fontSize:'13pt',fontWeight:800,letterSpacing:2,color:'#0f2a4a',margin:'0 0 5mm 0',textTransform:'uppercase'}}>In-Patient Bill cum Receipt</div>}
       <div className="bill-body">
+      {/* lh-gap-handled */}
       <div className="bill-band">
         <div>
           <div><span className="meta-label">Consultant</span><br/><b>{consultations[0]?.doctor||p.ref_doctor||'—'}</b></div>
@@ -4858,9 +4860,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
     {/* PAGE 2 - MEDICINES DATE-WISE */}
     {pharmaTotal>0&&<div className="page">
-      {hideLetterhead
-        ? <div style={{height:'32mm'}}></div>
-        : <div className="letterhead" style={{paddingBottom:'4mm',marginBottom:'5mm'}}>
+      {!hideLetterhead&&<div className="letterhead" style={{paddingBottom:'4mm',marginBottom:'5mm'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div className="hosp-name" style={{fontSize:'15pt'}}>{hospName}</div>
           <div style={{fontSize:'8pt',opacity:0.85,textAlign:'right'}}>{p.name} · {p.reg_no||'—'}</div>
@@ -4928,7 +4928,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       </label>
       <span style={{color:'#94a3b8',fontSize:12}}>A4 size</span>
     </div>
-    <div className="print-container" style={{paddingTop:56}}>
+    <div className={"print-container"+(hideLetterhead?" lh-space":"")} style={{paddingTop:56}}>
       {view==='bill'&&<BillPrint/>}
       {view==='discharge'&&<DischargePrint/>}
       {view==='receipts'&&printReceipt&&<ReceiptPrint r={printReceipt}/>}
