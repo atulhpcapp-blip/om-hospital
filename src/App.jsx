@@ -4492,6 +4492,7 @@ const AutoInput=({value,onChange,placeholder,suggestions,style})=>{
 const IPBillingModule=({p,db,onClose,hospital})=>{
   const [view,setView]=useState('bill')
   const [printMode,setPrintMode]=useState(false)
+  const [hideLetterhead,setHideLetterhead]=useState(false)
   const [savedItems,setSavedItems]=useState({medicine:[],lab:[],service:[]})
   const [receipts,setReceipts]=useState([])
   const [loadingReceipts,setLoadingReceipts]=useState(true)
@@ -4764,8 +4765,10 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const BillPrint=()=>(<>
     {/* PAGE 1 - MAIN BILL */}
     <div className="page">
-      {/* Corporate letterhead */}
-      <div className="letterhead">
+      {/* Corporate letterhead (hidden when printing on pre-printed hospital paper) */}
+      {hideLetterhead
+        ? <div style={{height:'32mm'}}></div>
+        : <div className="letterhead">
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
           <div>
             <div className="hosp-name">{hospName}</div>
@@ -4777,7 +4780,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           </div>
         </div>
         <div className="doc-title">In-Patient Bill cum Receipt</div>
-      </div>
+      </div>}
+      {hideLetterhead&&<div style={{textAlign:'center',fontSize:'13pt',fontWeight:800,letterSpacing:2,color:'#0f2a4a',margin:'0 0 5mm 0',textTransform:'uppercase'}}>In-Patient Bill cum Receipt</div>}
       <div className="bill-body">
       <div className="bill-band">
         <div>
@@ -4854,13 +4858,16 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
 
     {/* PAGE 2 - MEDICINES DATE-WISE */}
     {pharmaTotal>0&&<div className="page">
-      <div className="letterhead" style={{paddingBottom:'4mm',marginBottom:'5mm'}}>
+      {hideLetterhead
+        ? <div style={{height:'32mm'}}></div>
+        : <div className="letterhead" style={{paddingBottom:'4mm',marginBottom:'5mm'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div className="hosp-name" style={{fontSize:'15pt'}}>{hospName}</div>
           <div style={{fontSize:'8pt',opacity:0.85,textAlign:'right'}}>{p.name} · {p.reg_no||'—'}</div>
         </div>
         <div className="doc-title" style={{marginTop:3}}>Medicine Details — Annexure</div>
-      </div>
+      </div>}
+      {hideLetterhead&&<div style={{textAlign:'center',fontSize:'12pt',fontWeight:800,letterSpacing:2,color:'#0f2a4a',margin:'0 0 4mm 0'}}>MEDICINE DETAILS — {p.name}</div>}
       <div className="bill-body">
       <table style={{marginBottom:6}}>
         <thead><tr><th>Name</th><th>Reg No</th><th>Phone</th><th>D.O.A</th><th>D.O.D</th></tr></thead>
@@ -4915,7 +4922,11 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     <div className="no-print" style={{position:'fixed',top:0,left:0,right:0,zIndex:100,background:'#1e293b',padding:'10px 16px',display:'flex',gap:8,alignItems:'center'}}>
       <button onClick={()=>window.print()} style={{padding:'8px 24px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontWeight:700,cursor:'pointer',fontSize:14}}>🖨 Print / Save PDF</button>
       <button onClick={()=>{setPrintMode(false);setPrintReceipt(null)}} style={{padding:'8px 16px',background:'none',border:'1px solid #475569',borderRadius:8,cursor:'pointer',fontSize:14,color:'#fff'}}>← Back</button>
-      <span style={{color:'#94a3b8',fontSize:12}}>A4 size — prints on letterhead</span>
+      <label style={{color:'#fff',fontSize:13,display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
+        <input type="checkbox" checked={hideLetterhead} onChange={e=>setHideLetterhead(e.target.checked)}/>
+        Hide letterhead (printing on hospital paper)
+      </label>
+      <span style={{color:'#94a3b8',fontSize:12}}>A4 size</span>
     </div>
     <div className="print-container" style={{paddingTop:56}}>
       {view==='bill'&&<BillPrint/>}
