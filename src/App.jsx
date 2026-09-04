@@ -4741,8 +4741,14 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
     }
     .total-row td { font-weight: 700; background: #f4f7fb; color: #0f2a4a; border-top: 1px solid #cbd5e1; }
     .grand-total td {
-      font-weight: 800; font-size: 12pt; background: #0f2a4a; color: #fff;
+      font-weight: 800; font-size: 12pt; background: #0f2a4a !important; color: #fff !important;
       border: none; padding: 7px 8px;
+      -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    thead th { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .letterhead, .section-head td, .grand-total td, thead th {
+      -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
     }
     .sign-block {
       display: flex; justify-content: space-between; margin-top: 16mm;
@@ -4796,34 +4802,28 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       <table style={{marginBottom:8}}>
         <thead><tr><th style={{width:'55%'}}>Particulars</th><th style={{textAlign:'right',width:'10%'}}>Qty</th><th style={{textAlign:'right',width:'17%'}}>Rate</th><th style={{textAlign:'right',width:'18%'}}>Amount</th></tr></thead>
         <tbody>
-          {/* Medicines */}
+          {/* 1. HOSPITAL CHARGES — room, consultation, nursing, other */}
+          {(roomTotal>0||consultTotal>0||otherTotal>0)&&<>
+            <tr className="section-head"><td colSpan={4}>HOSPITAL CHARGES</td></tr>
+            {roomCharges.filter(i=>i.name&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={'r'+idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
+            {consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={'c'+idx}><td style={{paddingLeft:16}}>Consultation ({i.doctor})</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
+            {otherCharges.filter(i=>i.name&&parseFloat(i.rate)).map((i,idx)=><tr key={'o'+idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt((parseFloat(i.qty)||1)*parseFloat(i.rate))}</td></tr>)}
+            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Hospital Charges Total</td><td style={{textAlign:'right'}}>{fmt(roomTotal+consultTotal+otherTotal)}</td></tr>
+          </>}
+          {/* 2. PHARMACY */}
           {pharmaTotal>0&&<>
-            <tr className="section-head"><td colSpan={4}>MEDICINES</td></tr>
+            <tr className="section-head"><td colSpan={4}>PHARMACY / MEDICINES</td></tr>
             {pharmaDays.filter(d=>d.items.some(i=>i.name)).map((day,di)=>{
               const dayTotal=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
               return(<tr key={di}><td style={{paddingLeft:16}}>{day.billNo||('Day '+(di+1))} — {fmtD(day.date)}</td><td></td><td></td><td style={{textAlign:'right'}}>{fmt(dayTotal)}</td></tr>)
             })}
-            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Medicines Total</td><td style={{textAlign:'right'}}>{fmt(pharmaTotal)}</td></tr>
+            <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Pharmacy Total</td><td style={{textAlign:'right'}}>{fmt(pharmaTotal)}</td></tr>
           </>}
-          {/* Investigation */}
+          {/* 3. INVESTIGATIONS */}
           {labTotal>0&&<>
             <tr className="section-head"><td colSpan={4}>INVESTIGATION CHARGES</td></tr>
             {(()=>{const rows=labTests.filter(i=>i.name);const byDate={};rows.forEach(i=>{const d=i.date||'—';(byDate[d]=byDate[d]||[]).push(i)});return Object.keys(byDate).sort().map(d=>(<Fragment key={d}><tr><td colSpan={4} style={{paddingLeft:16,fontStyle:'italic',color:'#475569',fontSize:'8.5pt'}}>{d==='—'?'Date not set':fmtD(d)}</td></tr>{byDate[d].map((i,idx)=>{const amt=(parseFloat(i.qty)||1)*(parseFloat(i.rate)||0);return(<tr key={idx}><td style={{paddingLeft:28}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate)||0)}</td><td style={{textAlign:'right'}}>{fmt(amt)}</td></tr>)})}</Fragment>))})()}
             <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Investigation Total</td><td style={{textAlign:'right'}}>{fmt(labTotal)}</td></tr>
-          </>}
-          {/* Consultation */}
-          {consultTotal>0&&<>
-            <tr className="section-head"><td colSpan={4}>CONSULTATION</td></tr>
-            {consultations.filter(i=>i.doctor&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{paddingLeft:16}}>Consultation ({i.doctor})</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
-          </>}
-          {/* Room charges */}
-          {roomTotal>0&&<>
-            {roomCharges.filter(i=>i.name&&parseFloat(i.qty)&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{fontWeight:600}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.qty)*parseFloat(i.rate))}</td></tr>)}
-          </>}
-          {/* Others */}
-          {otherTotal>0&&<>
-            <tr className="section-head"><td colSpan={4}>OTHERS</td></tr>
-            {otherCharges.filter(i=>i.name&&parseFloat(i.rate)).map((i,idx)=><tr key={idx}><td style={{paddingLeft:16}}>{i.name}</td><td style={{textAlign:'right'}}>{i.qty||1}</td><td style={{textAlign:'right'}}>{fmt(parseFloat(i.rate))}</td><td style={{textAlign:'right'}}>{fmt((parseFloat(i.qty)||1)*parseFloat(i.rate))}</td></tr>)}
           </>}
           {/* Grand total */}
           <tr className="grand-total"><td colSpan={3} style={{textAlign:'right',fontSize:'12pt'}}>Grand Total</td><td style={{textAlign:'right',fontSize:'12pt'}}>{fmt(grandTotal)}</td></tr>
@@ -5107,7 +5107,19 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {(advAmt+discAmt)>0&&<div style={{color:'#4ade80',fontSize:16,fontWeight:700,display:'flex',justifyContent:'space-between',borderTop:'1px solid rgba(255,255,255,0.2)',paddingTop:8}}><span>Final Settlement</span><span>{fmt(finalAmt)}</span></div>}
         </div>
         <div style={{display:'flex',gap:8,marginTop:8}}>
-          {!printMode&&<div className="no-print" style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+          {!printMode&&<div className="no-print" style={{position:'sticky',bottom:0,zIndex:20,background:'#0f172a',borderRadius:12,padding:'12px 16px',marginBottom:10,boxShadow:'0 -4px 16px rgba(0,0,0,0.15)',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+          <div style={{display:'flex',gap:14,flexWrap:'wrap',fontSize:11,color:'rgba(255,255,255,0.6)'}}>
+            <span>Hospital {fmt(roomTotal+consultTotal+otherTotal)}</span>
+            <span>Pharmacy {fmt(pharmaTotal)}</span>
+            <span>Lab {fmt(labTotal)}</span>
+            {discAmt>0&&<span style={{color:'#fbbf24'}}>Disc -{fmt(discAmt)}</span>}
+          </div>
+          <div style={{display:'flex',gap:16,alignItems:'baseline'}}>
+            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)'}}>GRAND TOTAL</div><div style={{fontSize:18,fontWeight:800,color:'#fff'}}>{fmt(grandTotal)}</div></div>
+            {(discAmt>0||advAmt>0)&&<div style={{textAlign:'right'}}><div style={{fontSize:10,color:'rgba(255,255,255,0.5)'}}>PAYABLE</div><div style={{fontSize:18,fontWeight:800,color:'#4ade80'}}>{fmt(finalAmt)}</div></div>}
+          </div>
+        </div>}
+        {!printMode&&<div className="no-print" style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
           <span style={{fontSize:12,fontWeight:700,color:'#475569'}}>Bill date:</span>
           <input type="date" value={billDate} onChange={e=>{setBillDate(e.target.value);setBillSaved(false)}} style={{padding:'8px 10px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:13}}/>
           <span style={{fontSize:11,color:'#94a3b8'}}>appears on the printed bill</span>
