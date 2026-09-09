@@ -4609,10 +4609,14 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       })
       if(items.length)days.push({billNo:'',date:ds,items})
     }
-    // Assign sequential pharmacy bill numbers if a starting number was given
+    // Assign pharmacy bill numbers. If a start number is given, use it; otherwise auto-generate
+    // a unique per-day number from the patient reg + date so every day always has one.
     const startN=parseInt(rxBillStart,10)
     if(!isNaN(startN)){
       days.forEach((d,idx)=>{d.billNo=(rxBillPrefix||'')+(startN+idx)})
+    } else {
+      const base=(p.reg_no||'OM').replace(/[^A-Za-z0-9]/g,'').slice(-4).toUpperCase()
+      days.forEach((d)=>{d.billNo=base+'-'+d.date.replace(/-/g,'').slice(4)})
     }
     if(days.length===0){alert('No doses selected (tick morning/evening/SOS).');return}
     // Merge into existing day cards by DATE (don't create duplicate days for the same date)
@@ -4771,6 +4775,84 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       font-size: 7.5pt; color: #94a3b8; text-align: center; letter-spacing: 0.3px;
     }
   `
+
+  const DischargePrint=()=>(<div className="page">
+      {!hideLetterhead&&<div className="letterhead">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div>
+            <div className="hosp-name">{hospName}</div>
+            <div className="hosp-sub">{[hospital?.address,hospital?.city].filter(Boolean).join(', ')||'Multi-Speciality Hospital'}{hospital?.phone?'  ·  Ph: '+hospital.phone:''}</div>
+          </div>
+        </div>
+        <div className="doc-title">Discharge Summary</div>
+      </div>}
+      {hideLetterhead&&<div style={{textAlign:'center',fontSize:'13pt',fontWeight:800,letterSpacing:2,color:'#0f2a4a',margin:'0 0 5mm 0',textTransform:'uppercase'}}>Discharge Summary</div>}
+      <div className="bill-body">
+      <div className="bill-band">
+        <div>
+          <div><span className="meta-label">Patient</span><br/><b>{p.name}</b></div>
+          <div style={{marginTop:4}}><span className="meta-label">Reg No</span><br/>{p.reg_no||'—'}</div>
+          <div style={{marginTop:4}}><span className="meta-label">Consultant</span><br/>{consultations[0]?.doctor||p.ref_doctor||'—'}</div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div><span className="meta-label">Admitted</span><br/>{fmtD(p.admission_date)}</div>
+          {p.discharge_date&&<div style={{marginTop:4}}><span className="meta-label">Discharged</span><br/>{fmtD(p.discharge_date)}</div>}
+          {p.room&&<div style={{marginTop:4}}><span className="meta-label">Room</span><br/>{p.room}</div>}
+        </div>
+      </div>
+      <div style={{whiteSpace:'pre-wrap',fontSize:'10pt',lineHeight:1.6,minHeight:'120mm',padding:'2mm 0'}}>{dischargeText||'(No discharge summary entered)'}</div>
+      <div className="sign-block">
+        <div className="sign-line">Patient / Attendant</div>
+        <div className="sign-line">Consultant Signature</div>
+      </div>
+      <div className="bill-footer">{hospName} · Discharge Summary · {fmtD(p.discharge_date||todayStr())}</div>
+      </div>
+    </div>)
+
+  const ReceiptPrint=({r})=>{
+    if(!r)return null
+    return(<div className="page">
+      {!hideLetterhead&&<div className="letterhead">
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div>
+            <div className="hosp-name">{hospName}</div>
+            <div className="hosp-sub">{[hospital?.address,hospital?.city].filter(Boolean).join(', ')||'Multi-Speciality Hospital'}{hospital?.phone?'  ·  Ph: '+hospital.phone:''}</div>
+          </div>
+          <div style={{textAlign:'right',fontSize:'8pt',opacity:0.9}}>
+            {hospital?.gstin&&<div>GSTIN: {hospital.gstin}</div>}
+          </div>
+        </div>
+        <div className="doc-title">Payment Receipt</div>
+      </div>}
+      {hideLetterhead&&<div style={{textAlign:'center',fontSize:'13pt',fontWeight:800,letterSpacing:2,color:'#0f2a4a',margin:'0 0 5mm 0',textTransform:'uppercase'}}>Payment Receipt</div>}
+      <div className="bill-body">
+      <div className="bill-band">
+        <div>
+          <div><span className="meta-label">Received from</span><br/><b>{p.name}</b></div>
+          <div style={{marginTop:4}}><span className="meta-label">Reg No</span><br/>{p.reg_no||'—'}</div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div><span className="meta-label">Receipt No</span><br/><b>{r.receipt_no||'—'}</b></div>
+          <div style={{marginTop:4}}><span className="meta-label">Date</span><br/>{fmtD(r.receipt_date)}</div>
+          <div style={{marginTop:4}}><span className="meta-label">Mode</span><br/><b>{(r.mode||'cash').toUpperCase()}</b></div>
+        </div>
+      </div>
+      <table style={{marginBottom:8}}>
+        <thead><tr><th>Description</th><th style={{textAlign:'right',width:'30%'}}>Amount</th></tr></thead>
+        <tbody>
+          <tr><td>Payment received towards in-patient charges{r.notes?' — '+r.notes:''}</td><td style={{textAlign:'right'}}>{fmt(r.amount)}</td></tr>
+          <tr className="grand-total"><td style={{textAlign:'right'}}>Total Received</td><td style={{textAlign:'right'}}>{fmt(r.amount)}</td></tr>
+        </tbody>
+      </table>
+      <div style={{fontSize:'9pt',marginBottom:4,background:'#f4f7fb',padding:'6px 10px',borderRadius:4}}><span className="meta-label">Amount in words</span><br/><b>Rupees {toWords(Math.floor(r.amount||0)).toUpperCase()} Only</b></div>
+      <div className="sign-block">
+        <div className="sign-line">Patient / Attendant</div>
+        <div className="sign-line">Authorised Signatory</div>
+      </div>
+      <div className="bill-footer">This is a computer-generated receipt. {hospName} · {fmtD(r.receipt_date)}</div>
+      </div>
+    </div>)
+  }
 
   const BillPrint=()=>(<>
     {/* PAGE 1 - MAIN BILL */}
@@ -5156,7 +5238,10 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       {/* ── RECEIPTS ── */}
       {view==='receipts'&&<>
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Generate receipt</div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:700}}>Generate receipt</div>
+            <button onClick={()=>setNewReceipt({...newReceipt,notes:'Advance payment'})} style={{fontSize:11,padding:'4px 10px',background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:8,color:'#92400e',cursor:'pointer',fontWeight:600}}>+ Mark as Advance</button>
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             <FInp label="Amount (Rs)" type="number" value={newReceipt.amount} onChange={e=>setNewReceipt({...newReceipt,amount:e.target.value})} placeholder="0"/>
             <FInp label="Date" type="date" value={newReceipt.date} onChange={e=>setNewReceipt({...newReceipt,date:e.target.value})}/>
