@@ -1163,6 +1163,19 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
   const [users,setUsers]=useState([])
   const [loading,setLoading]=useState(true)
   const [showAdd,setShowAdd]=useState(false)
+  const [hEdit,setHEdit]=useState(false)
+  const [hForm,setHForm]=useState({name:hospital?.name||'',city:hospital?.city||'',address:hospital?.address||'',phone:hospital?.phone||'',gstin:hospital?.gstin||''})
+  const [hSaving,setHSaving]=useState(false)
+  const [hMsg,setHMsg]=useState('')
+  const saveHosp=async()=>{
+    if(!hospital?.id){setHMsg('Hospital not loaded');return}
+    setHSaving(true);setHMsg('')
+    const {error}=await supabase.from('hospitals').update({name:hForm.name.trim(),city:hForm.city.trim(),address:hForm.address.trim(),phone:hForm.phone.trim(),gstin:hForm.gstin.trim()}).eq('id',hospital.id)
+    setHSaving(false)
+    if(error){setHMsg('Save failed: '+error.message);return}
+    setHMsg('✓ Saved. Refresh to see it everywhere.');setHEdit(false)
+    onLogoUpdate&&onLogoUpdate(logoUrl) // trigger parent refresh path
+  }
   const [nF,setNF]=useState({name:'',username:'',pass:'',role:'staff'})
   const [busy,setBusy]=useState(false)
   const [msg,setMsg]=useState(null)
@@ -1243,6 +1256,36 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
           <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginTop:6}}>Recommended: Square image, PNG or JPG, under 2MB</div>
         </div>
       </div>)}
+      {/* Hospital details editor (admin) */}
+      {hospital&&<div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'16px',marginBottom:12}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:hEdit?12:6}}>
+          <div style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>🏥 Hospital details</div>
+          {!hEdit&&<button onClick={()=>{setHForm({name:hospital?.name||'',city:hospital?.city||'',address:hospital?.address||'',phone:hospital?.phone||'',gstin:hospital?.gstin||''});setHMsg('');setHEdit(true)}} style={{fontSize:12,padding:'6px 14px',background:'#eff6ff',border:'1.5px solid #93c5fd',borderRadius:8,color:'#1d4ed8',cursor:'pointer',fontWeight:700}}>✏️ Edit</button>}
+        </div>
+        {!hEdit
+          ? <div style={{fontSize:13,color:'#334155',lineHeight:1.9}}>
+              <div><b>Name:</b> {hospital.name||'—'}</div>
+              <div><b>City:</b> {hospital.city||'—'}</div>
+              <div><b>Address:</b> {hospital.address||'—'}</div>
+              <div><b>Phone:</b> {hospital.phone||'—'}</div>
+              <div><b>GSTIN:</b> {hospital.gstin||'—'}</div>
+            </div>
+          : <div>
+              {[['name','Hospital name'],['city','City'],['address','Address'],['phone','Phone'],['gstin','GSTIN (optional)']].map(([f,lbl])=>(
+                <div key={f} style={{marginBottom:8}}>
+                  <div style={{fontSize:11,color:'#64748b',fontWeight:700,marginBottom:3}}>{lbl}</div>
+                  <input value={hForm[f]} onChange={e=>setHForm({...hForm,[f]:e.target.value})} style={{width:'100%',padding:'9px 11px',border:'1.5px solid #e2e8f0',borderRadius:9,fontSize:14,boxSizing:'border-box'}}/>
+                </div>
+              ))}
+              <div style={{display:'flex',gap:8,marginTop:10}}>
+                <button onClick={()=>{setHEdit(false);setHMsg('')}} style={{flex:1,padding:'10px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:9,fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel</button>
+                <button onClick={saveHosp} disabled={hSaving} style={{flex:2,padding:'10px',background:'#059669',color:'#fff',border:'none',borderRadius:9,fontSize:13,fontWeight:800,cursor:'pointer',opacity:hSaving?0.6:1}}>{hSaving?'Saving...':'Save details'}</button>
+              </div>
+            </div>}
+        {hMsg&&<div style={{marginTop:8,fontSize:12,fontWeight:600,color:hMsg.includes('failed')?'#dc2626':'#16a34a'}}>{hMsg}</div>}
+      </div>}
+      {currentUser?.role!=='admin'&&<div style={{fontSize:12,color:'#94a3b8',textAlign:'center',padding:'8px'}}>User management is available to admins only.</div>}
+      {currentUser?.role==='admin'&&<>
       <div style={{background:'linear-gradient(135deg,#111 0%,#374151 100%)',borderRadius:16,padding:'20px 16px',marginBottom:16,color:'#fff'}}>
         <div style={{fontSize:12,color:'#9ca3af',fontWeight:600,textTransform:'uppercase',marginBottom:4}}>Logged in as</div>
         <div style={{fontSize:18,fontWeight:700}}>{currentUser.name||'Admin'}</div>
@@ -1292,6 +1335,7 @@ const AdminTab=({currentUser,hospital=null,onLogoUpdate=()=>{}})=>{
           {myPwdMsg&&<div style={{fontSize:12,fontWeight:600,color:'#16a34a'}}>{myPwdMsg}</div>}
         </div>}
       </div>
+      </>}
     </div>
   )
 }
@@ -7020,7 +7064,7 @@ export default function App(){
   const isAdmin=profile?.role==='admin'
   const isManagement=profile?.role==='management'
   const canSeeReports=isAdmin||isManagement
-  const TABS=[...(canSeeReports?[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'First Entry'},{k:'ip',l:'IP Patients'},...(canSeeReports?[{k:'op',l:'OP Patients'}]:[]),{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'refdrs',l:'Ref Doctors'}]:[]),{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'},{k:'employees',l:'👥 Employees'}]:[]),...(isAdmin?[{k:'admin',l:'Users'}]:[])]
+  const TABS=[...(canSeeReports?[{k:'dash',l:'Dashboard'},{k:'rep',l:'Reports'}]:[]),{k:'entry',l:'First Entry'},{k:'ip',l:'IP Patients'},...(canSeeReports?[{k:'op',l:'OP Patients'}]:[]),{k:'ins',l:'🏥 Insurance'},{k:'exp',l:'Expenses'},...(canSeeReports?[{k:'refdrs',l:'Ref Doctors'}]:[]),{k:'consult',l:'Consultants'},...(canSeeReports?[{k:'credit',l:'Credit'},{k:'employees',l:'👥 Employees'}]:[]),...(canSeeReports?[{k:'admin',l:isAdmin?'Users':'Settings'}]:[])]
 
   if(loading||(!profile&&session&&!isSuperAdmin))return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'linear-gradient(160deg,#0a1628 0%,#0f2044 100%)',padding:24}}>
@@ -7199,7 +7243,7 @@ export default function App(){
         {tab==='refdrs'&&canSeeReports&&<RefDoctorsTab db={db} actions={actions}/>}
         {tab==='consult'&&<ConsultantsTab db={db} actions={actions}/>}
         {tab==='employees'&&canSeeReports&&<EmployeesTab db={db} actions={actions}/>}
-        {isAdmin&&tab==='admin'&&<AdminTab currentUser={profile} hospital={hospital} onLogoUpdate={url=>setHospital(h=>({...h,logo_url:url}))}/>}
+        {canSeeReports&&tab==='admin'&&<AdminTab currentUser={profile} hospital={hospital} onLogoUpdate={url=>setHospital(h=>({...h,logo_url:url}))}/>}
       </div>
     </div>
   )
