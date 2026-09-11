@@ -1,6 +1,31 @@
-import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react'
 import { supabase } from './supabase.js'
 
+const RichText=({value,onChange,placeholder})=>{
+  const ref=useRef(null)
+  // Only set innerHTML when the incoming value differs from what's shown (avoids cursor jumps)
+  useEffect(()=>{ if(ref.current&&ref.current.innerHTML!==(value||'')) ref.current.innerHTML=value||'' },[value])
+  const exec=(cmd,arg)=>{document.execCommand(cmd,false,arg);ref.current&&onChange(ref.current.innerHTML);ref.current&&ref.current.focus()}
+  const Btn=({cmd,arg,label,title})=>(<button type="button" title={title||label} onMouseDown={e=>{e.preventDefault();exec(cmd,arg)}} style={{minWidth:32,height:30,border:'1px solid #e2e8f0',background:'#fff',borderRadius:6,cursor:'pointer',fontSize:13,fontWeight:700,color:'#334155'}}>{label}</button>)
+  return(<div style={{border:'1.5px solid #e2e8f0',borderRadius:10,overflow:'hidden'}}>
+    <div style={{display:'flex',gap:4,flexWrap:'wrap',padding:'6px',background:'#f8fafc',borderBottom:'1px solid #e2e8f0'}}>
+      <Btn cmd="bold" label="B" title="Bold"/>
+      <Btn cmd="italic" label={<span style={{fontStyle:'italic'}}>I</span>} title="Italic"/>
+      <Btn cmd="underline" label={<span style={{textDecoration:'underline'}}>U</span>} title="Underline"/>
+      <span style={{width:1,background:'#e2e8f0',margin:'2px 2px'}}></span>
+      <Btn cmd="formatBlock" arg="H3" label="H" title="Heading"/>
+      <Btn cmd="insertUnorderedList" label="• List" title="Bullet list"/>
+      <Btn cmd="insertOrderedList" label="1." title="Numbered list"/>
+      <span style={{width:1,background:'#e2e8f0',margin:'2px 2px'}}></span>
+      <Btn cmd="removeFormat" label="✕" title="Clear formatting"/>
+    </div>
+    <div ref={ref} contentEditable suppressContentEditableWarning
+      onInput={e=>onChange(e.currentTarget.innerHTML)}
+      data-ph={placeholder||''}
+      style={{minHeight:220,padding:'12px 14px',fontSize:14,lineHeight:1.6,outline:'none'}}/>
+    <style>{`[contenteditable]:empty:before{content:attr(data-ph);color:#cbd5e1;white-space:pre-wrap}`}</style>
+  </div>)
+}
 const ITYPES=[{key:'op',label:'OP',full:'OP Consultation'},{key:'opd',label:'OPD',full:'OPD Services'},{key:'op_p',label:'OP-P',full:'OP Procedures'},{key:'op_dm',label:'OP-DM',full:'OP Discharge Medicine'},{key:'ip',label:'IP',full:'IP Charges'},{key:'op_r',label:'OP-R',full:'OP Pharmacy'},{key:'ip_r',label:'IP-R',full:'IP Pharmacy'},{key:'op_l',label:'OP-L',full:'OP Lab'},{key:'ip_l',label:'IP-L',full:'IP Lab'},{key:'ip_p',label:'IP-P',full:'IP Package'},{key:'vc',label:'VC',full:'Visiting Consultant'}]
 const ECATS=[{key:'ref_paid',label:'Referral commission paid',segment:'skip'},{key:'consultant_fee',label:'Consultant fee (OP Consult)',segment:'skip'},{key:'consultant_proc_comm',label:'Consultant commission (OP Procedure)',segment:'skip'},{key:'comm_retained_clinical',label:'Commission retained (Clinical)',segment:'skip'},{key:'comm_retained_lab',label:'Commission retained (Lab)',segment:'skip'},{key:'lab_to_lab',label:'Lab to lab expenses',segment:'lab'},{key:'lab_grbs',label:'GRBS strips',segment:'lab'},{key:'lab_ecg',label:'ECG strips/rolls',segment:'lab'},{key:'lab_reagents',label:'Lab reagents & kits',segment:'lab'},{key:'lab_consumables',label:'Lab consumables',segment:'lab'},{key:'rent',label:'Hospital rent',segment:'clinical'},{key:'electricity',label:'Electricity',segment:'clinical'},{key:'water',label:'Water',segment:'clinical'},{key:'salary',label:'Staff salary',segment:'clinical'},{key:'supplies',label:'Medical supplies',segment:'clinical'},{key:'municipality',label:'Municipality',segment:'clinical'},{key:'biomedical_bags',label:'Biomedical waste bags',segment:'clinical'},{key:'stationary',label:'Stationary',segment:'clinical'},{key:'washroom_cleaner',label:'Washroom cleaner',segment:'clinical'},{key:'biomedical_yearly',label:'Biomedical waste (yearly)',segment:'clinical'},{key:'misc',label:'Miscellaneous',segment:'clinical'}]
 const LAB_INCOME_TYPES=new Set(['op_l','ip_l'])
@@ -4703,7 +4728,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   }
 
   // Totals
-  const pharmaTotal=pharmaDays.reduce((a,day)=>a+day.items.reduce((b,i)=>b+(parseFloat(i.amount)||0),0),0)
+  const pharmaTotal=pharmaDays.reduce((a,day)=>a+day.items.filter(i=>(i.name||'').trim()).reduce((b,i)=>b+(parseFloat(i.amount)||0),0),0)
   const labTotal=labTests.reduce((a,i)=>a+(parseFloat(i.qty)||1)*(parseFloat(i.rate)||parseFloat(i.amount)||0),0)
   const consultTotal=consultations.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
   const roomTotal=roomCharges.reduce((a,i)=>a+(parseFloat(i.qty)||0)*(parseFloat(i.rate)||0),0)
@@ -4844,7 +4869,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {p.room&&<div style={{marginTop:4}}><span className="meta-label">Room</span><br/>{p.room}</div>}
         </div>
       </div>
-      <div style={{whiteSpace:'pre-wrap',fontSize:'10pt',lineHeight:1.6,minHeight:'120mm',padding:'2mm 0'}}>{dischargeText||'(No discharge summary entered)'}</div>
+      {dischargeText?<div style={{fontSize:'10pt',lineHeight:1.6,minHeight:'120mm',padding:'2mm 0'}} dangerouslySetInnerHTML={{__html:dischargeText}}/>:<div style={{fontSize:'10pt',color:'#94a3b8',minHeight:'120mm',padding:'2mm 0'}}>(No discharge summary entered)</div>}
       <div className="sign-block">
         <div className="sign-line">Patient / Attendant</div>
         <div className="sign-line">Consultant Signature</div>
@@ -4953,7 +4978,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
           {pharmaTotal>0&&<>
             <tr className="section-head"><td colSpan={4}>PHARMACY / MEDICINES</td></tr>
             {pharmaDays.filter(d=>d.items.some(i=>i.name)).map((day,di)=>{
-              const dayTotal=day.items.reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
+              const dayTotal=day.items.filter(i=>(i.name||'').trim()).reduce((a,i)=>a+(parseFloat(i.amount)||0),0)
               return(<tr key={di}><td style={{paddingLeft:16}}>Day {di+1} · {fmtD(day.date)}{day.billNo?<span style={{color:'#475569'}}>  ·  Bill No: <b>{day.billNo}</b></span>:''}</td><td></td><td></td><td style={{textAlign:'right'}}>{fmt(dayTotal)}</td></tr>)
             })}
             <tr className="total-row"><td colSpan={3} style={{textAlign:'right'}}>Pharmacy Total</td><td style={{textAlign:'right'}}>{fmt(pharmaTotal)}</td></tr>
@@ -5318,7 +5343,7 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
           <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Discharge Summary</div>
           <div style={{fontSize:12,color:'#94a3b8',marginBottom:8}}>Type or paste complete discharge summary</div>
-          <textarea value={dischargeText} onChange={e=>setDischargeText(e.target.value)} placeholder="Chief complaint:&#10;History:&#10;Examination:&#10;Investigations:&#10;Diagnosis:&#10;Treatment given:&#10;Condition at discharge:&#10;Advice:&#10;Follow-up:" style={{width:'100%',minHeight:400,padding:'12px',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,lineHeight:1.8,outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
+          <RichText value={dischargeText} onChange={setDischargeText} placeholder={"Chief complaint:\nHistory:\nExamination:\nInvestigations:\nDiagnosis:\nTreatment given:\nCondition at discharge:\nAdvice:\nFollow-up:"}/>
         </div>
         <GBtn onClick={()=>setPrintMode(true)}>🖨 Print Discharge Summary</GBtn>
       </>}
