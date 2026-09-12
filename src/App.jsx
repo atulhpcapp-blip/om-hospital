@@ -4566,7 +4566,8 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   const [receipts,setReceipts]=useState([])
   const [loadingReceipts,setLoadingReceipts]=useState(true)
   const [savingReceipt,setSavingReceipt]=useState(false)
-  const [newReceipt,setNewReceipt]=useState({amount:'',mode:'cash',date:todayStr(),notes:''})
+  const [newReceipt,setNewReceipt]=useState({cash:'',upi:'',card:'',date:todayStr(),notes:''})
+  const [editReceiptId,setEditReceiptId]=useState(null)
   const [dischargeText,setDischargeText]=useState('')
   const [advance,setAdvance]=useState('')
   const [discount,setDiscount]=useState('')
@@ -4716,15 +4717,42 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
   }
 
   const addReceipt=async()=>{
-    if(!newReceipt.amount||parseFloat(newReceipt.amount)<=0){alert('Enter amount');return}
+    const cash=parseFloat(newReceipt.cash)||0, upi=parseFloat(newReceipt.upi)||0, card=parseFloat(newReceipt.card)||0
+    const total=cash+upi+card
+    if(total<=0){alert('Enter at least one payment amount');return}
     setSavingReceipt(true)
-    const rNo='RCP-'+Date.now().toString().slice(-6)
-    const rec={hospital_id:hospId,patient_id:p.id,receipt_no:rNo,receipt_date:newReceipt.date,amount:parseFloat(newReceipt.amount),mode:newReceipt.mode,notes:newReceipt.notes}
-    const {data,error}=await supabase.from('ip_receipts').insert(rec).select().single()
-    if(error){alert('Failed: '+error.message);setSavingReceipt(false);return}
-    setReceipts(prev=>[data,...prev])
-    setNewReceipt({amount:'',mode:'cash',date:todayStr(),notes:''})
+    // Build a readable mode + split breakdown stored in notes
+    const parts=[]; if(cash>0)parts.push('Cash '+fmt(cash)); if(upi>0)parts.push('UPI '+fmt(upi)); if(card>0)parts.push('Card '+fmt(card))
+    const splitStr=parts.join(' + ')
+    const modeStr=parts.length>1?'split':(cash>0?'cash':upi>0?'upi':'card')
+    const split={cash,upi,card}
+    if(editReceiptId){
+      const upd={receipt_date:newReceipt.date,amount:total,mode:modeStr,notes:newReceipt.notes,split,split_str:splitStr}
+      const {data,error}=await supabase.from('ip_receipts').update(upd).eq('id',editReceiptId).select().single()
+      if(error){alert('Update failed: '+error.message);setSavingReceipt(false);return}
+      setReceipts(prev=>prev.map(r=>r.id===editReceiptId?data:r))
+      setEditReceiptId(null)
+    } else {
+      const rNo='RCP-'+Date.now().toString().slice(-6)
+      const rec={hospital_id:hospId,patient_id:p.id,receipt_no:rNo,receipt_date:newReceipt.date,amount:total,mode:modeStr,notes:newReceipt.notes,split,split_str:splitStr}
+      const {data,error}=await supabase.from('ip_receipts').insert(rec).select().single()
+      if(error){alert('Failed: '+error.message);setSavingReceipt(false);return}
+      setReceipts(prev=>[data,...prev])
+    }
+    setNewReceipt({cash:'',upi:'',card:'',date:todayStr(),notes:''})
     setSavingReceipt(false)
+  }
+  const startEditReceipt=(r)=>{
+    const sp=r.split||{}
+    setNewReceipt({cash:sp.cash?String(sp.cash):(r.mode==='cash'?String(r.amount):''),upi:sp.upi?String(sp.upi):(r.mode==='upi'?String(r.amount):''),card:sp.card?String(sp.card):(r.mode==='card'?String(r.amount):''),date:r.receipt_date,notes:r.notes||''})
+    setEditReceiptId(r.id)
+    if(typeof window!=='undefined')window.scrollTo({top:0,behavior:'smooth'})
+  }
+  const deleteReceipt=async(id)=>{
+    if(!window.confirm('Delete this receipt?'))return
+    const {error}=await supabase.from('ip_receipts').delete().eq('id',id)
+    if(error){alert('Delete failed: '+error.message);return}
+    setReceipts(prev=>prev.filter(r=>r.id!==id))
   }
 
   // Totals
@@ -4903,13 +4931,16 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
         <div style={{textAlign:'right'}}>
           <div><span className="meta-label">Receipt No</span><br/><b>{r.receipt_no||'—'}</b></div>
           <div style={{marginTop:4}}><span className="meta-label">Date</span><br/>{fmtD(r.receipt_date)}</div>
-          <div style={{marginTop:4}}><span className="meta-label">Mode</span><br/><b>{(r.mode||'cash').toUpperCase()}</b></div>
+          <div style={{marginTop:4}}><span className="meta-label">Mode</span><br/><b>{r.split_str||(r.mode||'cash').toUpperCase()}</b></div>
         </div>
       </div>
       <table style={{marginBottom:8}}>
         <thead><tr><th>Description</th><th style={{textAlign:'right',width:'30%'}}>Amount</th></tr></thead>
         <tbody>
           <tr><td>Payment received towards in-patient charges{r.notes?' — '+r.notes:''}</td><td style={{textAlign:'right'}}>{fmt(r.amount)}</td></tr>
+          {r.split&&(r.split.cash>0)&&<tr><td style={{paddingLeft:20,fontSize:'8.5pt',color:'#475569'}}>· By Cash</td><td style={{textAlign:'right',fontSize:'8.5pt',color:'#475569'}}>{fmt(r.split.cash)}</td></tr>}
+          {r.split&&(r.split.upi>0)&&<tr><td style={{paddingLeft:20,fontSize:'8.5pt',color:'#475569'}}>· By UPI / PhonePe</td><td style={{textAlign:'right',fontSize:'8.5pt',color:'#475569'}}>{fmt(r.split.upi)}</td></tr>}
+          {r.split&&(r.split.card>0)&&<tr><td style={{paddingLeft:20,fontSize:'8.5pt',color:'#475569'}}>· By Card</td><td style={{textAlign:'right',fontSize:'8.5pt',color:'#475569'}}>{fmt(r.split.card)}</td></tr>}
           <tr className="grand-total"><td style={{textAlign:'right'}}>Total Received</td><td style={{textAlign:'right'}}>{fmt(r.amount)}</td></tr>
         </tbody>
       </table>
@@ -5308,29 +5339,35 @@ const IPBillingModule=({p,db,onClose,hospital})=>{
       {view==='receipts'&&<>
         <div style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:'14px',marginBottom:12}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-            <div style={{fontSize:13,fontWeight:700}}>Generate receipt</div>
+            <div style={{fontSize:13,fontWeight:700}}>{editReceiptId?'✏️ Edit receipt':'Generate receipt'}</div>
             <button onClick={()=>setNewReceipt({...newReceipt,notes:'Advance payment'})} style={{fontSize:11,padding:'4px 10px',background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:8,color:'#92400e',cursor:'pointer',fontWeight:600}}>+ Mark as Advance</button>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            <FInp label="Amount (Rs)" type="number" value={newReceipt.amount} onChange={e=>setNewReceipt({...newReceipt,amount:e.target.value})} placeholder="0"/>
-            <FInp label="Date" type="date" value={newReceipt.date} onChange={e=>setNewReceipt({...newReceipt,date:e.target.value})}/>
+          <div style={{fontSize:11,color:'#64748b',marginBottom:6}}>Enter amount by payment type — fill more than one for a split payment (e.g. Cash 30,000 + PhonePe 40,000).</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+            <FInp label="💵 Cash" type="number" value={newReceipt.cash} onChange={e=>setNewReceipt({...newReceipt,cash:e.target.value})} placeholder="0"/>
+            <FInp label="📱 UPI/PhonePe" type="number" value={newReceipt.upi} onChange={e=>setNewReceipt({...newReceipt,upi:e.target.value})} placeholder="0"/>
+            <FInp label="💳 Card" type="number" value={newReceipt.card} onChange={e=>setNewReceipt({...newReceipt,card:e.target.value})} placeholder="0"/>
           </div>
-          <FSel label="Payment mode" value={newReceipt.mode} onChange={e=>setNewReceipt({...newReceipt,mode:e.target.value})}>
-            {PMODES.map(m=><option key={m} value={m}>{m==='credit'?'⏳ Credit':m==='written_off'?'✂️ Written Off':m==='discount'?'🎟️ Discount':m[0].toUpperCase()+m.slice(1)}</option>)}
-          </FSel>
+          {(()=>{const t=(parseFloat(newReceipt.cash)||0)+(parseFloat(newReceipt.upi)||0)+(parseFloat(newReceipt.card)||0);return t>0?<div style={{background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,padding:'8px 12px',margin:'4px 0 8px',fontSize:13,fontWeight:700,color:'#15803d',display:'flex',justifyContent:'space-between'}}><span>Receipt total</span><span>{fmt(t)}</span></div>:null})()}
+          <FInp label="Date" type="date" value={newReceipt.date} onChange={e=>setNewReceipt({...newReceipt,date:e.target.value})}/>
           <FInp label="Notes (optional)" type="text" value={newReceipt.notes} onChange={e=>setNewReceipt({...newReceipt,notes:e.target.value})} placeholder="e.g. Advance, Partial payment, Final"/>
-          <GBtn onClick={addReceipt} disabled={savingReceipt}>{savingReceipt?'Saving...':'Generate Receipt'}</GBtn>
+          <div style={{display:'flex',gap:8}}>
+            {editReceiptId&&<button onClick={()=>{setEditReceiptId(null);setNewReceipt({cash:'',upi:'',card:'',date:todayStr(),notes:''})}} style={{flex:1,padding:'11px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer'}}>Cancel edit</button>}
+            <GBtn onClick={addReceipt} disabled={savingReceipt} style={{flex:2}}>{savingReceipt?'Saving...':editReceiptId?'Update receipt':'Generate Receipt'}</GBtn>
+          </div>
         </div>
         {loadingReceipts&&<div style={{textAlign:'center',padding:'20px',color:'#aaa'}}>Loading...</div>}
         {!loadingReceipts&&receipts.length===0&&<div style={{textAlign:'center',padding:'30px',color:'#ccc',fontSize:13}}>No receipts yet</div>}
         {receipts.map(r=>(<div key={r.id} style={{background:'#fff',border:'1px solid #f0f0f0',borderRadius:12,padding:'12px',marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
             <div style={{fontSize:13,fontWeight:700}}>{r.receipt_no}</div>
-            <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(r.receipt_date)} — {(r.mode||'cash')[0].toUpperCase()+(r.mode||'cash').slice(1)}{r.notes?' — '+r.notes:''}</div>
+            <div style={{fontSize:11,color:'#94a3b8'}}>{fmtD(r.receipt_date)} — {r.split_str||((r.mode||'cash')[0].toUpperCase()+(r.mode||'cash').slice(1))}{r.notes?' — '+r.notes:''}</div>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
             <div style={{fontSize:15,fontWeight:800,color:'#16a34a'}}>{fmt(r.amount)}</div>
+            <button onClick={()=>startEditReceipt(r)} style={{padding:'5px 10px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:8,fontSize:11,color:'#92400e',cursor:'pointer',fontWeight:700}}>Edit</button>
             <button onClick={()=>{setPrintReceipt(r);setPrintMode(true)}} style={{padding:'5px 10px',background:'#f0f9ff',border:'1px solid #bfdbfe',borderRadius:8,fontSize:11,color:'#1d4ed8',cursor:'pointer',fontWeight:700}}>Print</button>
+            <button onClick={()=>deleteReceipt(r.id)} style={{padding:'5px 10px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,fontSize:11,color:'#dc2626',cursor:'pointer',fontWeight:700}}>Delete</button>
           </div>
         </div>))}
         {receipts.length>0&&<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:'10px 14px',display:'flex',justifyContent:'space-between',fontWeight:700,fontSize:14}}>
